@@ -16,9 +16,11 @@ void AlarmEngine::setOfflineTimeoutMs(int ms) {
 void AlarmEngine::updateDevice(const QString &id, bool present) {
     if (present) {
         lastSeen_[id] = clock_.elapsed();
-        if (alarmActive_.value(id, false)) {
-            alarmActive_[id] = false;
-            emit alarmCleared(id);
+        // 设备恢复在线：清除对应离线告警
+        const QString offId = id + ":offline";
+        if (alarmActive_.value(offId, false)) {
+            alarmActive_[offId] = false;
+            emit alarmCleared(offId);
         }
     } else {
         // 设备从帧中消失：记录当前，交由超时判定触发离线告警
@@ -35,16 +37,24 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     updateDevice("dcdc", data.dcdc.has_value());
 
     // 设备告警位检查
-    if (data.bms && data.bms->alarm != 0) {
+    if (data.bms) {
         const QString id = "bms:alarm";
-        if (!alarmActive_.value(id, false)) {
-            alarmActive_[id] = true;
-            AlarmEvent e;
-            e.id = id;
-            e.level = data.bms->alarm >= 2 ? AlarmEvent::Critical : AlarmEvent::Warn;
-            e.kind = AlarmEvent::DeviceAlarm;
-            e.message = QString("BMS 告警级别 %1").arg(data.bms->alarm);
-            emit alarmTriggered(e);
+        if (data.bms->alarm != 0) {
+            if (!alarmActive_.value(id, false)) {
+                alarmActive_[id] = true;
+                AlarmEvent e;
+                e.id = id;
+                e.level = data.bms->alarm >= 2 ? AlarmEvent::Critical : AlarmEvent::Warn;
+                e.kind = AlarmEvent::DeviceAlarm;
+                e.message = QString("BMS 告警级别 %1").arg(data.bms->alarm);
+                emit alarmTriggered(e);
+            }
+        } else {
+            // 告警位归零：清除 BMS 告警
+            if (alarmActive_.value(id, false)) {
+                alarmActive_[id] = false;
+                emit alarmCleared(id);
+            }
         }
     }
 
