@@ -1,9 +1,12 @@
 #include <QApplication>
-#include <QMessageBox>
+#include "ui/main_window.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    QMessageBox::information(nullptr, "地面站",
-                             "灵云01号飞艇地面站（脚手架阶段）");
+    QCoreApplication::setOrganizationName("LingYun");
+    QCoreApplication::setApplicationName("GroundStation");
+
+    lgs::MainWindow w;
+    w.show();
     return app.exec();
 }
