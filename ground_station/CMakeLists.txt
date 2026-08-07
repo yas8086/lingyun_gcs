@@ -11,6 +11,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets PrintSupport)
 
 add_executable(lingyun_ground_station
     src/main.cpp
+    src/model/telemetry_data.cpp
     third_party/qcustomplot/qcustomplot.cpp
 )
 
