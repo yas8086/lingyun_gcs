@@ -4,6 +4,9 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPen>
+#include <QVector>
+#include <limits>
 
 namespace lgs {
 
@@ -25,7 +28,6 @@ ChartWidget::ChartWidget(QWidget *parent) : QWidget(parent) {
     plot_->graph(0)->setPen(QPen(Qt::blue));
     plot_->xAxis->setLabel("采样点");
     plot_->yAxis->setLabel(paramNames_.first());
-    plot_->rescaleAxes();
     lay->addWidget(plot_);
 
     x_.resize(paramNames_.size());
@@ -36,27 +38,28 @@ ChartWidget::ChartWidget(QWidget *parent) : QWidget(parent) {
 }
 
 double ChartWidget::valueOf(int idx, const lgs::TelemetryData &d) const {
+    // 设备离线（optional 为空）时返回 NaN，使曲线在该处断线而非误绘为 0
+    const double nan = std::numeric_limits<double>::quiet_NaN();
     switch (idx) {
-    case 0: return d.bms ? d.bms->soc : 0.0;
-    case 1: return d.bms ? d.bms->pack_v : 0.0;
-    case 2: return d.mppt ? d.mppt->pv_p : 0.0;
-    case 3: return d.dcdc ? d.dcdc->out_p : 0.0;
-    case 4: return d.dcdc ? d.dcdc->temp : 0.0;
-    default: return 0.0;
+    case 0: return d.bms ? static_cast<double>(d.bms->soc) : nan;
+    case 1: return d.bms ? d.bms->pack_v : nan;
+    case 2: return d.mppt ? d.mppt->pv_p : nan;
+    case 3: return d.dcdc ? d.dcdc->out_p : nan;
+    case 4: return d.dcdc ? d.dcdc->temp : nan;
+    default: return nan;
     }
 }
 
 void ChartWidget::onTelemetry(const lgs::TelemetryData &data) {
-    static int counter = 0;
     for (int i = 0; i < paramNames_.size(); ++i) {
-        x_[i].append(counter);
+        x_[i].append(sample_);
         y_[i].append(valueOf(i, data));
         if (x_[i].size() > window_)
             x_[i].remove(0, x_[i].size() - window_);
         if (y_[i].size() > window_)
             y_[i].remove(0, y_[i].size() - window_);
     }
-    counter++;
+    sample_++;
     refresh();
 }
 

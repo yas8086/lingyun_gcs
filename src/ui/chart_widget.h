@@ -26,6 +26,7 @@ private:
     QVector<QVector<double>> x_;
     QVector<QVector<double>> y_;
     int window_ = 600; // 保留最近 600 点
+    int sample_ = 0;   // 采样点计数（每实例独立）
 };
 
 } // namespace lgs
