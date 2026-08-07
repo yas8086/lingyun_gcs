@@ -20,6 +20,7 @@ add_executable(lingyun_ground_station
     src/core/recorder.cpp
     src/core/replay_engine.cpp
     src/core/config_manager.cpp
+    src/ui/chart_widget.cpp
     src/ui/status_bar.cpp
     src/ui/device_panel.cpp
     third_party/qcustomplot/qcustomplot.cpp
