@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets PrintSupport)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets PrintSupport Test)
 
 add_executable(lingyun_ground_station
     src/main.cpp
@@ -23,3 +23,9 @@ target_include_directories(lingyun_ground_station PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcustomplot
 )
+
+include(CTest)
+
+if(BUILD_TESTING)
+    include(tests/tests.cmake)
+endif()
