@@ -25,6 +25,7 @@ add_executable(lingyun_ground_station
     src/ui/alarm_panel.cpp
     src/ui/replay_panel.cpp
     src/ui/serial_config_dialog.cpp
+    src/ui/main_window.cpp
     src/ui/status_bar.cpp
     src/ui/device_panel.cpp
     third_party/qcustomplot/qcustomplot.cpp
