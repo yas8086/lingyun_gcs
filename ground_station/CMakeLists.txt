@@ -7,16 +7,19 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets PrintSupport Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets PrintSupport SerialPort Test)
 
 add_executable(lingyun_ground_station
     src/main.cpp
     src/model/telemetry_data.cpp
+    src/comms/frame_parser.cpp
+    src/comms/json_decoder.cpp
+    src/comms/serial_manager.cpp
     third_party/qcustomplot/qcustomplot.cpp
 )
 
 target_link_libraries(lingyun_ground_station PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::SerialPort
 )
 
 target_include_directories(lingyun_ground_station PRIVATE
