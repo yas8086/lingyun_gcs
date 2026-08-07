@@ -10,3 +10,4 @@ function(add_qt_test name)
 endfunction()
 
 add_qt_test(test_frame_parser tests/test_frame_parser.cpp src/comms/frame_parser.cpp)
+add_qt_test(test_json_decoder tests/test_json_decoder.cpp src/comms/json_decoder.cpp src/model/telemetry_data.cpp)
