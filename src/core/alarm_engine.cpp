@@ -7,6 +7,10 @@ AlarmEngine::AlarmEngine(QObject *parent) : QObject(parent) {
         clock_.start();
         clockStarted_ = true;
     }
+    // 独立定时巡检，保证链路整段断连（onTelemetry 不再被调用）时仍能触发离线告警
+    timer_.setInterval(500);
+    connect(&timer_, &QTimer::timeout, this, &AlarmEngine::scanOffline);
+    timer_.start();
 }
 
 void AlarmEngine::setOfflineTimeoutMs(int ms) {
@@ -29,8 +33,6 @@ void AlarmEngine::updateDevice(const QString &id, bool present) {
 }
 
 void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
-    const qint64 now = clock_.elapsed();
-
     // 更新每个设备最近一次出现时间
     updateDevice("bms", data.bms.has_value());
     updateDevice("mppt", data.mppt.has_value());
@@ -57,8 +59,11 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
             }
         }
     }
+}
 
-    // 超时离线检查
+void AlarmEngine::scanOffline() {
+    // 设备超时离线检测；由独立定时器周期触发，链路断连时也能工作
+    const qint64 now = clock_.elapsed();
     const QStringList ids = {"bms", "mppt", "dcdc"};
     for (const auto &id : ids) {
         if (lastSeen_.contains(id) && now - lastSeen_[id] >= offlineTimeoutMs_) {

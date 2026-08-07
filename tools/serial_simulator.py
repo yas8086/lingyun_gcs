@@ -43,8 +43,11 @@ def main():
             ser.write(frame)
             soc = (soc + 1) % 101
             t += 1.0 / hz
-            time.sleep(1.0 / hz)
+            # 按绝对时间点对齐，避免固定 sleep 累积漂移
+            time.sleep(max(0.0, t - time.time()))
     except KeyboardInterrupt:
+        pass
+    finally:
         ser.close()
 
 

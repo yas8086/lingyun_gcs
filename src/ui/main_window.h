@@ -30,8 +30,6 @@ public:
 private slots:
     void onConfigSerial();
     void onTelemetry(const lgs::TelemetryData &data);
-    void onAlarm(const lgs::AlarmEvent &e);
-    void onAlarmCleared(const QString &id);
     void onClockTick();
     void onStartRecording();
     void onStopRecording();

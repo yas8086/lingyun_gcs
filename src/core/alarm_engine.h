@@ -3,6 +3,7 @@
 #include <QString>
 #include <QElapsedTimer>
 #include <QMap>
+#include <QTimer>
 #include "model/telemetry_data.h"
 
 namespace lgs {
@@ -30,10 +31,12 @@ signals:
 
 private:
     void updateDevice(const QString &id, bool present);
+    void scanOffline(); // 定时巡检设备超时离线（链路断连时仍能触发）
 
     int offlineTimeoutMs_ = 3000;
     QElapsedTimer clock_;
     bool clockStarted_ = false;
+    QTimer timer_;
     QMap<QString, qint64> lastSeen_; // device id -> ms
     QMap<QString, bool> alarmActive_; // id -> active
 };

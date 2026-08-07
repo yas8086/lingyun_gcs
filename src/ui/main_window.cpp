@@ -42,6 +42,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 MainWindow::~MainWindow() {
     config_->saveWindowGeometry(saveGeometry());
+    delete config_; // ConfigManager 非 QObject，需手动释放
     recorder_->stop();
 }
 
@@ -95,6 +96,8 @@ void MainWindow::wire() {
     connect(bus_, &DataBus::telemetryReady, alarm_, &AlarmEngine::onTelemetry);
     connect(bus_, &DataBus::telemetryReady, recorder_, &Recorder::onTelemetry);
     connect(bus_, &DataBus::telemetryReady, chart_, &ChartWidget::onTelemetry);
+    connect(recorder_, &Recorder::errorOccurred, this,
+            [this](const QString &m) { logPanel_->append("记录错误: " + m); });
 
     connect(alarm_, &AlarmEngine::alarmTriggered, alarmPanel_, &AlarmPanel::onAlarm);
     connect(alarm_, &AlarmEngine::alarmTriggered, this,
@@ -125,14 +128,10 @@ void MainWindow::onConfigSerial() {
 
 void MainWindow::onTelemetry(const lgs::TelemetryData &data) {
     bus_->publish(data);
-}
-
-void MainWindow::onAlarm(const lgs::AlarmEvent &e) {
-    Q_UNUSED(e);
-}
-
-void MainWindow::onAlarmCleared(const QString &id) {
-    Q_UNUSED(id);
+    // 同步顶部状态栏三设备在线灯
+    statusBar_->updateDevice(StatusBar::Bms, data.bms.has_value());
+    statusBar_->updateDevice(StatusBar::Mppt, data.mppt.has_value());
+    statusBar_->updateDevice(StatusBar::Dcdc, data.dcdc.has_value());
 }
 
 void MainWindow::onClockTick() {
