@@ -18,6 +18,7 @@ add_executable(lingyun_ground_station
     src/core/data_bus.cpp
     src/core/alarm_engine.cpp
     src/core/recorder.cpp
+    src/core/replay_engine.cpp
     src/ui/status_bar.cpp
     src/ui/device_panel.cpp
     third_party/qcustomplot/qcustomplot.cpp
