@@ -16,6 +16,8 @@ add_executable(lingyun_ground_station
     src/comms/json_decoder.cpp
     src/comms/serial_manager.cpp
     src/core/data_bus.cpp
+    src/ui/status_bar.cpp
+    src/ui/device_panel.cpp
     third_party/qcustomplot/qcustomplot.cpp
 )
 
