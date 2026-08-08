@@ -644,7 +644,7 @@
 </select>
 <input type="number" id="bandVal" value="45" title="阈值参考值" style="width:64px;border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:9px;padding:6px 8px;font-size:13px">
 <button class="ctl-btn" id="bandOn">阈值线：关</button>
-<button class="ctl-btn" id="exportBtn" title="导出当前数据为 CSV">导出 CSV</button><button class="ctl-btn" id="pauseBtn">⏸ 暂停</button><button class="ctl-btn" id="clearBtn">清屏</button></span></div>
+<button class="ctl-btn" id="exportBtn" title="导出当前数据为 CSV">导出 CSV</button><button class="ctl-btn" id="snapBtn" title="导出当前状态快照">导出快照</button><button class="ctl-btn" id="reportBtn" title="导出汇总报告">导出报告</button><button class="ctl-btn" id="pauseBtn">⏸ 暂停</button><button class="ctl-btn" id="clearBtn">清屏</button></span></div>
               <div class="chart-legend" id="chartLegend">
                 <span class="lg" data-k="v"><i style="background:#2563eb"></i>总压 <b class="lgv">367V</b></span>
                 <span class="lg" data-k="pv"><i style="background:#16a34a"></i>光伏功率 <b class="lgv">600W</b></span>
@@ -1780,6 +1780,30 @@ $('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value
 $('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';};
 /* 曲线导出 CSV（仅导出开启中的系列） */
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
+/* 状态快照导出（JSON） */
+function exportSnapshot(){
+  const snap={at:new Date().toISOString(),
+    bms:{soc:$('bms-soc').childNodes[0].nodeValue,pack_v:$('bms-pack_v').childNodes[0].nodeValue,max_t:$('bms-max_t').childNodes[0].nodeValue},
+    mppt:{pv_p:$('mppt-pv_p').childNodes[0].nodeValue,pv_v:$('mppt-pv_v').childNodes[0].nodeValue},
+    dcdc:{out_p:$('dcdc-out_p').childNodes[0].nodeValue,temp:$('dcdc-temp').childNodes[0].nodeValue},
+    alarms:alarms.slice(0,20)};
+  download('lingyun-gcs-snapshot-'+Date.now()+'.json',JSON.stringify(snap,null,2),'application/json');
+  addLog('ok','状态快照已导出');
+}
+/* 汇总报表导出（CSV） */
+function exportReport(){
+  const rows=[['指标','最新值']];
+  rows.push(['SOC',($('bms-soc').childNodes[0].nodeValue)+'%']);
+  rows.push(['总压',$('bms-pack_v').childNodes[0].nodeValue+'V']);
+  rows.push(['光伏功率',$('mppt-pv_p').childNodes[0].nodeValue+'W']);
+  rows.push(['输出功率',$('dcdc-out_p').childNodes[0].nodeValue+'W']);
+  rows.push(['散热温度',$('dcdc-temp').childNodes[0].nodeValue+'℃']);
+  rows.push(['未确认告警',alarms.filter(a=>!a.acked).length]);
+  download('lingyun-gcs-report-'+Date.now()+'.csv','\uFEFF'+rows.map(r=>r.join(',')).join('\n'),'text/csv');
+  addLog('ok','报告已导出');
+}
+$('snapBtn').onclick=()=>exportSnapshot();
+$('reportBtn').onclick=()=>exportReport();
 syncSetSels();
 
 /* ===== 状态栏微件可配置 ===== */
