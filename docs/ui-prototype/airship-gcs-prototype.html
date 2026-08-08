@@ -636,7 +636,14 @@
           <div class="drag-handle" id="dragHandle"><span></span></div>
           <div class="mb-row">
             <div class="chart-panel">
-              <div class="chart-head"><span class="t">实时曲线</span><span style="font-size:11px;color:var(--text-2)">点击图例可开关参数</span><span style="margin-left:auto;display:flex;gap:6px"><button class="ctl-btn" id="exportBtn" title="导出当前数据为 CSV">导出 CSV</button><button class="ctl-btn" id="pauseBtn">⏸ 暂停</button><button class="ctl-btn" id="clearBtn">清屏</button></span></div>
+              <div class="chart-head"><span class="t">实时曲线</span><span style="font-size:11px;color:var(--text-2)">点击图例可开关参数</span><span style="margin-left:auto;display:flex;gap:6px;align-items:center"><select id="chartWin" title="时间窗" style="border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:9px;padding:6px 8px;font-size:13px">
+  <option value="100">最近 20s</option>
+  <option value="50">最近 10s</option>
+  <option value="25">最近 5s</option>
+</select>
+<input type="number" id="bandVal" value="45" title="阈值参考值" style="width:64px;border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:9px;padding:6px 8px;font-size:13px">
+<button class="ctl-btn" id="bandOn">阈值线：关</button>
+<button class="ctl-btn" id="exportBtn" title="导出当前数据为 CSV">导出 CSV</button><button class="ctl-btn" id="pauseBtn">⏸ 暂停</button><button class="ctl-btn" id="clearBtn">清屏</button></span></div>
               <div class="chart-legend" id="chartLegend">
                 <span class="lg" data-k="v"><i style="background:#2563eb"></i>总压 <b class="lgv">367V</b></span>
                 <span class="lg" data-k="pv"><i style="background:#16a34a"></i>光伏功率 <b class="lgv">600W</b></span>
@@ -1126,6 +1133,11 @@ document.addEventListener('click',e=>{if(!e.target.closest('#readinessBtn')&&!e.
 
 /* ===== 曲线 ===== */
 const series={v:{c:'#2563eb',data:Array(100).fill(367),on:true},pv:{c:'#16a34a',data:Array(100).fill(600),on:true},outp:{c:'#f59e0b',data:Array(100).fill(250),on:true},i:{c:'#06b6d4',data:Array(100).fill(0),on:false}};
+const limitBands={v:{min:null,max:null},pv:{min:null,max:null},outp:{min:null,max:null},i:{min:null,max:null}};
+let bandOn=false;
+$('chartWin').onchange=()=>draw();
+$('bandVal').oninput=()=>draw();
+$('bandOn').onclick=()=>{bandOn=!bandOn;$('bandOn').textContent=bandOn?'阈值线：开':'阈值线：关';draw();};
 let recording=true,recData=[];
 const REC_KEY='gcs_rec';
 function recordFrame(){
@@ -1150,22 +1162,35 @@ function size(){const d=window.devicePixelRatio||1;cv.width=cv.offsetWidth*d;cv.
 window.addEventListener('resize',()=>{size();draw();});
 function hexA(c,a){c=c.replace('#','');const n=parseInt(c,16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';}
 function smoothPath(pts){const n=pts.length;let d='M'+pts[0].x.toFixed(1)+','+pts[0].y.toFixed(1);for(let i=0;i<n-1;i++){const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(n-1,i+2)];d+='C'+((p1.x+(p2.x-p0.x)/6).toFixed(1))+','+((p1.y+(p2.y-p0.y)/6).toFixed(1))+' '+((p2.x-(p3.x-p1.x)/6).toFixed(1))+','+((p2.y-(p3.y-p1.y)/6).toFixed(1))+' '+p2.x.toFixed(1)+','+p2.y.toFixed(1);}return d;}
-function draw(){const w=cv.offsetWidth,h=cv.offsetHeight,padL=8,padR=12,padT=26,padB=24;if(!w||!h)return;const cs=getComputedStyle(document.documentElement),line=cs.getPropertyValue('--line'),t2=cs.getPropertyValue('--text-2'),card=cs.getPropertyValue('--card');ctx.clearRect(0,0,w,h);const cw=w-padL-padR,ch=h-padT-padB;
+function draw(){const w=cv.offsetWidth,h=cv.offsetHeight,padL=8,padR=12,padT=26,padB=24;if(!w||!h)return;const winWin=Number($('chartWin').value)||100;const cs=getComputedStyle(document.documentElement),line=cs.getPropertyValue('--line'),t2=cs.getPropertyValue('--text-2'),card=cs.getPropertyValue('--card');ctx.clearRect(0,0,w,h);const cw=w-padL-padR,ch=h-padT-padB;
   /* 虚线网格 */
   ctx.font='10px sans-serif';ctx.fillStyle=t2;
   for(let i=0;i<=3;i++){const y=padT+ch*i/3;ctx.strokeStyle=line;ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();ctx.setLineDash([]);}
-  /* 底部时间刻度 */
-  ctx.textAlign='center';['20s','15s','10s','5s','现在'].forEach((t,ti)=>ctx.fillText(t,padL+cw*ti/4,h-7));ctx.textAlign='left';
+  /* 底部时间刻度（与时间窗联动，保持 4 段） */
+  ctx.textAlign='center';{const tot=winWin/5;Array.from({length:5},(_,i)=>tot*(4-i)/4).forEach((sec,ti)=>ctx.fillText((Number.isInteger(sec)?sec:sec.toFixed(1))+'s',padL+cw*ti/4,h-7));}ctx.textAlign='left';
   /* 标题 */
-  ctx.font='11px sans-serif';ctx.fillText('最近 20s · 5Hz',padL,15);
+  ctx.font='11px sans-serif';ctx.fillText('最近 '+(winWin/5)+'s · 5Hz',padL,15);
   /* 系列 */
-  Object.keys(series).forEach(k=>{const s=series[k];if(!s.on||s.data.length<2)return;const mn=Math.min(...s.data),mx=Math.max(...s.data),rng=(mx-mn)||1;const pts=s.data.map((v,i)=>({x:padL+cw*i/(s.data.length-1),y:padT+ch-(ch*(v-mn)/rng)}));
+  Object.keys(series).forEach(k=>{const s=series[k];const sdata=s.data.slice(-winWin);if(!s.on||sdata.length<2)return;const mn=Math.min(...sdata),mx=Math.max(...sdata),rng=(mx-mn)||1;const pts=sdata.map((v,i)=>({x:padL+cw*i/(sdata.length-1),y:padT+ch-(ch*(v-mn)/rng)}));
     /* 渐变面积填充 */
     const g=ctx.createLinearGradient(0,padT,0,padT+ch);g.addColorStop(0,s.c);g.addColorStop(1,hexA(s.c,0));ctx.beginPath();ctx.moveTo(pts[0].x,padT+ch);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.lineTo(pts[pts.length-1].x,padT+ch);ctx.closePath();ctx.fillStyle=g;ctx.globalAlpha=.16;ctx.fill();ctx.globalAlpha=1;
     /* 平滑主线 */
     ctx.strokeStyle=s.c;ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();ctx.stroke(new Path2D(smoothPath(pts)));
     /* 最新端点圆点 */
     const lp=pts[pts.length-1];ctx.beginPath();ctx.arc(lp.x,lp.y,3.2,0,6.283);ctx.fillStyle=s.c;ctx.fill();ctx.beginPath();ctx.arc(lp.x,lp.y,3.2,0,6.283);ctx.strokeStyle=card;ctx.lineWidth=2;ctx.stroke();
+    /* 阈值参考线 + 色带（按本系列 mn/rng 映射，超出范围不画） */
+    if(bandOn){
+      const bv=Number($('bandVal').value)||0;
+      if(bv>=mn&&bv<=mx){
+        const yb=padT+ch-(ch*(bv-mn)/rng);
+        ctx.strokeStyle=hexA(s.c,0.55);ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+        ctx.beginPath();ctx.moveTo(padL,yb);ctx.lineTo(padL+cw,yb);ctx.stroke();ctx.setLineDash([]);
+        /* 半透明色带（阈值以下区域） */
+        ctx.fillStyle=hexA(s.c,0.06);ctx.fillRect(padL,yb,padL+cw-padL,padT+ch-yb);
+        ctx.fillStyle=t2;ctx.font='10px sans-serif';ctx.textAlign='right';
+        ctx.fillText('阈 '+bv,padL+cw-2,yb-4);ctx.textAlign='left';
+      }
+    }
   });}
 
 /* BMS SOC 环形 */
