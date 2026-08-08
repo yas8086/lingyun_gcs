@@ -1101,7 +1101,7 @@ $('dangerBtn').onclick=()=>{
 };
 
 /* ===== 自检 ===== */
-function getVal(dev,fid){const el=$(dev+'-'+fid);return el?parseFloat(el.childNodes[0].nodeValue):NaN;}
+function getVal(dev,fid){const el=$(dev+'-'+fid);if(!el)return NaN;const uv=el.getAttribute('data-uv');return parseFloat(uv!=null?uv:el.childNodes[0].nodeValue);}
 /* ===== 告警规则引擎 ===== */
 const RULES_STORE='gcs_rules';
 const RULE_FIELDS=[['bms','pack_v','总压'],['bms','max_t','最高温度'],['bms','diff_v','单体压差'],['dcdc','temp','散热温度'],['dcdc','out_p','输出功率'],['mppt','charge_i','充电电流']];
@@ -1256,7 +1256,7 @@ function draw(){const w=cv.offsetWidth,h=cv.offsetHeight,padL=8,padR=12,padT=26,
 function ring(soc){const r=30,c=2*Math.PI*r,off=c*(1-soc/100),col=soc>50?'#16a34a':soc>20?'#d97706':'#dc2626';const trk=getComputedStyle(document.documentElement).getPropertyValue('--card-2');$('bms-ring').innerHTML=`<svg width="74" height="74" viewBox="0 0 74 74"><defs><linearGradient id="socg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="${hexA(col,0.5)}"/></linearGradient></defs><circle cx="37" cy="37" r="${r}" fill="none" stroke="${trk}" stroke-width="7"/><circle cx="37" cy="37" r="${r}" fill="none" stroke="url(#socg)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>`;}
 
 /* 电源链路拓扑图更新 */
-function getT(dev,fid){const el=$(dev+'-'+fid);return el?parseFloat(el.childNodes[0].nodeValue):NaN;}
+function getT(dev,fid){const el=$(dev+'-'+fid);if(!el)return NaN;const uv=el.getAttribute('data-uv');return parseFloat(uv!=null?uv:el.childNodes[0].nodeValue);}
 function updateTopo(){
   const pv=Math.round(getT('mppt','pv_p'))||0;
   const pvv=getT('mppt','pv_v')||0;
@@ -1813,22 +1813,24 @@ $('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
 /* 状态快照导出（JSON） */
 function exportSnapshot(){
+  const uv=el=>{const v=el.getAttribute('data-uv');return v!=null?v:el.childNodes[0].nodeValue;};
   const snap={at:new Date().toISOString(),
-    bms:{soc:$('bms-soc').childNodes[0].nodeValue,pack_v:$('bms-pack_v').childNodes[0].nodeValue,max_t:$('bms-max_t').childNodes[0].nodeValue},
-    mppt:{pv_p:$('mppt-pv_p').childNodes[0].nodeValue,pv_v:$('mppt-pv_v').childNodes[0].nodeValue},
-    dcdc:{out_p:$('dcdc-out_p').childNodes[0].nodeValue,temp:$('dcdc-temp').childNodes[0].nodeValue},
+    bms:{soc:$('bms-soc').childNodes[0].nodeValue,pack_v:$('bms-pack_v').childNodes[0].nodeValue,max_t:uv($('bms-max_t'))},
+    mppt:{pv_p:uv($('mppt-pv_p')),pv_v:$('mppt-pv_v').childNodes[0].nodeValue},
+    dcdc:{out_p:uv($('dcdc-out_p')),temp:uv($('dcdc-temp'))},
     alarms:alarms.slice(0,20)};
   download('lingyun-gcs-snapshot-'+Date.now()+'.json',JSON.stringify(snap,null,2),'application/json');
   addLog('ok','状态快照已导出');
 }
 /* 汇总报表导出（CSV） */
 function exportReport(){
+  const uv=el=>{const v=el.getAttribute('data-uv');return v!=null?v:el.childNodes[0].nodeValue;};
   const rows=[['指标','最新值']];
   rows.push(['SOC',($('bms-soc').childNodes[0].nodeValue)+'%']);
   rows.push(['总压',$('bms-pack_v').childNodes[0].nodeValue+'V']);
-  rows.push(['光伏功率',$('mppt-pv_p').childNodes[0].nodeValue+'W']);
-  rows.push(['输出功率',$('dcdc-out_p').childNodes[0].nodeValue+'W']);
-  rows.push(['散热温度',$('dcdc-temp').childNodes[0].nodeValue+'℃']);
+  rows.push(['光伏功率',uv($('mppt-pv_p'))+'W']);
+  rows.push(['输出功率',uv($('dcdc-out_p'))+'W']);
+  rows.push(['散热温度',uv($('dcdc-temp'))+'℃']);
   rows.push(['未确认告警',alarms.filter(a=>!a.acked).length]);
   download('lingyun-gcs-report-'+Date.now()+'.csv','\uFEFF'+rows.map(r=>r.join(',')).join('\n'),'text/csv');
   addLog('ok','报告已导出');
