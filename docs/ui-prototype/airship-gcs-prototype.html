@@ -155,6 +155,12 @@
   .drag-handle span{width:44px;height:3px;border-radius:3px;background:var(--line)}
   .drag-handle:hover span{background:var(--primary)}
   .mb-row{display:flex;flex:1;min-height:0}
+  .tl-wrap{display:flex;align-items:center;gap:10px;padding:6px 16px;border-top:1px solid var(--line);background:var(--card);flex-shrink:0}
+  .tl-label{font-size:11px;color:var(--text-2);font-weight:700;white-space:nowrap}
+  .tl-track{flex:1;height:22px;position:relative;border:1px solid var(--line);border-radius:6px;background:var(--card-2);overflow:hidden}
+  .tl-dot{position:absolute;top:4px;width:10px;height:10px;border-radius:50%;transform:translateX(-50%);cursor:pointer;border:2px solid var(--card)}
+  .tl-dot.err{background:var(--err)} .tl-dot.warn{background:var(--warn)} .tl-dot.info{background:var(--primary)}
+  .tl-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;white-space:nowrap;box-shadow:var(--shadow);pointer-events:none;z-index:5}
   .chart-panel{flex:3;display:flex;flex-direction:column;padding:12px 16px;min-width:0}
   .chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
   .chart-head .t{font-weight:700;font-size:14px}
@@ -670,6 +676,10 @@
                 </div>
               </div>
             </div>
+          </div>
+          <div class="tl-wrap">
+            <div class="tl-label">事件时间轴</div>
+            <div class="tl-track" id="tlBar"></div>
           </div>
         </div>
       </section>
@@ -1584,6 +1594,7 @@ function addAlarm(lv,msg){
   if(alarms.some(a=>a.msg===msg&&isShelved(a)))return; // 屏蔽期间不重复入队
   alarms.unshift({lv,msg,time:now,acked:false,shelveUntil:0});
   if(alarms.length>200)alarms.pop();
+  recordEvent(lv,msg);
   saveAlarms();renderAlarms();updAlarm();$('sb-msg').textContent='⚠ '+msg;
 }
 document.querySelectorAll('.af-btn').forEach(b=>b.onclick=()=>{
@@ -1602,7 +1613,23 @@ renderAlarms();updAlarm();
 function addLog(type,msg){const box=$('log'),d=new Date().toLocaleTimeString('zh-CN',{hour12:false});
   const map={ok:'[OK]',warn:'[WARN]',err:'[ERROR]',info:'[INFO]'};
   const el=document.createElement('div');el.innerHTML=`<span class="l">${d}</span> <span class="${type}">${map[type]}</span> ${msg}`;
-  box.prepend(el);while(box.children.length>200)box.lastChild.remove();if(type==='info'||type==='ok')$('sb-msg').textContent=msg;}
+  box.prepend(el);while(box.children.length>200)box.lastChild.remove();if(type==='info'||type==='ok')$('sb-msg').textContent=msg;recordEvent(type==='err'?'严重':(type==='warn'?'提示':'info'),msg);}
+let tlEvents=[];
+function recordEvent(lv,msg){tlEvents.push({t:Date.now(),lv,msg});if(tlEvents.length>80)tlEvents.shift();renderTimeline();}
+function renderTimeline(){
+  const bar=$('tlBar');if(!bar)return;
+  bar.innerHTML='';
+  if(!tlEvents.length){bar.innerHTML='<span class="tl-tip" style="position:static;transform:none;background:transparent;border:none;box-shadow:none">暂无事件</span>';return;}
+  const w=bar.clientWidth||300;
+  tlEvents.forEach(ev=>{
+    const x=(ev.t-tlEvents[0].t)/((tlEvents[tlEvents.length-1].t-tlEvents[0].t)||1)*w;
+    const d=document.createElement('div');d.className='tl-dot '+(ev.lv==='严重'?'err':ev.lv==='提示'?'warn':'info');
+    d.style.left=Math.max(6,Math.min(w-6,x))+'px';
+    d.onmouseenter=()=>{const tip=document.createElement('div');tip.className='tl-tip';tip.textContent=new Date(ev.t).toLocaleTimeString('zh-CN',{hour12:false})+' '+ev.msg;d.appendChild(tip);};
+    d.onmouseleave=()=>{d.querySelector('.tl-tip')&&d.querySelector('.tl-tip').remove();};
+    bar.appendChild(d);
+  });
+}
 
 /* ===== 设置视图联动 ===== */
 const SET_FIELDS=['setSerial','setBaud','setRate','setBmsTemp','setDiffV','setDcdcTemp','setOffline','setTempUnit','setSocUnit','setPowerUnit','setTheme','setDensity','setSound','setContrast','setAccent'];
