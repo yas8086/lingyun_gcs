@@ -24,6 +24,10 @@ void AlarmPanel::onAlarm(const lgs::AlarmEvent &e) {
     table_->setItem(row, 0, new QTableWidgetItem(QTime::currentTime().toString("HH:mm:ss")));
     table_->setItem(row, 1, new QTableWidgetItem(levelText(e.level)));
     table_->setItem(row, 2, new QTableWidgetItem(e.message));
+    // 限制告警行数，防止长时间运行无限增长（保留最新告警）
+    const int maxRows = 500;
+    while (table_->rowCount() > maxRows)
+        table_->removeRow(0);
 }
 
 void AlarmPanel::onCleared(const QString &id) {

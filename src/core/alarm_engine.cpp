@@ -38,27 +38,33 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     updateDevice("mppt", data.mppt.has_value());
     updateDevice("dcdc", data.dcdc.has_value());
 
-    // 设备告警位检查
-    if (data.bms) {
-        const QString id = "bms:alarm";
-        if (data.bms->alarm != 0) {
+    // 告警位/故障位检查：非 0 触发，归零清除
+    auto checkFault = [this](const QString &id, int fault, const QString &devName) {
+        if (fault != 0) {
             if (!alarmActive_.value(id, false)) {
                 alarmActive_[id] = true;
                 AlarmEvent e;
                 e.id = id;
-                e.level = data.bms->alarm >= 2 ? AlarmEvent::Critical : AlarmEvent::Warn;
+                e.level = fault >= 2 ? AlarmEvent::Critical : AlarmEvent::Warn;
                 e.kind = AlarmEvent::DeviceAlarm;
-                e.message = QString("BMS 告警级别 %1").arg(data.bms->alarm);
+                e.message = QString("%1 告警级别 %2").arg(devName).arg(fault);
                 emit alarmTriggered(e);
             }
         } else {
-            // 告警位归零：清除 BMS 告警
+            // 告警位归零：清除对应告警
             if (alarmActive_.value(id, false)) {
                 alarmActive_[id] = false;
                 emit alarmCleared(id);
             }
         }
-    }
+    };
+
+    if (data.bms)
+        checkFault("bms:alarm", data.bms->alarm, "BMS");
+    if (data.mppt)
+        checkFault("mppt:fault", data.mppt->fault, "MPPT");
+    if (data.dcdc)
+        checkFault("dcdc:fault", data.dcdc->fault, "DCDC");
 }
 
 void AlarmEngine::scanOffline() {

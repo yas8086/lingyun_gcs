@@ -132,6 +132,10 @@ void ReplayEngine::setSpeed(double x) {
     speed_ = x > 0.0 ? x : 1.0;
 }
 
+bool ReplayEngine::isLoaded() const {
+    return !frames_.isEmpty();
+}
+
 void ReplayEngine::tick() {
     // 已按速度缩放的逻辑播放时长（ms）
     const qint64 logicMs = static_cast<qint64>(elapsed_.elapsed() * speed_);

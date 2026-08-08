@@ -54,6 +54,7 @@ private:
     ReplayPanel *replayPanel_ = nullptr;
     QTabWidget *tabs_ = nullptr;
     QTimer *clockTimer_ = nullptr;
+    bool replaying_ = false; // 回放进行中：暂停实时数据分发，避免与回放数据混叠
 };
 
 } // namespace lgs

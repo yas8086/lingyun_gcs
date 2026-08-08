@@ -105,11 +105,33 @@ void MainWindow::wire() {
     connect(alarm_, &AlarmEngine::alarmCleared, alarmPanel_, &AlarmPanel::onCleared);
 
     connect(replayPanel_, &ReplayPanel::fileSelected, this, &MainWindow::onReplayFile);
-    connect(replayPanel_, &ReplayPanel::startReplay, replay_, &ReplayEngine::start);
-    connect(replayPanel_, &ReplayPanel::stopReplay, replay_, &ReplayEngine::stop);
+    connect(replayPanel_, &ReplayPanel::startReplay, this, [this]() {
+        if (!replay_->isLoaded()) {
+            logPanel_->append("回放：尚未加载 CSV 文件");
+            return;
+        }
+        replaying_ = true; // 回放期间暂停实时数据分发，避免混叠
+        logPanel_->append("开始回放");
+        replay_->start();
+    });
+    connect(replayPanel_, &ReplayPanel::stopReplay, this, [this]() {
+        replaying_ = false;
+        logPanel_->append("停止回放");
+        replay_->stop();
+    });
     connect(replayPanel_, &ReplayPanel::speedChanged, replay_, &ReplayEngine::setSpeed);
     connect(replay_, &ReplayEngine::replayed, chart_, &ChartWidget::onTelemetry);
     connect(replay_, &ReplayEngine::replayed, devicePanel_, &DevicePanel::updateData);
+    connect(replay_, &ReplayEngine::replayed, this,
+            [this](const lgs::TelemetryData &d) {
+                statusBar_->updateDevice(StatusBar::Bms, d.bms.has_value());
+                statusBar_->updateDevice(StatusBar::Mppt, d.mppt.has_value());
+                statusBar_->updateDevice(StatusBar::Dcdc, d.dcdc.has_value());
+            });
+    connect(replay_, &ReplayEngine::finished, this, [this]() {
+        replaying_ = false;
+        logPanel_->append("回放结束");
+    });
 }
 
 void MainWindow::onConfigSerial() {
@@ -127,6 +149,8 @@ void MainWindow::onConfigSerial() {
 }
 
 void MainWindow::onTelemetry(const lgs::TelemetryData &data) {
+    if (replaying_)
+        return; // 回放进行中，暂停实时数据分发，避免与回放数据混叠
     bus_->publish(data);
     // 同步顶部状态栏三设备在线灯
     statusBar_->updateDevice(StatusBar::Bms, data.bms.has_value());

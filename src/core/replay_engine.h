@@ -18,6 +18,7 @@ public:
     void start();
     void stop();
     void setSpeed(double x);
+    bool isLoaded() const; // 是否已成功加载回放数据
 
 signals:
     void replayed(const lgs::TelemetryData &data);

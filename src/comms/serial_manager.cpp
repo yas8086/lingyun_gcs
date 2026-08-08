@@ -18,7 +18,8 @@ SerialManager::~SerialManager() {
 
 bool SerialManager::open(const QString &port, qint32 baud) {
     if (serial_.isOpen())
-        serial_.close();
+        this->close(); // 触发 linkStatusChanged(false)，避免状态灯失真
+    delete parser_;
     parser_ = new FrameParser; // 重新打开时清空旧缓冲
     serial_.setPortName(port);
     serial_.setBaudRate(baud);
