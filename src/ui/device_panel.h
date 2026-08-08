@@ -7,7 +7,7 @@ class QLabel;
 
 namespace lgs {
 
-// 中部设备卡片区：BMS/MPPT/DCDC 三张卡片实时数值
+// 中部设备卡片区：BMS/MPPT/DCDC/LoRa 四张卡片实时数值
 class DevicePanel : public QWidget {
     Q_OBJECT
 public:
@@ -24,10 +24,12 @@ private:
     void buildBmsCard();
     void buildMpptCard();
     void buildDcdcCard();
+    void buildLoraCard();
 
     Card bms_;
     Card mppt_;
     Card dcdc_;
+    Card lora_;
 };
 
 } // namespace lgs

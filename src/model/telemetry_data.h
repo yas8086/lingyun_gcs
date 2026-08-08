@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include <vector>
 
 namespace lgs {
 
@@ -40,12 +41,29 @@ struct Dcdc {
     int fault = 0;         // 故障状态字节
 };
 
+// LoRa 采集节点（温度或压力二选一）
+struct LoraSample {
+    int id = 0;
+    bool online = true;     // 被打包即在线
+    double temp = 0.0;      // ℃；压力节点为 0
+    double pressure = 0.0;  // Pa；温度节点为 0
+    int alarm = 0;          // 0 正常 / 1 超上限 / -1 超下限（仅温度节点）
+};
+
+// LoRa 集中器本轮采样结果；nodes 为空表示本轮无在线节点
+struct Lora {
+    std::vector<LoraSample> nodes;
+};
+
 // 一帧完整遥测；std::optional 表示该设备离线/未出现在帧中
 struct TelemetryData {
     double t = 0.0;
     std::optional<Bms> bms;
     std::optional<Mppt> mppt;
     std::optional<Dcdc> dcdc;
+    // lora 特殊：机载收到过一轮采样即存在（nodes 可为空数组），
+    // 与 bms/mppt/dcdc 的"离线键消失"语义不同
+    std::optional<Lora> lora;
 };
 
 } // namespace lgs

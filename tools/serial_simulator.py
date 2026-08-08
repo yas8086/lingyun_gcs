@@ -10,6 +10,10 @@ import serial
 
 
 def make_frame(t, soc):
+    # 每 20 秒演示 2 秒 LoRa 节点1 超上限告警，便于验证告警链路
+    tsec = int(t) % 20
+    alarm1 = 1 if 12 <= tsec < 14 else 0
+    temp1 = 65.0 if alarm1 else 25.4
     payload = {
         "t": t,
         "bms": {"online": True, "pack_v": 367.2, "pack_i": 0.0,
@@ -21,6 +25,10 @@ def make_frame(t, soc):
         "dcdc": {"online": True, "in_v": 86.0, "out_v": 48.1,
                  "out_i": 5.2, "out_p": 250.0,
                  "temp": 41.0, "enabled": True, "fault": 0},
+        "lora": {"nodes": [
+            {"id": 1, "online": 1, "temp": temp1, "pressure": 0, "alarm": alarm1},
+            {"id": 2, "online": 1, "temp": 0, "pressure": 101325, "alarm": 0},
+        ]},
     }
     body = json.dumps(payload, separators=(",", ":"))
     return b"\xaa\x55" + body.encode() + b"\n"

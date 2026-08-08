@@ -11,8 +11,9 @@ StatusBar::StatusBar(QWidget *parent) : QWidget(parent) {
     bmsLed_ = makeLed("BMS");
     mpptLed_ = makeLed("MPPT");
     dcdcLed_ = makeLed("DCDC");
+    loraLed_ = makeLed("LoRa");
     clock_ = new QLabel("--:--:--", this);
-    for (auto *w : {linkLed_, bmsLed_, mpptLed_, dcdcLed_})
+    for (auto *w : {linkLed_, bmsLed_, mpptLed_, dcdcLed_, loraLed_})
         lay->addWidget(w);
     lay->addStretch();
     lay->addWidget(clock_);
@@ -29,7 +30,13 @@ void StatusBar::updateLink(bool connected) {
 }
 
 void StatusBar::updateDevice(DeviceId id, bool online) {
-    QLabel *led = id == Bms ? bmsLed_ : (id == Mppt ? mpptLed_ : dcdcLed_);
+    QLabel *led = nullptr;
+    switch (id) {
+    case Bms:  led = bmsLed_;  break;
+    case Mppt: led = mpptLed_; break;
+    case Dcdc: led = dcdcLed_; break;
+    case Lora: led = loraLed_; break;
+    }
     led->setStyleSheet(online ? "color: green;" : "color: gray;");
 }
 

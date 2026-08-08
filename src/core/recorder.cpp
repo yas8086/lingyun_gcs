@@ -1,7 +1,27 @@
 #include "core/recorder.h"
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace lgs {
+
+// 将 LoRa 节点列表序列化为紧凑 JSON 数组，作为单一 CSV 列存储
+static QString loraToCsv(const std::optional<lgs::Lora> &lora) {
+    if (!lora)
+        return QString();
+    QJsonArray arr;
+    for (const auto &s : lora->nodes) {
+        QJsonObject o;
+        o["id"] = s.id;
+        o["online"] = s.online ? 1 : 0;
+        o["temp"] = s.temp;
+        o["pressure"] = s.pressure;
+        o["alarm"] = s.alarm;
+        arr.append(o);
+    }
+    return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+}
 
 Recorder::Recorder(QObject *parent) : QObject(parent) {}
 
@@ -46,7 +66,8 @@ void Recorder::onTelemetry(const lgs::TelemetryData &data) {
                    "mppt_online,mppt_pv_v,mppt_pv_p,mppt_batt_v,mppt_charge_i,"
                    "mppt_today,mppt_total,mppt_fault,"
                    "dcdc_online,dcdc_in_v,dcdc_out_v,dcdc_out_i,dcdc_out_p,"
-                   "dcdc_temp,dcdc_enabled,dcdc_fault\n";
+                   "dcdc_temp,dcdc_enabled,dcdc_fault,"
+                   "lora\n";
         headerWritten_ = true;
     }
 
@@ -79,7 +100,8 @@ void Recorder::onTelemetry(const lgs::TelemetryData &data) {
     line += (data.dcdc ? f2(data.dcdc->out_p) : QString()) + ",";
     line += (data.dcdc ? f2(data.dcdc->temp) : QString()) + ",";
     line += (data.dcdc ? (data.dcdc->enabled ? "1" : "0") : QString()) + ",";
-    line += (data.dcdc ? i(data.dcdc->fault) : QString());
+    line += (data.dcdc ? i(data.dcdc->fault) : QString()) + ",";
+    line += loraToCsv(data.lora);
     stream_ << line << "\n";
     stream_.flush();
 }

@@ -26,6 +26,38 @@ private slots:
         QVERIFY(d.dcdc->enabled);
     }
 
+    void decodesLoraNodes() {
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1785928200.123,"
+            "\"lora\":{\"nodes\":["
+            "{\"id\":1,\"online\":1,\"temp\":25.4,\"pressure\":0,\"alarm\":0},"
+            "{\"id\":2,\"online\":1,\"temp\":0,\"pressure\":101325,\"alarm\":0}"
+            "]}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.lora.has_value());
+        QCOMPARE(static_cast<int>(d.lora->nodes.size()), 2);
+        // 温度节点
+        QCOMPARE(d.lora->nodes[0].id, 1);
+        QVERIFY(d.lora->nodes[0].online);
+        QCOMPARE(d.lora->nodes[0].temp, 25.4);
+        QCOMPARE(d.lora->nodes[0].pressure, 0.0);
+        QCOMPARE(d.lora->nodes[0].alarm, 0);
+        // 压力节点
+        QCOMPARE(d.lora->nodes[1].id, 2);
+        QCOMPARE(d.lora->nodes[1].pressure, 101325.0);
+        QCOMPARE(d.lora->nodes[1].temp, 0.0);
+    }
+
+    void decodesEmptyLoraNodes() {
+        // lora 存在但 nodes 为空数组：收到过采样但本轮无在线节点
+        TelemetryData d;
+        const QByteArray json = "{\"t\":1.0,\"lora\":{\"nodes\":[]}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.lora.has_value());
+        QCOMPARE(static_cast<int>(d.lora->nodes.size()), 0);
+    }
+
     void missingDeviceMeansOffline() {
         TelemetryData d;
         const QByteArray json = "{\"t\":1.0}";

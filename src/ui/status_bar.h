@@ -5,11 +5,11 @@ class QLabel;
 
 namespace lgs {
 
-// 顶部状态栏：链路状态灯、三设备在线灯、时钟
+// 顶部状态栏：链路状态灯、四设备在线灯、时钟
 class StatusBar : public QWidget {
     Q_OBJECT
 public:
-    enum DeviceId { Bms, Mppt, Dcdc };
+    enum DeviceId { Bms, Mppt, Dcdc, Lora };
     explicit StatusBar(QWidget *parent = nullptr);
 
     void updateLink(bool connected);
@@ -23,6 +23,7 @@ private:
     QLabel *bmsLed_;
     QLabel *mpptLed_;
     QLabel *dcdcLed_;
+    QLabel *loraLed_;
     QLabel *clock_;
 };
 

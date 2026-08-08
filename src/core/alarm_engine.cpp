@@ -37,6 +37,8 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     updateDevice("bms", data.bms.has_value());
     updateDevice("mppt", data.mppt.has_value());
     updateDevice("dcdc", data.dcdc.has_value());
+    // lora 特殊：机载收到过采样即持续存在（nodes 可为空数组）
+    updateDevice("lora", data.lora.has_value());
 
     // 告警位/故障位检查：非 0 触发，归零清除
     auto checkFault = [this](const QString &id, int fault, const QString &devName) {
@@ -65,12 +67,39 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
         checkFault("mppt:fault", data.mppt->fault, "MPPT");
     if (data.dcdc)
         checkFault("dcdc:fault", data.dcdc->fault, "DCDC");
+
+    // LoRa 节点级告警位：0 正常 / 1 超上限 / -1 超下限（仅温度节点有效）
+    if (data.lora) {
+        for (const auto &s : data.lora->nodes) {
+            // 文档：alarm 仅温度节点有效（压力节点恒 0）。节点类型按协议
+            // 约定以 temp/pressure 判断，温度节点 temp != 0
+            if (s.temp == 0.0)
+                continue;
+            const QString nid = QString("lora:node%1:alarm").arg(s.id);
+            if (s.alarm != 0) {
+                if (!alarmActive_.value(nid, false)) {
+                    alarmActive_[nid] = true;
+                    AlarmEvent e;
+                    e.id = nid;
+                    e.level = AlarmEvent::Warn; // 温度越限按告警处理，非严重
+                    e.kind = AlarmEvent::DeviceAlarm;
+                    e.message = QString("LoRa 节点 %1 %2")
+                                    .arg(s.id)
+                                    .arg(s.alarm > 0 ? "超上限" : "超下限");
+                    emit alarmTriggered(e);
+                }
+            } else if (alarmActive_.value(nid, false)) {
+                alarmActive_[nid] = false;
+                emit alarmCleared(nid);
+            }
+        }
+    }
 }
 
 void AlarmEngine::scanOffline() {
     // 设备超时离线检测；由独立定时器周期触发，链路断连时也能工作
     const qint64 now = clock_.elapsed();
-    const QStringList ids = {"bms", "mppt", "dcdc"};
+    const QStringList ids = {"bms", "mppt", "dcdc", "lora"};
     for (const auto &id : ids) {
         if (lastSeen_.contains(id) && now - lastSeen_[id] >= offlineTimeoutMs_) {
             const QString offId = id + ":offline";

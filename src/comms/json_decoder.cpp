@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QJsonArray>
 
 namespace lgs {
 
@@ -55,6 +56,23 @@ static Dcdc parseDcdc(const QJsonObject &o) {
     return d;
 }
 
+static Lora parseLora(const QJsonObject &o) {
+    Lora l;
+    const QJsonArray arr = o.value(QLatin1String("nodes")).toArray();
+    l.nodes.reserve(static_cast<size_t>(arr.size()));
+    for (const auto &v : arr) {
+        const QJsonObject node = v.toObject();
+        LoraSample s;
+        s.id = node.value(QLatin1String("id")).toInt();
+        s.online = node.value(QLatin1String("online")).toInt(1) != 0;
+        s.temp = node.value(QLatin1String("temp")).toDouble();
+        s.pressure = node.value(QLatin1String("pressure")).toDouble();
+        s.alarm = node.value(QLatin1String("alarm")).toInt();
+        l.nodes.push_back(s);
+    }
+    return l;
+}
+
 bool decodeJson(const QByteArray &json, TelemetryData &out) {
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(json, &err);
@@ -69,6 +87,9 @@ bool decodeJson(const QByteArray &json, TelemetryData &out) {
         out.mppt = parseMppt(root.value(QLatin1String("mppt")).toObject());
     if (root.contains(QLatin1String("dcdc")))
         out.dcdc = parseDcdc(root.value(QLatin1String("dcdc")).toObject());
+    // lora 存在条件与 bms/mppt/dcdc 不同：收到过采样即存在（nodes 可为空数组）
+    if (root.contains(QLatin1String("lora")))
+        out.lora = parseLora(root.value(QLatin1String("lora")).toObject());
     return true;
 }
 

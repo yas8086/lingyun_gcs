@@ -1,6 +1,9 @@
 #include "core/replay_engine.h"
 #include <QFile>
 #include <QTextStream>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace lgs {
 
@@ -61,6 +64,7 @@ bool ReplayEngine::load(const QString &filePath) {
         //   0:t, 1-9:bms(online,pack_v,pack_i,soc,max_v,min_v,diff_v,max_t,alarm)
         //   10-17:mppt(online,pv_v,pv_p,batt_v,charge_i,today,total,fault)
         //   18-25:dcdc(online,in_v,out_v,out_i,out_p,temp,enabled,fault)
+        //   26:lora（nodes 的紧凑 JSON 数组；旧 CSV 无此列则为空）
         if (anyNonEmpty(cols, 1, 9)) {
             lgs::Bms b;
             b.online  = colB(cols, 1);
@@ -97,6 +101,24 @@ bool ReplayEngine::load(const QString &filePath) {
             dc.enabled= colB(cols, 24);
             dc.fault  = colI(cols, 25);
             d.dcdc = dc;
+        }
+        // lora 列（index 26）：紧凑 JSON 数组，回放还原节点列表
+        if (colNonEmpty(cols, 26)) {
+            const QJsonDocument jd = QJsonDocument::fromJson(cols[26].toUtf8());
+            if (jd.isArray()) {
+                lgs::Lora lo;
+                for (const auto &v : jd.array()) {
+                    const QJsonObject o = v.toObject();
+                    lgs::LoraSample s;
+                    s.id = o.value(QLatin1String("id")).toInt();
+                    s.online = o.value(QLatin1String("online")).toInt() != 0;
+                    s.temp = o.value(QLatin1String("temp")).toDouble();
+                    s.pressure = o.value(QLatin1String("pressure")).toDouble();
+                    s.alarm = o.value(QLatin1String("alarm")).toInt();
+                    lo.nodes.push_back(s);
+                }
+                d.lora = lo;
+            }
         }
 
         if (first) {

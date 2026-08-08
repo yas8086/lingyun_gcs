@@ -4,6 +4,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QString>
+#include <QStringList>
 
 namespace lgs {
 
@@ -12,7 +13,8 @@ DevicePanel::DevicePanel(QWidget *parent) : QWidget(parent) {
     buildBmsCard();
     buildMpptCard();
     buildDcdcCard();
-    for (auto *box : {bms_.box, mppt_.box, dcdc_.box})
+    buildLoraCard();
+    for (auto *box : {bms_.box, mppt_.box, dcdc_.box, lora_.box})
         lay->addWidget(box);
 }
 
@@ -44,6 +46,16 @@ void DevicePanel::buildDcdcCard() {
     dcdc_.lines->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     lay->addWidget(dcdc_.status);
     lay->addWidget(dcdc_.lines);
+}
+
+void DevicePanel::buildLoraCard() {
+    lora_.box = new QGroupBox("LoRa 采集", this);
+    auto *lay = new QVBoxLayout(lora_.box);
+    lora_.status = new QLabel(lora_.box);
+    lora_.lines = new QLabel(lora_.box);
+    lora_.lines->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    lay->addWidget(lora_.status);
+    lay->addWidget(lora_.lines);
 }
 
 static void applyStatus(QGroupBox *box, QLabel *status, bool online,
@@ -104,6 +116,30 @@ void DevicePanel::updateData(const lgs::TelemetryData &data) {
     } else {
         applyStatus(dcdc_.box, dcdc_.status, false, "在线", "离线");
         dcdc_.lines->clear();
+    }
+
+    // lora 特殊性：机载收到过采样即存在（nodes 可为空），在线与否以节点为准
+    if (data.lora) {
+        applyStatus(lora_.box, lora_.status, true, "采集运行中", "未就绪");
+        if (data.lora->nodes.empty()) {
+            lora_.lines->setText("本轮无在线节点");
+        } else {
+            QStringList rows;
+            for (const auto &s : data.lora->nodes) {
+                QString node;
+                if (s.temp != 0.0)
+                    node = QString("#%1 %2℃").arg(s.id).arg(s.temp, 0, 'f', 1);
+                else
+                    node = QString("#%1 %2Pa").arg(s.id).arg(s.pressure, 0, 'f', 0);
+                if (s.alarm != 0)
+                    node += s.alarm > 0 ? " ⚠超上限" : " ⚠超下限";
+                rows << node;
+            }
+            lora_.lines->setText(rows.join("\n"));
+        }
+    } else {
+        applyStatus(lora_.box, lora_.status, false, "采集运行中", "未就绪");
+        lora_.lines->clear();
     }
 }
 

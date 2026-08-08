@@ -127,6 +127,7 @@ void MainWindow::wire() {
                 statusBar_->updateDevice(StatusBar::Bms, d.bms.has_value());
                 statusBar_->updateDevice(StatusBar::Mppt, d.mppt.has_value());
                 statusBar_->updateDevice(StatusBar::Dcdc, d.dcdc.has_value());
+                statusBar_->updateDevice(StatusBar::Lora, d.lora.has_value());
             });
     connect(replay_, &ReplayEngine::finished, this, [this]() {
         replaying_ = false;
@@ -152,10 +153,11 @@ void MainWindow::onTelemetry(const lgs::TelemetryData &data) {
     if (replaying_)
         return; // 回放进行中，暂停实时数据分发，避免与回放数据混叠
     bus_->publish(data);
-    // 同步顶部状态栏三设备在线灯
+    // 同步顶部状态栏四设备在线灯
     statusBar_->updateDevice(StatusBar::Bms, data.bms.has_value());
     statusBar_->updateDevice(StatusBar::Mppt, data.mppt.has_value());
     statusBar_->updateDevice(StatusBar::Dcdc, data.dcdc.has_value());
+    statusBar_->updateDevice(StatusBar::Lora, data.lora.has_value());
 }
 
 void MainWindow::onClockTick() {
