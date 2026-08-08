@@ -572,7 +572,7 @@
             <div class="grid">
               <div class="kv" data-fid="pack_v"><div class="k">总压</div><div class="v" id="bms-pack_v">367.2<small> V</small></div></div>
               <div class="kv" data-fid="pack_i"><div class="k">总电流</div><div class="v" id="bms-pack_i">0.0<small> A</small></div></div>
-              <div class="kv" data-fid="max_t"><div class="k">最高温度</div><div class="v" id="bms-max_t">32.5<small> ℃</small></div></div>
+              <div class="kv" data-fid="max_t"><div class="k">最高温度</div><div class="v" id="bms-max_t" data-unit="temp" data-uv="32.5">32.5<small> ℃</small></div></div>
             </div>
             <div class="more" id="bms-more">
               <div class="grid">
@@ -588,7 +588,7 @@
               <span class="right"><span class="fresh" id="mppt-fresh"><span class="dot"></span>实时</span><span class="badge ok" id="mppt-badge">正常</span><button class="more-btn" data-more="mppt-more"><span class="arr">▾</span> 更多</button><button class="icon-btn" data-cfg="mppt" title="配置字段"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="17" r="2"/></svg></button></span>
             </div>
             <div class="hero">
-              <div><div class="num" id="mppt-pv_p">600<small class="unit">W</small></div><div class="lb">光伏功率</div></div>
+              <div><div class="num" id="mppt-pv_p" data-unit="power" data-uv="600">600<small class="unit">W</small></div><div class="lb">光伏功率</div></div>
               <div><div class="num" id="mppt-batt_v">86.0<small class="unit">V</small></div><div class="lb">电池电压</div></div>
             </div>
             <div class="grid">
@@ -610,11 +610,11 @@
             </div>
             <div class="hero">
               <div><div class="num" id="dcdc-out_v">48.1<small class="unit">V</small></div><div class="lb">输出电压</div></div>
-              <div><div class="num" id="dcdc-out_p">250<small class="unit">W</small></div><div class="lb">输出功率</div></div>
+              <div><div class="num" id="dcdc-out_p" data-unit="power" data-uv="250">250<small class="unit">W</small></div><div class="lb">输出功率</div></div>
             </div>
             <div class="grid">
               <div class="kv" data-fid="out_i"><div class="k">输出电流</div><div class="v" id="dcdc-out_i">5.2<small> A</small></div></div>
-              <div class="kv" data-fid="temp"><div class="k">散热温度</div><div class="v" id="dcdc-temp">41.0<small> ℃</small></div></div>
+              <div class="kv" data-fid="temp"><div class="k">散热温度</div><div class="v" id="dcdc-temp" data-unit="temp" data-uv="41.0">41.0<small> ℃</small></div></div>
               <div class="kv" data-fid="fault_d"><div class="k">故障码</div><div class="v" id="dcdc-fault">0</div></div>
             </div>
             <div class="more" id="dcdc-more">
@@ -1612,6 +1612,35 @@ function simulateLink(){
   if(down&&!linkDown){linkDown=true;setFresh('bms','off','断线');addLog('err','链路中断，尝试重连');}
   else if(!down&&linkDown){linkDown=false;linkAttempts++;setFresh('bms','','实时');addLog('ok','重连成功（第 '+linkAttempts+' 次）');}
 }
+/* 单位换算：temp ℃↔℉、power W↔kW；kind 传 'temp' 或 'power'，v 为原始单位值 */
+function convertUnit(kind,v){
+  if(kind==='temp'){return $('setTempUnit').value==='℉'?v*9/5+32:v;}
+  if(kind==='power'){return $('setPowerUnit').value==='kW'?v/1000:v;}
+  return v;
+}
+function unitSuffix(kind){
+  if(kind==='temp'){return $('setTempUnit').value==='℉'?' ℉':' ℃';}
+  if(kind==='power'){return $('setPowerUnit').value==='kW'?'kW':'W';}
+  return '';
+}
+function fmtMeas(kind,raw){
+  const v=convertUnit(kind,raw);
+  if(kind==='power'&&$('setPowerUnit').value==='kW')return v.toFixed(2); // 功率换算 kW 保留 2 位
+  return Number.isInteger(v)?String(v):v.toFixed(1);
+}
+function renderMeas(id,kind,raw){
+  const el=$(id);
+  el.setAttribute('data-uv',raw);
+  const small=el.querySelector('small');
+  el.childNodes[0].nodeValue=fmtMeas(kind,raw);
+  if(small)small.textContent=unitSuffix(kind);
+}
+function applyUnits(){
+  document.querySelectorAll('[data-unit]').forEach(el=>{
+    const kind=el.getAttribute('data-unit'),raw=parseFloat(el.getAttribute('data-uv'));
+    if(!isNaN(raw))renderMeas(el.id,kind,raw);
+  });
+}
 function sim(){
   if(paused)return; // 暂停时冻结整幅画面（数值与曲线均停）
   // DCDC 每 20 秒演示 2 秒离线，直观展示"数据新鲜度"置灰+告警
@@ -1629,14 +1658,14 @@ function sim(){
   const pv=rand(89.5,1),packi=rand(0,1.2);temp=rand(41,1);
   $('bms-pack_v').childNodes[0].nodeValue=rand(367.2,0.5).toFixed(1);
   $('bms-max_v').childNodes[0].nodeValue=rand(3.62,0.02).toFixed(2);
-  $('bms-max_t').childNodes[0].nodeValue=temp.toFixed(1);
+  renderMeas('bms-max_t','temp',temp);
   $('bms-pack_i').childNodes[0].nodeValue=packi.toFixed(1);
   $('bms-diff_v').childNodes[0].nodeValue=rand(0.04,0.02).toFixed(2);
-  $('mppt-pv_p').childNodes[0].nodeValue=Math.round(pv*6.7);
+  const pvW=Math.round(pv*6.7);renderMeas('mppt-pv_p','power',pvW);
   $('mppt-pv_v').childNodes[0].nodeValue=pv.toFixed(1);
   $('mppt-batt_v').childNodes[0].nodeValue=rand(86,0.5).toFixed(1);
   $('mppt-charge_i').childNodes[0].nodeValue=rand(7,0.6).toFixed(1);
-  let outi=5.2;
+  let outi=5.2,outPW=0;
   if(!dcdcDown){
     outi=rand(5.2,0.4);
     $('dcdc-out_v').childNodes[0].nodeValue=rand(48.1,0.3).toFixed(1);
@@ -1650,7 +1679,7 @@ function sim(){
   series.v.data.push(Number($('bms-pack_v').childNodes[0].nodeValue));series.v.data.shift();
   series.i.data.push(packi);series.i.data.shift();
   /* 电源总览 + 续航预算 */
-  const pin=Math.round(pv*6.7),pout=Number($('dcdc-out_p').childNodes[0].nodeValue)||0;
+  const pin=Math.round(pv*6.7),pout=outPW;
   $('ps-pin').childNodes[0].nodeValue=pin; $('ps-pout').childNodes[0].nodeValue=pout;
   $('ps-in').textContent=pin+' W'; $('ps-out').textContent=pout+' W'; $('ps-load').textContent=pout+' W';
   $('ps-batt').textContent=(packi>=0?'+':'')+packi.toFixed(1)+' A';
@@ -1767,6 +1796,8 @@ $('setDensity').onchange=e=>{const d=e.target.value==='密集'?'dense':'comforta
 $('setContrast').onchange=e=>{applyContrast(e.target.value==='开启');addLog('info','高对比度：'+(e.target.value==='开启'?'开':'关'));};
 $('setSound').onchange=e=>{localStorage.setItem('gcs_sound',e.target.value==='开启'?'on':'off');};
 $('setAccent').onchange=e=>{applyAccent(ACCENT_MAP[e.target.value]||'blue');addLog('info','强调色已切换为 '+e.target.value);};
+$('setTempUnit').addEventListener('change',applyUnits);
+$('setPowerUnit').addEventListener('change',applyUnits);
 /* 配置导出 / 导入 */
 function collectSet(){const o={};SET_FIELDS.forEach(id=>{const el=$(id);if(el)o[id]=el.value;});o.theme=document.documentElement.getAttribute('data-theme');o.density=document.documentElement.getAttribute('data-density');o.contrast=document.documentElement.getAttribute('data-contrast');o.accent=document.documentElement.getAttribute('data-accent');o.exportedAt=new Date().toISOString();return o;}
 function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();}
