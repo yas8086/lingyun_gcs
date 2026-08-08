@@ -1005,6 +1005,8 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='s'||e.key==='S'){$('clearBtn').click();}
   else if(e.key==='t'||e.key==='T'){$('themeBtn').click();}
   else if(e.key==='d'||e.key==='D'){$('densityBtn').click();}
+  else if(e.key==='Escape'){$('modal').classList.remove('open');$('devPop').classList.remove('open');$('readPop').classList.remove('open');}
+  else if(e.key==='Enter'){const f=document.querySelector('.alarm-item:not(.acked) .ack');if(f)f.click();}
 });
 
 /* 时钟 */
