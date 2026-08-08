@@ -673,6 +673,11 @@
                   <div class="file"><button class="btn">选择 CSV</button><button class="btn ghost">▶ 回放</button><span class="file-name" id="replay-file">flight_20260807.csv</span></div>
                   <div class="bar"><i id="replay-bar"></i></div>
                   <div class="meta">数据点 12,480 · 时长 41:36</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                    <button class="ctl-btn" id="recToggle">● 记录中</button>
+                    <button class="ctl-btn" id="recExport">导出记录</button>
+                    <button class="ctl-btn" id="recImport">导入回放</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1121,6 +1126,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('#readinessBtn')&&!e.
 
 /* ===== 曲线 ===== */
 const series={v:{c:'#2563eb',data:Array(100).fill(367),on:true},pv:{c:'#16a34a',data:Array(100).fill(600),on:true},outp:{c:'#f59e0b',data:Array(100).fill(250),on:true},i:{c:'#06b6d4',data:Array(100).fill(0),on:false}};
+let recording=true,recData=[];
+const REC_KEY='gcs_rec';
+function recordFrame(){
+  if(!recording)return;
+  const snap={t:Date.now(),v:$('bms-pack_v').childNodes[0].nodeValue,pv:series.pv.data.slice(-1)[0],outp:series.outp.data.slice(-1)[0],soc:$('bms-soc').childNodes[0].nodeValue};
+  recData.push(snap);if(recData.length>3000)recData.shift();
+}
 let paused=false;
 const pauseBtn=$('pauseBtn');
 pauseBtn.onclick=()=>{paused=!paused;pauseBtn.textContent=paused?'▶ 继续':'⏸ 暂停';};
@@ -1551,6 +1563,7 @@ function sim(){
   updateLoRa();
   updateTemp();
   draw();
+  recordFrame();
 }
 const warnSvg=`<svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg>`;
 /* 告警声音（Web Audio，需用户首次点击后才可播放） */
@@ -1649,6 +1662,9 @@ $('setAccent').onchange=e=>{applyAccent(ACCENT_MAP[e.target.value]||'blue');addL
 /* 配置导出 / 导入 */
 function collectSet(){const o={};SET_FIELDS.forEach(id=>{const el=$(id);if(el)o[id]=el.value;});o.theme=document.documentElement.getAttribute('data-theme');o.density=document.documentElement.getAttribute('data-density');o.contrast=document.documentElement.getAttribute('data-contrast');o.accent=document.documentElement.getAttribute('data-accent');o.exportedAt=new Date().toISOString();return o;}
 function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();}
+$('recToggle').onclick=()=>{recording=!recording;$('recToggle').textContent=recording?'● 记录中':'○ 已暂停';addLog('info',recording?'开始记录遥测':'已暂停记录');};
+$('recExport').onclick=()=>download('lingyun-gcs-log.json',JSON.stringify(recData,null,2),'application/json');
+$('recImport').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(Array.isArray(d)&&d.length){recData=d;addLog('ok','已导入 '+d.length+' 条记录');}}catch(e){addLog('err','记录文件解析失败');}};r.readAsText(f);};inp.click();};
 function importSetFrom(data){SET_FIELDS.forEach(id=>{const el=$(id);if(el&&data[id]!=null)el.value=data[id];});if(data.theme){const t=data.theme;document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';}if(data.density){const d=data.density;document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';}if(data.contrast)applyContrast(data.contrast==='high');if(data.accent)applyAccent(data.accent);if(data.setSound)localStorage.setItem('gcs_sound',data.setSound==='开启'?'on':'off');syncSetSels();}
 $('exportSet').onclick=()=>{download('lingyun-gcs-config.json',JSON.stringify(collectSet(),null,2),'application/json');addLog('ok','配置已导出为 JSON');$('sb-msg').textContent='配置已导出';};
 $('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
