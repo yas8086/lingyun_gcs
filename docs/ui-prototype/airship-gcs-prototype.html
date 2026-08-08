@@ -936,6 +936,11 @@
               <div class="set-row"><label>强调色</label><select id="setAccent"><option selected>蓝色</option><option>绿色</option><option>橙色</option><option>紫色</option><option>青色</option></select></div>
               <div class="hint">快捷键：1-5 切换视图 · 空格 暂停曲线 · S 清屏 · T 主题 · D 密度</div>
             </div>
+            <div class="set-group">
+              <div class="set-title"><svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>状态栏微件</div>
+              <div id="sbWidgets" style="display:flex;flex-wrap:wrap;gap:10px;padding:6px 0"></div>
+              <div class="hint">取消勾选可隐藏对应状态栏项，选择将持久化</div>
+            </div>
           </div>
           <div class="set-foot">
             <button class="btn ghost" id="importSet" title="从 JSON 文件导入配置">导入配置</button>
@@ -949,12 +954,12 @@
     </main>
 
     <footer class="statusbar">
-      <span class="sb"><span class="dot"></span><b>链路正常</b></span>
+      <span class="sb" id="sb-link"><span class="dot"></span><b>链路正常</b></span>
       <span class="sb">GPS <b id="sb-gps">— 颗</b></span>
       <span class="sb">数据率 <b id="sb-rate">5.0</b> Hz</span>
       <span class="sb">链路质量 <b id="sb-lq">100%</b></span>
       <span class="sb sb-alarm" id="sb-alarm-wrap">告警 <b id="sb-alarm">0</b></span>
-      <span class="sb">运行时长 <b id="sb-uptime">00:00:00</b></span>
+      <span class="sb" id="sb-uptime-w">运行时长 <b id="sb-uptime">00:00:00</b></span>
       <span class="sb msg-preview">最新 <b id="sb-msg">系统就绪</b></span>
       <span class="clock">本地时间 <b id="clock">--:--:--</b></span>
     </footer>
@@ -1747,6 +1752,19 @@ $('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent
 /* 曲线导出 CSV（仅导出开启中的系列） */
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
 syncSetSels();
+
+/* ===== 状态栏微件可配置 ===== */
+const SB_WIDGETS=[['sb-link','链路'],['sb-gps','GPS'],['sb-rate','数据率'],['sb-lq','链路质量'],['sb-alarm-wrap','告警'],['sb-uptime-w','运行时长']];
+const SB_STORE='gcs_sbw';
+function loadSb(){try{const v=JSON.parse(localStorage.getItem(SB_STORE));return Array.isArray(v)?v:SB_WIDGETS.map(w=>w[0]);}catch(e){return SB_WIDGETS.map(w=>w[0]);}}
+function applySbWidgets(){const vis=loadSb();SB_WIDGETS.forEach(([id])=>{const el=document.getElementById(id);if(el)el.style.display=vis.includes(id)?'':'none';});}
+applySbWidgets();
+(function(){
+  const box=$('sbWidgets');if(!box)return;
+  const vis=loadSb();
+  box.innerHTML=SB_WIDGETS.map(([id,label])=>`<label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2)"><input type="checkbox" data-sb="${id}" ${vis.includes(id)?'checked':''}> ${label}</label>`).join('');
+  box.addEventListener('change',e=>{const t=e.target;if(!t.dataset.sb)return;let cur=loadSb();if(t.checked){if(!cur.includes(t.dataset.sb))cur.push(t.dataset.sb);}else{cur=cur.filter(x=>x!==t.dataset.sb);}localStorage.setItem(SB_STORE,JSON.stringify(cur));applySbWidgets();});
+})();
 
 ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();setInterval(sim,200);
 </script>
