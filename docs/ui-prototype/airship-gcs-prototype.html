@@ -32,7 +32,7 @@
   /* ===== 左侧导航 ===== */
   .nav{width:60px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;box-shadow:var(--shadow)}
   .nav .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#06b6d4);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:10px}
-  .nav .logo svg{width:26px;height:16px}
+  .nav .logo svg{width:30px;height:14px;fill:currentColor}
   .nav-item{width:52px;padding:8px 2px;border:none;background:transparent;border-radius:10px;cursor:pointer;color:var(--text-2);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:600}
   .nav-item svg{width:22px;height:22px;stroke-width:1.8;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
   .nav-item:hover{background:var(--bg-2);color:var(--text)}
@@ -41,7 +41,7 @@
   /* ===== 顶栏 ===== */
   .topbar{display:flex;align-items:center;gap:16px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 18px;box-shadow:var(--shadow);flex-shrink:0}
   .brand h1{font-size:17px;font-weight:700;display:flex;align-items:center;gap:6px}
-  .brand h1 svg{width:22px;height:14px;fill:none;stroke:var(--primary);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+  .brand h1 svg{width:28px;height:13px;fill:var(--primary)}
   .brand p{font-size:12px;color:var(--text-2)}
   .spacer{flex:1}
   .dev-lamp{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-2)}
@@ -68,8 +68,8 @@
   .view.active{display:flex}
   /* ===== 飞艇横幅 ===== */
   .airship-strip{display:flex;align-items:center;gap:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 18px;box-shadow:var(--shadow);flex:0 0 auto;transition:all .25s}
-  .airship-strip .as-art{width:110px;height:54px;color:var(--primary);flex-shrink:0}
-  .airship-strip .as-art svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .airship-strip .as-art{width:122px;height:56px;color:var(--primary);flex-shrink:0}
+  .airship-strip .as-art svg{width:100%;height:100%;fill:currentColor}
   .airship-strip .as-info{display:flex;flex-direction:column;gap:4px;min-width:0}
   .airship-strip .as-name{font-weight:700;font-size:15px}
   .airship-strip .as-items{display:flex;gap:26px;flex-wrap:wrap;font-size:13px;color:var(--text-2)}
@@ -181,6 +181,13 @@
   .alarm-item .msg{flex:1;font-weight:600;font-size:13px}
   .alarm-item .time{font-size:11px;color:var(--text-2)}
   .alarm-item .ack{border:1px solid var(--line);background:var(--card);color:var(--text-2);border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12px}
+  .alarm-item.acked{opacity:.5}
+  .alarm-item.acked::before{background:var(--off)}
+  .alarm-item.acked .msg{text-decoration:line-through;color:var(--text-2)}
+  .alarm-item.acked .ack{opacity:.6;cursor:default}
+  .alarm-item.renew{animation:renewFlash 1s ease}
+  @keyframes renewFlash{0%{background:var(--err-soft)}100%{background:var(--card-2)}}
+  .chart-legend .lg b.lgv{font-family:ui-monospace,monospace;font-size:11px;color:var(--text);font-weight:700}
   .log{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.8}
   .log .l{color:var(--text-2)}
   .log .info{color:var(--primary)} .log .ok{color:var(--ok)} .log .warn{color:var(--warn)} .log .err{color:var(--err)}
@@ -246,24 +253,150 @@
   .slide .thumb{position:absolute;top:3px;left:3px;width:40px;height:40px;border-radius:10px;background:var(--err);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:grab;box-shadow:var(--shadow)}
   .slide.done .thumb{background:var(--ok)}
   .slide.done .label{color:var(--ok)}
+  /* ===== 设置视图 ===== */
+  .setup-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+  .setup-body{flex:1;overflow:auto;padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-content:start}
+  .set-group{background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .set-title{font-weight:700;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+  .set-title svg{width:16px;height:16px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .set-row:last-child{border-bottom:none}
+  .set-row label{font-size:13px;color:var(--text-2)}
+  .set-row input,.set-row select{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:ui-monospace,monospace;width:170px;max-width:55%}
+  .set-row select{cursor:pointer}
+  .set-row input:focus,.set-row select:focus{outline:none;border-color:var(--primary)}
+  .set-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);background:var(--card-2)}
+  .hint{font-size:11px;color:var(--text-2);margin-top:6px}
+  /* ===== 交互与动效增强 ===== */
+  /* 细滚动条 */
+  *::-webkit-scrollbar{width:9px;height:9px}
+  *::-webkit-scrollbar-thumb{background:var(--line);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+  *::-webkit-scrollbar-thumb:hover{background:var(--text-2);background-clip:padding-box}
+  *::-webkit-scrollbar-track{background:transparent}
+  *::-webkit-scrollbar-corner{background:transparent}
+  /* 主题/密度切换过渡 */
+  body,.nav,.topbar,.statusbar,.side-panel,.airship-strip,.card,.set-group,.check-item,.pop{transition:background-color .25s,color .25s,border-color .25s,box-shadow .25s}
+  /* 在线状态点呼吸灯 */
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--ring)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .lamp:not(.off) .dot,.fresh:not(.off):not(.late) .dot,.statusbar .dot{animation:pulse 2s infinite}
+  /* 卡片 / 分组 hover 微交互 */
+  .card,.set-group{transition:transform .18s,box-shadow .18s,background-color .25s,border-color .25s}
+  .card:hover,.set-group:hover{transform:translateY(-2px);box-shadow:var(--shadow),0 10px 26px rgba(15,23,42,.10)}
+  html[data-theme="dark"] .card:hover,html[data-theme="dark"] .set-group:hover{box-shadow:var(--shadow),0 10px 26px rgba(0,0,0,.50)}
+  .check-item,.alarm-item{transition:box-shadow .15s,transform .15s,background-color .2s}
+  .check-item:hover,.alarm-item:hover{box-shadow:var(--shadow)}
+  /* 导航激活指示条 */
+  .nav-item{position:relative}
+  .nav-item.active::before{content:"";position:absolute;left:-6px;top:50%;transform:translateY(-50%);width:3px;height:18px;border-radius:3px;background:var(--primary)}
+  /* 按钮按压反馈 */
+  .nav-item,.btn,.ctl-btn,.icon-btn,.more-btn,.col-btn,.tab{transition:transform .12s,background-color .15s,color .15s,border-color .15s}
+  .nav-item:active,.btn:active,.ctl-btn:active,.icon-btn:active,.more-btn:active,.col-btn:active,.tab:active{transform:scale(.94)}
+  /* 焦点可见性 */
+  .nav-item:focus-visible,.btn:focus-visible,.ctl-btn:focus-visible,.icon-btn:focus-visible,.more-btn:focus-visible,.tab:focus-visible,.col-btn:focus-visible,.lamp:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  /* 日志 hover */
+  .log div{padding:0 6px;border-radius:6px;transition:background-color .15s}
+  .log div:hover{background:var(--card-2)}
+  /* 图例 hover */
+  .chart-legend .lg{transition:opacity .2s,transform .12s}
+  .chart-legend .lg:hover{transform:translateY(-1px)}
+  /* ===== 高对比度模式 ===== */
+  html[data-contrast="high"]{--text:#0b1220;--text-2:#1e293b;--line:#94a3b8;--bg:#f2f5fa;--bg-2:#e2e8f0;--card-2:#eef2f7;--ring:rgba(15,23,42,.22)}
+  html[data-contrast="high"] body{font-size:15px}
+  /* ===== 地图参数悬浮窗 ===== */
+  .map-view{flex:1;min-height:0;position:relative;border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:var(--shadow);display:flex}
+  .map-grid{flex:1;position:relative;background:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px}
+  .map-grid::after{content:"飞艇位置 / 轨迹 / 任务航线（地图预留）";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;opacity:.55}
+  .map-overlay{position:absolute;right:16px;top:16px;width:226px;background:rgba(15,23,42,.62);backdrop-filter:blur(6px);color:#eef2f7;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+  html[data-theme="dark"] .map-overlay{background:rgba(11,18,32,.72)}
+  .map-overlay .mo-title{font-weight:700;font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px;color:#fff}
+  .map-overlay .mo-title .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  .mo-item{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.15)}
+  .mo-item:last-child{border-bottom:none}
+  .mo-item label{color:#cbd5e1}
+  .mo-item b{font-family:ui-monospace,monospace;color:#fff;font-weight:600}
+  /* ===== 飞控骨架预览 ===== */
+  .flight-preview{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .fp-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow)}
+  .fp-head .t{font-weight:700;font-size:15px}
+  .fp-tag{font-size:11px;padding:2px 10px;border-radius:999px;background:var(--warn-soft);color:var(--warn);font-weight:700}
+  .fp-body{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .fp-card{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:12px;background:var(--card);color:var(--text-2);box-shadow:var(--shadow)}
+  .fp-card .sk-ic{width:30px;height:30px;opacity:.5;stroke-width:1.5;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+  .fp-card .sk-tip{font-weight:600;font-size:13px;color:var(--text)}
+  .fp-card .sk-sub{font-size:11px}
+  @media(max-width:900px){.fp-body{grid-template-columns:1fr}}
   @media(max-width:1200px){.main{grid-template-columns:1fr}.side-panel{min-width:240px}}
+  /* ===== 电源总览 + 续航预算 ===== */
+  .power-strip{display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow);flex:0 0 auto}
+  .ps-title{display:flex;align-items:center;gap:14px;font-weight:700;font-size:14px;flex-wrap:wrap}
+  .ps-title .t{display:inline-flex;align-items:center;gap:8px}
+  .ps-title .t svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .ps-flow{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-2);font-weight:600;flex-wrap:wrap}
+  .ps-flow .f{display:inline-flex;align-items:center;gap:5px}
+  .ps-flow b{font-family:ui-monospace,monospace;color:var(--text);font-weight:700}
+  .ps-flow .arrow{color:var(--primary);font-weight:700}
+  .ps-metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .ps-metrics .kv .v{font-size:16px}
+  html[data-density="dense"] .ps-metrics{gap:6px}
+  @media(max-width:1500px){.ps-metrics{grid-template-columns:repeat(3,1fr)}}
+  /* ===== 告警筛选工具栏 ===== */
+  .alarm-tool{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .af-btn{border:1px solid var(--line);background:var(--card-2);color:var(--text-2);border-radius:7px;padding:4px 11px;font-size:12px;cursor:pointer;font-weight:600}
+  .af-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .af-btn:hover:not(.active){border-color:var(--primary);color:var(--text)}
+  /* ===== 主题强调色 ===== */
+  html[data-theme="light"][data-accent="green"]{--primary:#059669;--primary-soft:#ecfdf5;--ring:rgba(5,150,105,.15)}
+  html[data-theme="dark"][data-accent="green"]{--primary:#34d399;--primary-soft:#0b3d2e;--ring:rgba(52,211,153,.2)}
+  html[data-theme="light"][data-accent="orange"]{--primary:#ea580c;--primary-soft:#fff7ed;--ring:rgba(234,88,12,.15)}
+  html[data-theme="dark"][data-accent="orange"]{--primary:#fb923c;--primary-soft:#3b2008;--ring:rgba(251,146,60,.2)}
+  html[data-theme="light"][data-accent="purple"]{--primary:#7c3aed;--primary-soft:#f5f3ff;--ring:rgba(124,58,237,.15)}
+  html[data-theme="dark"][data-accent="purple"]{--primary:#a78bfa;--primary-soft:#2a1b4a;--ring:rgba(167,139,250,.2)}
+  html[data-theme="light"][data-accent="teal"]{--primary:#0d9488;--primary-soft:#f0fdfa;--ring:rgba(13,148,136,.15)}
+  html[data-theme="dark"][data-accent="teal"]{--primary:#2dd4bf;--primary-soft:#0a3a35;--ring:rgba(45,212,191,.2)}
+  /* ===== 电源链路拓扑图 ===== */
+  .topo-wrap{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .topo-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap}
+  .topo-head .t{font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px}
+  .topo-head .t svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .topo-legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);font-weight:600}
+  .topo-legend .lg-item{display:inline-flex;align-items:center;gap:6px}
+  .topo-legend i{width:10px;height:10px;border-radius:50%}
+  .topo-legend i.ok{background:var(--ok)} .topo-legend i.warn{background:var(--warn)} .topo-legend i.off{background:var(--off)}
+  .topo-canvas{flex:1;min-height:0;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow);overflow:auto;display:flex;align-items:center;justify-content:center;padding:14px}
+  .topo-svg{width:100%;height:100%;min-width:720px}
+  .topo-node .node-box{fill:var(--card-2);stroke:var(--line);stroke-width:1.5;transition:all .2s}
+  .topo-node .node-ic{fill:none;stroke:var(--primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .topo-node .node-title{fill:var(--text-2);font-size:13px;font-weight:600}
+  .topo-node .node-val{fill:var(--text);font-size:19px;font-weight:700;font-family:ui-monospace,monospace}
+  .topo-node .node-sub{fill:var(--text-2);font-size:12px;font-family:ui-monospace,monospace}
+  .topo-node.off .node-box{stroke:var(--off);fill:var(--bg-2);opacity:.6}
+  .topo-node.off .node-ic,.topo-node.off .node-title,.topo-node.off .node-val,.topo-node.off .node-sub{stroke:var(--off);fill:var(--off)}
+  .topo-node.warn .node-box{stroke:var(--warn)}
+  .topo-link{color:var(--primary)}
+  .topo-link line{stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:8 6;animation:flow 1s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-14}}
+  .topo-link .link-v{fill:var(--text-2);font-size:12px;font-weight:600;font-family:ui-monospace,monospace}
+  .topo-link.off{color:var(--off)}
+  .topo-link.off line{animation:none}
+  .topo-link.off .link-v{fill:var(--off)}
 </style>
 </head>
 <body>
 <div class="shell">
   <aside class="nav">
-    <div class="logo"><svg viewBox="0 0 64 40" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14 L3 8 M8 20 L3 26"/><ellipse cx="34" cy="16" rx="25" ry="11"/><path d="M26 26 L24 33 M42 26 L44 33"/><path d="M21 33 h22 v5 h-22 z"/></svg></div>
-    <button class="nav-item active" data-view="monitor"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="12" x2="16" y2="8"/></svg>监控</button>
+    <div class="logo"><svg viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg></div>
+    <button class="nav-item active" data-view="monitor"><svg viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet" style="width:27px;height:12px;fill:currentColor;stroke:none"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg>监控</button>
     <button class="nav-item" data-view="check"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>自检</button>
     <button class="nav-item" data-view="map"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg>地图</button>
-    <button class="nav-item" data-view="flight"><svg viewBox="0 0 24 24"><path d="M8 13 L4 10 M8 16 L4 19"/><ellipse cx="13" cy="13" rx="9" ry="4.5"/><path d="M10 17 L9 21 M16 17 L17 21"/><path d="M8 21 h8 v2 h-8 z"/></svg>飞控</button>
-    <button class="nav-item" data-view="setup"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>设置</button>
+    <button class="nav-item" data-view="flight"><svg viewBox="0 0 1024 1024" style="fill:currentColor;stroke:none"><path d="M409.488333 239.177936h204.736191a34.122698 34.122698 0 0 0 34.122698-34.122698V136.809841a34.122698 34.122698 0 0 0-34.122698-34.122698 74.643403 74.643403 0 0 0 0-17.06135 95.117022 95.117022 0 0 0-102.368095-85.306746 95.117022 95.117022 0 0 0-102.368096 85.306746 74.643403 74.643403 0 0 0 0 17.06135 34.122698 34.122698 0 0 0-34.122698 34.122698v68.245397a34.122698 34.122698 0 0 0 34.122698 34.122698z m68.245397-170.613492h68.245397v68.245397H477.73373z m426.533731 68.245397h-221.79754v85.306746c0 28.151226-12.796012 51.184048-28.57776 51.184048H369.820697c-15.781748 0-28.57776-23.032821-28.57776-51.184048v-85.306746H119.445397A68.245397 68.245397 0 0 0 51.2 205.055238v750.699365A68.245397 68.245397 0 0 0 119.445397 1024H904.267461a68.245397 68.245397 0 0 0 68.245396-68.245397V205.055238A68.245397 68.245397 0 0 0 904.267461 136.809841z m-127.960119 349.757659L638.110413 597.46627l23.032821 275.540789-39.667637 31.99003-85.306746-227.769012L425.696615 768.079762v98.102758l-40.09417 29.857361-39.667637-131.798923-119.855979-66.965795l38.388036-31.99003 95.970089 21.75322L473.894927 597.46627l-203.45659-132.225457 40.094171-31.990029 263.597845 85.306746 140.329598-111.751838A51.184048 51.184048 0 0 1 776.307342 486.5675z"/></svg>飞控</button>
+    <button class="nav-item" data-view="topo"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>拓扑</button>
+    <button class="nav-item" data-view="setup"><svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.74 8.87C2.62 9.08 2.66 9.34 2.86 9.48l2.03 1.58C4.84 11.36 4.8 11.69 4.8 12s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</button>
   </aside>
 
   <div class="wrap">
     <div class="topbar">
       <div class="brand">
-        <h1><svg viewBox="0 0 64 40"><path d="M8 14 L3 8 M8 20 L3 26"/><ellipse cx="34" cy="16" rx="25" ry="11"/><path d="M26 26 L24 33 M42 26 L44 33"/><path d="M21 33 h22 v5 h-22 z"/></svg>灵云01 飞艇地面站</h1>
+        <h1><svg viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg>灵云01 飞艇地面站</h1>
         <p>电源系统监控 · 串口数传 115200 · 5Hz</p>
       </div>
       <div class="spacer"></div>
@@ -292,7 +425,7 @@
       <!-- 监控视图 -->
       <section class="view active" id="view-monitor">
         <div class="airship-strip" id="strip">
-          <div class="as-art"><svg viewBox="0 0 64 40"><path d="M8 14 L3 8 M8 20 L3 26"/><ellipse cx="34" cy="16" rx="25" ry="11"/><path d="M26 26 L24 33 M42 26 L44 33"/><path d="M21 33 h22 v5 h-22 z"/></svg></div>
+          <div class="as-art"><svg viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg></div>
           <div class="as-info">
             <div class="as-name">灵云01 · 载重飞艇</div>
             <div class="as-items">
@@ -307,6 +440,26 @@
             <button class="ready-pill none" id="readinessBtn">待自检</button>
             <button class="ctl-btn danger" id="dangerBtn">紧急操作</button>
             <button class="col-btn" id="stripCol">▴ 收起</button>
+          </div>
+        </div>
+
+        <div class="power-strip" id="powerStrip">
+          <div class="ps-title">
+            <span class="t"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>电源总览</span>
+            <span class="ps-flow">
+              <span class="f">光伏 <b id="ps-in">600 W</b></span><span class="arrow">→</span>
+              <span class="f">电池 <b id="ps-batt">+0.0 A</b></span><span class="arrow">→</span>
+              <span class="f">DCDC <b id="ps-out">250 W</b></span><span class="arrow">→</span>
+              <span class="f">负载 <b id="ps-load">250 W</b></span>
+            </span>
+          </div>
+          <div class="ps-metrics">
+            <div class="kv"><div class="k">输入功率</div><div class="v" id="ps-pin">600<small> W</small></div></div>
+            <div class="kv"><div class="k">输出功率</div><div class="v" id="ps-pout">250<small> W</small></div></div>
+            <div class="kv"><div class="k">系统效率</div><div class="v" id="ps-eff">—<small> %</small></div></div>
+            <div class="kv"><div class="k">净充放功率</div><div class="v" id="ps-net">—<small> W</small></div></div>
+            <div class="kv"><div class="k">剩余续航</div><div class="v" id="ps-budget">—<small> h</small></div></div>
+            <div class="kv"><div class="k">电量趋势</div><div class="v" id="ps-trend">—</div></div>
           </div>
         </div>
 
@@ -381,12 +534,12 @@
           <div class="drag-handle" id="dragHandle"><span></span></div>
           <div class="mb-row">
             <div class="chart-panel">
-              <div class="chart-head"><span class="t">实时曲线</span><span style="font-size:11px;color:var(--text-2)">点击图例可开关参数</span></div>
+              <div class="chart-head"><span class="t">实时曲线</span><span style="font-size:11px;color:var(--text-2)">点击图例可开关参数</span><span style="margin-left:auto;display:flex;gap:6px"><button class="ctl-btn" id="exportBtn" title="导出当前数据为 CSV">导出 CSV</button><button class="ctl-btn" id="pauseBtn">⏸ 暂停</button><button class="ctl-btn" id="clearBtn">清屏</button></span></div>
               <div class="chart-legend" id="chartLegend">
-                <span class="lg" data-k="v"><i style="background:#2563eb"></i>总压(V)</span>
-                <span class="lg" data-k="pv"><i style="background:#16a34a"></i>光伏功率(W)</span>
-                <span class="lg" data-k="outp"><i style="background:#f59e0b"></i>输出功率(W)</span>
-                <span class="lg" data-k="i"><i style="background:#06b6d4"></i>总电流(A)</span>
+                <span class="lg" data-k="v"><i style="background:#2563eb"></i>总压 <b class="lgv">367V</b></span>
+                <span class="lg" data-k="pv"><i style="background:#16a34a"></i>光伏功率 <b class="lgv">600W</b></span>
+                <span class="lg" data-k="outp"><i style="background:#f59e0b"></i>输出功率 <b class="lgv">250W</b></span>
+                <span class="lg" data-k="i"><i style="background:#06b6d4"></i>总电流 <b class="lgv">0.0A</b></span>
               </div>
               <canvas id="chart" class="chart-wrap"></canvas>
             </div>
@@ -397,10 +550,14 @@
                 <button class="tab" data-p="replay">回放</button>
               </div>
               <div class="panel active" id="p-alarm">
-                <div class="alarm-list" id="alarm-list">
-                  <div class="alarm-item warn"><svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg><span class="lv">提示</span><span class="msg">DCDC 散热温度接近上限</span><span class="time">09:12:33</span><button class="ack">确认</button></div>
-                  <div class="alarm-item err"><svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg><span class="lv">严重</span><span class="msg">BMS 单体压差超阈值</span><span class="time">09:10:02</span><button class="ack">确认</button></div>
+                <div class="alarm-tool">
+                  <button class="af-btn active" data-f="all">全部</button>
+                  <button class="af-btn" data-f="unack">未确认</button>
+                  <button class="af-btn" data-f="err">严重</button>
+                  <span style="flex:1"></span>
+                  <button class="af-btn" data-f="clear" title="清空告警历史">清空</button>
                 </div>
+                <div class="alarm-list" id="alarm-list"></div>
               </div>
               <div class="panel" id="p-log">
                 <div class="log" id="log">
@@ -434,13 +591,133 @@
       </section>
 
       <section class="view" id="view-map">
-        <div class="placeholder"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg><div class="tip">地图视图（预留）</div><div style="font-size:12px">飞艇位置 / 轨迹 / 任务航线</div></div>
+        <div class="map-view">
+          <div class="map-grid"></div>
+          <div class="map-overlay">
+            <div class="mo-title"><span class="dot"></span>飞艇遥测</div>
+            <div class="mo-item"><label>高度</label><b>— m</b></div>
+            <div class="mo-item"><label>位置</label><b>30.27,120.15</b></div>
+            <div class="mo-item"><label>航向</label><b>— °</b></div>
+            <div class="mo-item"><label>地速</label><b>— m/s</b></div>
+            <div class="mo-item"><label>舱内气压</label><b>105.2 kPa</b></div>
+          </div>
+        </div>
       </section>
       <section class="view" id="view-flight">
-        <div class="placeholder"><svg class="ic" viewBox="0 0 24 24"><path d="M8 13 L4 10 M8 16 L4 19"/><ellipse cx="13" cy="13" rx="9" ry="4.5"/><path d="M10 17 L9 21 M16 17 L17 21"/><path d="M8 21 h8 v2 h-8 z"/></svg><div class="tip">飞控视图（预留）</div><div style="font-size:12px">姿态 / 位置 / 飞行模式 / HUD</div></div>
+        <div class="flight-preview">
+          <div class="fp-head"><span class="t">飞控视图（预留）</span><span class="fp-tag">规划中</span></div>
+          <div class="fp-body">
+            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg><div class="sk-tip">姿态仪表</div><div class="sk-sub">横滚 / 俯仰 / 偏航</div></div>
+            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg><div class="sk-tip">位置与航迹</div><div class="sk-sub">GPS / 速度 / 航向</div></div>
+            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><div class="sk-tip">飞行模式</div><div class="sk-sub">手动 / 定高 / 任务</div></div>
+            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><div class="sk-tip">HUD 视频流</div><div class="sk-sub">机载相机实时画面</div></div>
+          </div>
+        </div>
+      </section>
+      <section class="view" id="view-topo">
+        <div class="topo-wrap">
+          <div class="topo-head">
+            <span class="t"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>电源链路拓扑图</span>
+            <span class="topo-legend" style="margin-left:auto">
+              <span class="lg-item"><i class="ok"></i>在线</span>
+              <span class="lg-item"><i class="warn"></i>告警</span>
+              <span class="lg-item"><i class="off"></i>离线</span>
+            </span>
+          </div>
+          <div class="topo-canvas">
+            <svg class="topo-svg" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <marker id="tp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+              </defs>
+              <g class="topo-link" data-flow="l1"><line x1="205" y1="120" x2="285" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l1" class="link-v" x="245" y="110" text-anchor="middle">600 W</text></g>
+              <g class="topo-link" data-flow="l2"><line x1="435" y1="120" x2="525" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l2" class="link-v" x="480" y="110" text-anchor="middle">7.0 A</text></g>
+              <g class="topo-link" data-flow="l3"><line x1="675" y1="120" x2="765" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l3" class="link-v" x="720" y="110" text-anchor="middle">250 W</text></g>
+              <g class="topo-link" data-flow="l4"><line x1="915" y1="120" x2="995" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l4" class="link-v" x="955" y="110" text-anchor="middle">250 W</text></g>
+
+              <g class="topo-node" id="tp-node-pv">
+                <rect class="node-box" x="55" y="88" width="150" height="150" rx="12"/>
+                <g class="node-ic"><circle cx="130" cy="96" r="5"/><line x1="130" y1="86" x2="130" y2="90"/><line x1="130" y1="102" x2="130" y2="106"/><line x1="120" y1="96" x2="124" y2="96"/><line x1="136" y1="96" x2="140" y2="96"/><line x1="123" y1="89" x2="126" y2="92"/><line x1="134" y1="100" x2="137" y2="103"/><line x1="137" y1="89" x2="134" y2="92"/><line x1="126" y1="100" x2="123" y2="103"/></g>
+                <text class="node-title" x="130" y="150" text-anchor="middle">光伏面板</text>
+                <text class="node-val" id="tp-pv-v" x="130" y="185" text-anchor="middle">600 W</text>
+                <text class="node-sub" id="tp-pv-s" x="130" y="207" text-anchor="middle">89.5 V</text>
+              </g>
+              <g class="topo-node" id="tp-node-mppt">
+                <rect class="node-box" x="285" y="88" width="150" height="150" rx="12"/>
+                <g class="node-ic"><rect x="352" y="90" width="16" height="15" rx="3"/><path d="M358 94l-3 4h3l-3 5"/></g>
+                <text class="node-title" x="360" y="150" text-anchor="middle">MPPT 控制器</text>
+                <text class="node-val" id="tp-mppt-v" x="360" y="185" text-anchor="middle">7.0 A</text>
+                <text class="node-sub" id="tp-mppt-s" x="360" y="207" text-anchor="middle">效率 42%</text>
+              </g>
+              <g class="topo-node" id="tp-node-bms">
+                <rect class="node-box" x="525" y="88" width="150" height="150" rx="12"/>
+                <g class="node-ic"><rect x="591" y="90" width="18" height="15" rx="2"/><line x1="603" y1="88" x2="603" y2="90"/><line x1="594" y1="95" x2="594" y2="99"/><line x1="600" y1="93" x2="600" y2="101"/><line x1="606" y1="95" x2="606" y2="99"/></g>
+                <text class="node-title" x="600" y="150" text-anchor="middle">电池组 BMS</text>
+                <text class="node-val" id="tp-bms-v" x="600" y="185" text-anchor="middle">85%</text>
+                <text class="node-sub" id="tp-bms-s" x="600" y="207" text-anchor="middle">367.2 V</text>
+              </g>
+              <g class="topo-node" id="tp-node-dcdc">
+                <rect class="node-box" x="765" y="88" width="150" height="150" rx="12"/>
+                <g class="node-ic"><path d="M837 92l-5 6h4l-4 7"/></g>
+                <text class="node-title" x="840" y="150" text-anchor="middle">DCDC 模块</text>
+                <text class="node-val" id="tp-dcdc-v" x="840" y="185" text-anchor="middle">250 W</text>
+                <text class="node-sub" id="tp-dcdc-s" x="840" y="207" text-anchor="middle">41.0 ℃</text>
+              </g>
+              <g class="topo-node" id="tp-node-load">
+                <rect class="node-box" x="995" y="88" width="150" height="150" rx="12"/>
+                <g class="node-ic"><circle cx="1070" cy="97" r="8"/><path d="M1070 97l5-6"/></g>
+                <text class="node-title" x="1070" y="150" text-anchor="middle">机载负载</text>
+                <text class="node-val" id="tp-load-v" x="1070" y="185" text-anchor="middle">250 W</text>
+                <text class="node-sub" id="tp-load-s" x="1070" y="207" text-anchor="middle">在线</text>
+              </g>
+            </svg>
+          </div>
+        </div>
       </section>
       <section class="view" id="view-setup">
-        <div class="placeholder"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><div class="tip">设置视图（预留）</div><div style="font-size:12px">串口配置 / 告警阈值 / 单位 / 主题</div></div>
+        <div class="setup-panel">
+          <div class="check-head">
+            <span class="t"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:var(--primary)"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.74 8.87C2.62 9.08 2.66 9.34 2.86 9.48l2.03 1.58C4.84 11.36 4.8 11.69 4.8 12s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>系统设置</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-2)">配置将持久化到本地</span>
+          </div>
+          <div class="setup-body">
+            <div class="set-group">
+              <div class="set-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 9h18"/></svg>串口配置</div>
+              <div class="set-row"><label>串口设备</label><input id="setSerial" value="/dev/ttyUSB0"></div>
+              <div class="set-row"><label>波特率</label><select id="setBaud"><option selected>115200</option><option>57600</option><option>38400</option><option>9600</option></select></div>
+              <div class="set-row"><label>上报频率</label><select id="setRate"><option selected>5 Hz</option><option>2 Hz</option><option>1 Hz</option></select></div>
+              <div class="hint">遵循《地面站对接协议》115200 8N1，机载 5Hz 下传</div>
+            </div>
+            <div class="set-group">
+              <div class="set-title"><svg viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg>告警阈值</div>
+              <div class="set-row"><label>BMS 最高温度 (℃)</label><input type="number" id="setBmsTemp" value="50"></div>
+              <div class="set-row"><label>BMS 单体压差 (V)</label><input type="number" id="setDiffV" step="0.01" value="0.05"></div>
+              <div class="set-row"><label>DCDC 散热温度 (℃)</label><input type="number" id="setDcdcTemp" value="45"></div>
+              <div class="set-row"><label>离线判定 (s)</label><input type="number" id="setOffline" value="3"></div>
+            </div>
+            <div class="set-group">
+              <div class="set-title"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>显示单位</div>
+              <div class="set-row"><label>温度单位</label><select id="setTempUnit"><option selected>℃</option><option>℉</option></select></div>
+              <div class="set-row"><label>电量显示</label><select id="setSocUnit"><option selected>百分比 (%)</option><option>电压 (V)</option></select></div>
+              <div class="set-row"><label>功率显示</label><select id="setPowerUnit"><option selected>W</option><option>kW</option></select></div>
+            </div>
+            <div class="set-group">
+              <div class="set-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>界面与主题</div>
+              <div class="set-row"><label>主题</label><select id="setTheme"><option>浅色</option><option>深色</option></select></div>
+              <div class="set-row"><label>信息密度</label><select id="setDensity"><option>舒适</option><option>密集</option></select></div>
+              <div class="set-row"><label>告警声音</label><select id="setSound"><option>开启</option><option>关闭</option></select></div>
+              <div class="set-row"><label>高对比度</label><select id="setContrast"><option>关闭</option><option>开启</option></select></div>
+              <div class="set-row"><label>强调色</label><select id="setAccent"><option selected>蓝色</option><option>绿色</option><option>橙色</option><option>紫色</option><option>青色</option></select></div>
+              <div class="hint">快捷键：1-5 切换视图 · 空格 暂停曲线 · S 清屏 · T 主题 · D 密度</div>
+            </div>
+          </div>
+          <div class="set-foot">
+            <button class="btn ghost" id="importSet" title="从 JSON 文件导入配置">导入配置</button>
+            <button class="btn ghost" id="exportSet" title="导出当前配置为 JSON 文件">导出配置</button>
+            <span style="flex:1"></span>
+            <button class="btn ghost" id="resetSet">恢复默认</button>
+            <button class="btn" id="saveSet">保存设置</button>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -467,13 +744,30 @@
 
 <script>
 const $=id=>document.getElementById(id);
-const th=localStorage.getItem('gcs_theme')||'light',den=localStorage.getItem('gcs_density')||'comfortable';
+const th=localStorage.getItem('gcs_theme')||'light',den=localStorage.getItem('gcs_density')||'comfortable',con=localStorage.getItem('gcs_contrast')||'off';
 document.documentElement.setAttribute('data-theme',th);
 document.documentElement.setAttribute('data-density',den);
+document.documentElement.setAttribute('data-contrast',con);
 $('themeBtn').textContent=th==='dark'?'浅色':'深色';
 $('densityBtn').textContent=den==='comfortable'?'密度：舒适':'密度：密集';
 $('themeBtn').onclick=()=>{const t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';};
 $('densityBtn').onclick=()=>{const d=document.documentElement.getAttribute('data-density')==='comfortable'?'dense':'comfortable';document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';};
+
+/* 强调色 */
+const ACCENT_MAP={蓝色:'blue',绿色:'green',橙色:'orange',紫色:'purple',青色:'teal'};
+const acc=localStorage.getItem('gcs_accent')||'blue';
+document.documentElement.setAttribute('data-accent',acc);
+function applyAccent(v){document.documentElement.setAttribute('data-accent',v);localStorage.setItem('gcs_accent',v);}
+function accentLabel(){const k=Object.keys(ACCENT_MAP).find(x=>ACCENT_MAP[x]===document.documentElement.getAttribute('data-accent'));return k||'蓝色';}
+document.addEventListener('keydown',e=>{
+  if(e.target&&e.target.matches&&e.target.matches('input,select,textarea'))return;
+  const map={'1':'monitor','2':'check','3':'map','4':'flight','5':'setup'};
+  if(map[e.key]){const v=map[e.key];document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));}
+  else if(e.key===' '){e.preventDefault();$('pauseBtn').click();}
+  else if(e.key==='s'||e.key==='S'){$('clearBtn').click();}
+  else if(e.key==='t'||e.key==='T'){$('themeBtn').click();}
+  else if(e.key==='d'||e.key==='D'){$('densityBtn').click();}
+});
 
 /* 时钟 */
 const start=Date.now();
@@ -612,28 +906,82 @@ document.addEventListener('click',e=>{if(!e.target.closest('#readinessBtn')&&!e.
 
 /* ===== 曲线 ===== */
 const series={v:{c:'#2563eb',data:Array(100).fill(367),on:true},pv:{c:'#16a34a',data:Array(100).fill(600),on:true},outp:{c:'#f59e0b',data:Array(100).fill(250),on:true},i:{c:'#06b6d4',data:Array(100).fill(0),on:false}};
+let paused=false;
+const pauseBtn=$('pauseBtn');
+pauseBtn.onclick=()=>{paused=!paused;pauseBtn.textContent=paused?'▶ 继续':'⏸ 暂停';};
+$('clearBtn').onclick=()=>{Object.keys(series).forEach(k=>series[k].data=[]);draw();};
+function updateLegend(){
+  const get=t=>Number($(t).childNodes[0].nodeValue);
+  document.querySelector('#chartLegend .lg[data-k="v"] .lgv').textContent=get('bms-pack_v').toFixed(1)+'V';
+  document.querySelector('#chartLegend .lg[data-k="pv"] .lgv').textContent=Math.round(get('mppt-pv_p'))+'W';
+  document.querySelector('#chartLegend .lg[data-k="outp"] .lgv').textContent=Math.round(get('dcdc-out_p'))+'W';
+  document.querySelector('#chartLegend .lg[data-k="i"] .lgv').textContent=get('bms-pack_i').toFixed(1)+'A';
+}
 document.querySelectorAll('#chartLegend .lg').forEach(el=>{const k=el.dataset.k;el.onclick=()=>{series[k].on=!series[k].on;el.classList.toggle('off',!series[k].on);draw();};});
 const cv=$('chart'),ctx=cv.getContext('2d');
 function size(){const d=window.devicePixelRatio||1;cv.width=cv.offsetWidth*d;cv.height=cv.offsetHeight*d;ctx.setTransform(d,0,0,d,0,0);}
 window.addEventListener('resize',()=>{size();draw();});
-function draw(){const w=cv.offsetWidth,h=cv.offsetHeight,pad=30;if(!w||!h)return;ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--line');ctx.lineWidth=1;for(let i=0;i<4;i++){const y=pad+(h-2*pad)*i/3;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(w-pad,y);ctx.stroke();}
-  Object.keys(series).forEach(k=>{const s=series[k];if(!s.on)return;const mn=Math.min(...s.data),mx=Math.max(...s.data);ctx.strokeStyle=s.c;ctx.lineWidth=2.5;ctx.beginPath();s.data.forEach((v,i)=>{const x=pad+(w-2*pad)*i/(s.data.length-1),y=h-pad-(h-2*pad)*(v-mn)/((mx-mn)||1);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();});
-  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text-2');ctx.font='11px sans-serif';ctx.fillText('最近 20s · 5Hz',pad,14);}
+function hexA(c,a){c=c.replace('#','');const n=parseInt(c,16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';}
+function smoothPath(pts){const n=pts.length;let d='M'+pts[0].x.toFixed(1)+','+pts[0].y.toFixed(1);for(let i=0;i<n-1;i++){const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(n-1,i+2)];d+='C'+((p1.x+(p2.x-p0.x)/6).toFixed(1))+','+((p1.y+(p2.y-p0.y)/6).toFixed(1))+' '+((p2.x-(p3.x-p1.x)/6).toFixed(1))+','+((p2.y-(p3.y-p1.y)/6).toFixed(1))+' '+p2.x.toFixed(1)+','+p2.y.toFixed(1);}return d;}
+function draw(){const w=cv.offsetWidth,h=cv.offsetHeight,padL=8,padR=12,padT=26,padB=24;if(!w||!h)return;const cs=getComputedStyle(document.documentElement),line=cs.getPropertyValue('--line'),t2=cs.getPropertyValue('--text-2'),card=cs.getPropertyValue('--card');ctx.clearRect(0,0,w,h);const cw=w-padL-padR,ch=h-padT-padB;
+  /* 虚线网格 */
+  ctx.font='10px sans-serif';ctx.fillStyle=t2;
+  for(let i=0;i<=3;i++){const y=padT+ch*i/3;ctx.strokeStyle=line;ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();ctx.setLineDash([]);}
+  /* 底部时间刻度 */
+  ctx.textAlign='center';['20s','15s','10s','5s','现在'].forEach((t,ti)=>ctx.fillText(t,padL+cw*ti/4,h-7));ctx.textAlign='left';
+  /* 标题 */
+  ctx.font='11px sans-serif';ctx.fillText('最近 20s · 5Hz',padL,15);
+  /* 系列 */
+  Object.keys(series).forEach(k=>{const s=series[k];if(!s.on||s.data.length<2)return;const mn=Math.min(...s.data),mx=Math.max(...s.data),rng=(mx-mn)||1;const pts=s.data.map((v,i)=>({x:padL+cw*i/(s.data.length-1),y:padT+ch-(ch*(v-mn)/rng)}));
+    /* 渐变面积填充 */
+    const g=ctx.createLinearGradient(0,padT,0,padT+ch);g.addColorStop(0,s.c);g.addColorStop(1,hexA(s.c,0));ctx.beginPath();ctx.moveTo(pts[0].x,padT+ch);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.lineTo(pts[pts.length-1].x,padT+ch);ctx.closePath();ctx.fillStyle=g;ctx.globalAlpha=.16;ctx.fill();ctx.globalAlpha=1;
+    /* 平滑主线 */
+    ctx.strokeStyle=s.c;ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();ctx.stroke(new Path2D(smoothPath(pts)));
+    /* 最新端点圆点 */
+    const lp=pts[pts.length-1];ctx.beginPath();ctx.arc(lp.x,lp.y,3.2,0,6.283);ctx.fillStyle=s.c;ctx.fill();ctx.beginPath();ctx.arc(lp.x,lp.y,3.2,0,6.283);ctx.strokeStyle=card;ctx.lineWidth=2;ctx.stroke();
+  });}
 
 /* BMS SOC 环形 */
-function ring(soc){const r=30,c=2*Math.PI*r,off=c*(1-soc/100),col=soc>50?'var(--ok)':soc>20?'var(--warn)':'var(--err)';$('bms-ring').innerHTML=`<svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="${r}" fill="none" stroke="var(--bg-2)" stroke-width="8"/><circle cx="37" cy="37" r="${r}" fill="none" stroke="${col}" stroke-width="8" stroke-dasharray="${c}" stroke-dashoffset="${off}" stroke-linecap="round"/><text x="37" y="41" font-size="16" font-weight="700" fill="var(--text)" text-anchor="middle">${soc}%</text></svg>`;}
+function ring(soc){const r=30,c=2*Math.PI*r,off=c*(1-soc/100),col=soc>50?'#16a34a':soc>20?'#d97706':'#dc2626';const trk=getComputedStyle(document.documentElement).getPropertyValue('--card-2');$('bms-ring').innerHTML=`<svg width="74" height="74" viewBox="0 0 74 74"><defs><linearGradient id="socg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="${hexA(col,0.5)}"/></linearGradient></defs><circle cx="37" cy="37" r="${r}" fill="none" stroke="${trk}" stroke-width="7"/><circle cx="37" cy="37" r="${r}" fill="none" stroke="url(#socg)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>`;}
 
+/* 电源链路拓扑图更新 */
+function getT(dev,fid){const el=$(dev+'-'+fid);return el?parseFloat(el.childNodes[0].nodeValue):NaN;}
+function updateTopo(){
+  const pv=Math.round(getT('mppt','pv_p'))||0;
+  const pvv=getT('mppt','pv_v')||0;
+  const ci=getT('mppt','charge_i')||0;
+  const soc=getT('bms','soc')||0;
+  const packv=getT('bms','pack_v')||0;
+  const op=getT('dcdc','out_p')||0;
+  const temp=getT('dcdc','temp')||0;
+  const eff=(pv&&op)?Math.round(op/pv*100):0;
+  $('tp-pv-v').textContent=pv+' W';
+  $('tp-pv-s').textContent=pvv.toFixed(1)+' V';
+  $('tp-mppt-v').textContent=ci.toFixed(1)+' A';
+  $('tp-mppt-s').textContent='效率 '+eff+'%';
+  $('tp-bms-v').textContent=Math.round(soc)+'%';
+  $('tp-bms-s').textContent=packv.toFixed(1)+' V';
+  $('tp-dcdc-v').textContent=op+' W';
+  $('tp-dcdc-s').textContent=temp.toFixed(1)+' ℃';
+  $('tp-load-v').textContent=op+' W';
+  $('tp-load-s').textContent='在线';
+  $('tp-l1').textContent=pv+' W';
+  $('tp-l2').textContent=ci.toFixed(1)+' A';
+  $('tp-l3').textContent=op+' W';
+  $('tp-l4').textContent=op+' W';
+  const off=document.querySelector('.card[data-dev="dcdc"]').classList.contains('off');
+  document.querySelectorAll('.topo-node').forEach(n=>n.classList.toggle('off',off&&n.id==='tp-node-dcdc'));
+  document.querySelectorAll('.topo-link').forEach(l=>l.classList.toggle('off',off&&(l.dataset.flow==='l3'||l.dataset.flow==='l4')));
+}
 /* 模拟 + 告警 */
 function rand(b,a){return b+(Math.random()*2-1)*a;}
-let alarmCount=0;
 /* 数据新鲜度 / 离线置灰 */
 function setFresh(dev,cls,label){const f=$(dev+'-fresh');f.className='fresh'+(cls?' '+cls:'');f.innerHTML='<span class="dot"></span>'+label;}
 function setDevOffline(dev,off){const card=document.querySelector('.card[data-dev="'+dev+'"]');card.classList.toggle('off',off);const badge=$(dev+'-badge');if(off){badge.className='badge off';badge.textContent='离线';}else{badge.className='badge ok';badge.textContent='正常';}}
 let dcdcWasOffline=false;
-function updAlarm(){const b=$('sb-alarm');b.textContent=alarmCount;$('sb-alarm-wrap').classList.toggle('has',alarmCount>0);}
 let temp;
 function sim(){
+  if(paused)return; // 暂停时冻结整幅画面（数值与曲线均停）
   // DCDC 每 20 秒演示 2 秒离线，直观展示"数据新鲜度"置灰+告警
   const dsec=Math.floor(Date.now()/1000)%20,dcdcDown=dsec>=9&&dsec<11;
   setFresh('bms','','实时');setFresh('mppt','','实时');
@@ -664,26 +1012,107 @@ function sim(){
     $('dcdc-out_p').childNodes[0].nodeValue=Math.round(48.1*outi);
     $('dcdc-temp').childNodes[0].nodeValue=temp.toFixed(1);
   }
-  if(!dcdcDown&&temp>43&&alarmCount<1){alarmCount++;updAlarm();addAlarm('严重','DCDC 散热温度过高 ('+temp.toFixed(1)+'℃)');addLog('err','DCDC overtemp alarm');}
+  if(!dcdcDown&&temp>43){addAlarm('严重','DCDC 散热温度过高 ('+temp.toFixed(1)+'℃)');addLog('err','DCDC overtemp alarm');}
   series.pv.data.push(Math.round(pv*6.7));series.pv.data.shift();
   series.outp.data.push(Math.round(48.1*outi));series.outp.data.shift();
   series.v.data.push(Number($('bms-pack_v').childNodes[0].nodeValue));series.v.data.shift();
   series.i.data.push(packi);series.i.data.shift();
+  /* 电源总览 + 续航预算 */
+  const pin=Math.round(pv*6.7),pout=Number($('dcdc-out_p').childNodes[0].nodeValue)||0;
+  $('ps-pin').childNodes[0].nodeValue=pin; $('ps-pout').childNodes[0].nodeValue=pout;
+  $('ps-in').textContent=pin+' W'; $('ps-out').textContent=pout+' W'; $('ps-load').textContent=pout+' W';
+  $('ps-batt').textContent=(packi>=0?'+':'')+packi.toFixed(1)+' A';
+  const eff=pout&&pin?(pout/pin*100):0; $('ps-eff').childNodes[0].nodeValue=eff?eff.toFixed(0):'—';
+  const net=pin-pout; $('ps-net').childNodes[0].nodeValue=net>=0?'+'+Math.round(net):Math.round(net);
+  const packv=Number($('bms-pack_v').childNodes[0].nodeValue)||0;
+  const energy=packv*60*soc/100; // 估算容量 60Ah
+  $('ps-budget').childNodes[0].nodeValue=(pout>0&&!dcdcDown)?(energy/pout).toFixed(1):'—';
+  $('ps-trend').childNodes[0].nodeValue=net>5?'充电中':(net<-5?'放电中':'平衡');
   $('sb-rate').textContent=(4.5+Math.random()*1).toFixed(1);
   $('sb-lq').textContent=Math.round(96+Math.random()*4)+'%';
+  updateLegend();
+  updateTopo();
   draw();
 }
 const warnSvg=`<svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg>`;
-function addAlarm(lv,msg){const box=$('alarm-list'),d=new Date().toLocaleTimeString('zh-CN',{hour12:false});
-  const el=document.createElement('div');el.className='alarm-item '+(lv==='严重'?'err':'warn');
-  el.innerHTML=`${warnSvg}<span class="lv">${lv}</span><span class="msg">${msg}</span><span class="time">${d}</span><button class="ack">确认</button>`;
-  el.querySelector('.ack').onclick=()=>el.remove();box.prepend(el);$('sb-msg').textContent='⚠ '+msg;}
+/* 告警声音（Web Audio，需用户首次点击后才可播放） */
+let actx=null;
+function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
+document.addEventListener('pointerdown',ensureAudio);
+function playAlarm(lv){if(!actx||localStorage.getItem('gcs_sound')==='off')return;try{const o=actx.createOscillator(),g=actx.createGain();
+  o.type=lv==='严重'?'square':'sine';o.frequency.value=lv==='严重'?880:620;
+  g.gain.setValueAtTime(0.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.25,actx.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.35);
+  o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4);}catch(e){}}
+/* 告警：持久化 + 同源去重 + 声音 + 筛选 + 确认灰化 */
+let alarms=[],alarmFilter='all';
+function loadAlarms(){try{const a=JSON.parse(localStorage.getItem('gcs_alarms'));return Array.isArray(a)?a:[];}catch(e){return [];}}
+function saveAlarms(){try{localStorage.setItem('gcs_alarms',JSON.stringify(alarms.slice(0,200)));}catch(e){}}
+function updAlarm(){const n=alarms.filter(a=>!a.acked).length;const b=$('sb-alarm');b.textContent=n;$('sb-alarm-wrap').classList.toggle('has',n>0);}
+function renderAlarms(){
+  const box=$('alarm-list');box.innerHTML='';
+  alarms.slice(0,100).forEach(a=>{
+    if(alarmFilter==='unack'&&a.acked)return;
+    if(alarmFilter==='err'&&a.lv!=='严重')return;
+    const el=document.createElement('div');el.className='alarm-item '+(a.lv==='严重'?'err':'warn')+(a.acked?' acked':'');
+    el.innerHTML=`${warnSvg}<span class="lv">${a.lv}</span><span class="msg">${a.msg}</span><span class="time">${a.time}</span><button class="ack">${a.acked?'已确认':'确认'}</button>`;
+    if(!a.acked)el.querySelector('.ack').onclick=()=>{a.acked=true;saveAlarms();renderAlarms();updAlarm();};
+    box.appendChild(el);
+  });
+}
+function addAlarm(lv,msg){
+  playAlarm(lv);
+  const now=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  const dup=alarms.find(a=>a.msg===msg);
+  if(dup){dup.time=now;dup.acked=false;saveAlarms();renderAlarms();$('sb-msg').textContent='⚠ '+msg;return;}
+  alarms.unshift({lv,msg,time:now,acked:false});
+  if(alarms.length>200)alarms.pop();
+  saveAlarms();renderAlarms();updAlarm();$('sb-msg').textContent='⚠ '+msg;
+}
+document.querySelectorAll('.af-btn').forEach(b=>b.onclick=()=>{
+  const f=b.dataset.f;
+  if(f==='clear'){alarms=[];saveAlarms();renderAlarms();updAlarm();return;}
+  alarmFilter=f;
+  document.querySelectorAll('.af-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  renderAlarms();
+});
+alarms=loadAlarms();
+if(!alarms.length){ // 首次使用：填充演示告警
+  alarms=[{lv:'提示',msg:'DCDC 散热温度接近上限',time:'09:12:33',acked:false},{lv:'严重',msg:'BMS 单体压差超阈值',time:'09:10:02',acked:false}];
+}
+renderAlarms();updAlarm();
 function addLog(type,msg){const box=$('log'),d=new Date().toLocaleTimeString('zh-CN',{hour12:false});
   const map={ok:'[OK]',warn:'[WARN]',err:'[ERROR]',info:'[INFO]'};
   const el=document.createElement('div');el.innerHTML=`<span class="l">${d}</span> <span class="${type}">${map[type]}</span> ${msg}`;
   box.prepend(el);while(box.children.length>200)box.lastChild.remove();if(type==='info'||type==='ok')$('sb-msg').textContent=msg;}
 
-ring(85);size();draw();runCheck();setInterval(sim,200);
+/* ===== 设置视图联动 ===== */
+const SET_FIELDS=['setSerial','setBaud','setRate','setBmsTemp','setDiffV','setDcdcTemp','setOffline','setTempUnit','setSocUnit','setPowerUnit','setTheme','setDensity','setSound','setContrast','setAccent'];
+const SET_DEFAULT={'setSerial':'/dev/ttyUSB0','setBaud':'115200','setRate':'5 Hz','setBmsTemp':'50','setDiffV':'0.05','setDcdcTemp':'45','setOffline':'3','setTempUnit':'℃','setSocUnit':'百分比 (%)','setPowerUnit':'W','setTheme':'浅色','setDensity':'舒适','setSound':'开启','setContrast':'关闭','setAccent':'蓝色'};
+function applyContrast(v){document.documentElement.setAttribute('data-contrast',v?'high':'off');localStorage.setItem('gcs_contrast',v?'high':'off');}
+function syncSetSels(){
+  $('setTheme').value=document.documentElement.getAttribute('data-theme')==='dark'?'深色':'浅色';
+  $('setDensity').value=document.documentElement.getAttribute('data-density')==='dense'?'密集':'舒适';
+  $('setContrast').value=document.documentElement.getAttribute('data-contrast')==='high'?'开启':'关闭';
+  $('setAccent').value=accentLabel();
+}
+$('setTheme').onchange=e=>{const t=e.target.value==='深色'?'dark':'light';document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';};
+$('setDensity').onchange=e=>{const d=e.target.value==='密集'?'dense':'comfortable';document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';};
+$('setContrast').onchange=e=>{applyContrast(e.target.value==='开启');addLog('info','高对比度：'+(e.target.value==='开启'?'开':'关'));};
+$('setSound').onchange=e=>{localStorage.setItem('gcs_sound',e.target.value==='开启'?'on':'off');};
+$('setAccent').onchange=e=>{applyAccent(ACCENT_MAP[e.target.value]||'blue');addLog('info','强调色已切换为 '+e.target.value);};
+/* 配置导出 / 导入 */
+function collectSet(){const o={};SET_FIELDS.forEach(id=>{const el=$(id);if(el)o[id]=el.value;});o.theme=document.documentElement.getAttribute('data-theme');o.density=document.documentElement.getAttribute('data-density');o.contrast=document.documentElement.getAttribute('data-contrast');o.accent=document.documentElement.getAttribute('data-accent');o.exportedAt=new Date().toISOString();return o;}
+function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();}
+function importSetFrom(data){SET_FIELDS.forEach(id=>{const el=$(id);if(el&&data[id]!=null)el.value=data[id];});if(data.theme){const t=data.theme;document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';}if(data.density){const d=data.density;document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';}if(data.contrast)applyContrast(data.contrast==='high');if(data.accent)applyAccent(data.accent);if(data.setSound)localStorage.setItem('gcs_sound',data.setSound==='开启'?'on':'off');syncSetSels();}
+$('exportSet').onclick=()=>{download('lingyun-gcs-config.json',JSON.stringify(collectSet(),null,2),'application/json');addLog('ok','配置已导出为 JSON');$('sb-msg').textContent='配置已导出';};
+$('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
+$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','on');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';};
+$('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';};
+/* 曲线导出 CSV（仅导出开启中的系列） */
+$('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
+syncSetSels();
+
+ring(85);size();draw();runCheck();updateTopo();setInterval(sim,200);
 </script>
 </body>
 </html>
