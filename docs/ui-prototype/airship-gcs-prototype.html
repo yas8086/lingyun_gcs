@@ -1209,7 +1209,7 @@ const pauseBtn=$('pauseBtn');
 pauseBtn.onclick=()=>{paused=!paused;pauseBtn.textContent=paused?'▶ 继续':'⏸ 暂停';};
 $('clearBtn').onclick=()=>{Object.keys(series).forEach(k=>series[k].data=[]);draw();};
 function updateLegend(){
-  const get=t=>Number($(t).childNodes[0].nodeValue);
+  const get=t=>{const el=$(t);const uv=el.getAttribute('data-uv');return Number(uv!=null?uv:el.childNodes[0].nodeValue);};
   document.querySelector('#chartLegend .lg[data-k="v"] .lgv').textContent=get('bms-pack_v').toFixed(1)+'V';
   document.querySelector('#chartLegend .lg[data-k="pv"] .lgv').textContent=Math.round(get('mppt-pv_p'))+'W';
   document.querySelector('#chartLegend .lg[data-k="outp"] .lgv').textContent=Math.round(get('dcdc-out_p'))+'W';
@@ -1670,8 +1670,8 @@ function sim(){
     outi=rand(5.2,0.4);
     $('dcdc-out_v').childNodes[0].nodeValue=rand(48.1,0.3).toFixed(1);
     $('dcdc-out_i').childNodes[0].nodeValue=outi.toFixed(1);
-    $('dcdc-out_p').childNodes[0].nodeValue=Math.round(48.1*outi);
-    $('dcdc-temp').childNodes[0].nodeValue=temp.toFixed(1);
+    outPW=Math.round(48.1*outi);renderMeas('dcdc-out_p','power',outPW);
+    renderMeas('dcdc-temp','temp',temp);
   }
   if(!dcdcDown&&temp>43){addAlarm('严重','DCDC 散热温度过高 ('+temp.toFixed(1)+'℃)');addLog('err','DCDC overtemp alarm');}
   series.pv.data.push(Math.round(pv*6.7));series.pv.data.shift();
