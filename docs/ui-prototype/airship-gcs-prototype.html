@@ -169,6 +169,7 @@
   .chart-legend .lg i{display:inline-block;width:14px;height:3px;border-radius:2px}
   .chart-legend .lg.off{opacity:.35;text-decoration:line-through}
   .chart-wrap{flex:1;width:100%;min-height:120px}
+  #linkSpark polyline{fill:none;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
   .side-panel{flex:1;min-width:280px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;max-width:430px}
   .tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--card-2)}
   .tab{border:none;background:transparent;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer}
@@ -649,6 +650,11 @@
                 <span class="lg" data-k="pv"><i style="background:#16a34a"></i>光伏功率 <b class="lgv">600W</b></span>
                 <span class="lg" data-k="outp"><i style="background:#f59e0b"></i>输出功率 <b class="lgv">250W</b></span>
                 <span class="lg" data-k="i"><i style="background:#06b6d4"></i>总电流 <b class="lgv">0.0A</b></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-size:11px;color:var(--text-2);font-weight:600;white-space:nowrap">链路质量</span>
+                <svg id="linkSpark" width="120" height="22" viewBox="0 0 120 22" preserveAspectRatio="none" style="flex:1;min-width:0;max-width:240px;border:1px solid var(--line);border-radius:4px;background:var(--card-2)"></svg>
+                <span id="linkStat" style="font-size:11px;color:var(--text-2);white-space:nowrap"></span>
               </div>
               <canvas id="chart" class="chart-wrap"></canvas>
             </div>
@@ -1586,6 +1592,26 @@ function setFresh(dev,cls,label){const f=$(dev+'-fresh');f.className='fresh'+(cl
 function setDevOffline(dev,off){const card=document.querySelector('.card[data-dev="'+dev+'"]');card.classList.toggle('off',off);const badge=$(dev+'-badge');if(off){badge.className='badge off';badge.textContent='离线';}else{badge.className='badge ok';badge.textContent='正常';}}
 let dcdcWasOffline=false;
 let temp;
+/* ===== 链路质量采样 + 迷你趋势图 + 断线重连状态机 (Task 7) ===== */
+let linkHist=[],linkAttempts=0,linkDown=false;
+function recordLink(q){linkHist.push(q);if(linkHist.length>200)linkHist.shift();}
+function drawLinkSpark(){
+  const svg=$('linkSpark');if(!svg)return;
+  const w=120,h=22;
+  if(linkHist.length<2){svg.innerHTML='';$('linkStat').textContent='';return;}
+  const mn=Math.min(...linkHist),mx=Math.max(...linkHist),rng=(mx-mn)||1;
+  const pts=linkHist.map((v,i)=>({x:i/(linkHist.length-1)*w,y:h-2-(h-4)*(v-mn)/rng}));
+  const last=linkHist[linkHist.length-1];
+  const color=last<60?'var(--err)':last<80?'var(--warn)':'var(--ok)';
+  svg.innerHTML=`<polyline points="${pts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ')}" style="stroke:${color}"></polyline>`;
+  $('linkStat').textContent='平均 '+Math.round(linkHist.reduce((a,b)=>a+b,0)/linkHist.length)+'% · 最低 '+mn+'%';
+}
+function simulateLink(){
+  const s=Math.floor(Date.now()/1000)%60;
+  const down=s>=45&&s<48; // 每分钟 45-48s 演示 3 秒断线
+  if(down&&!linkDown){linkDown=true;setFresh('bms','off','断线');addLog('err','链路中断，尝试重连');}
+  else if(!down&&linkDown){linkDown=false;linkAttempts++;setFresh('bms','','实时');addLog('ok','重连成功（第 '+linkAttempts+' 次）');}
+}
 function sim(){
   if(paused)return; // 暂停时冻结整幅画面（数值与曲线均停）
   // DCDC 每 20 秒演示 2 秒离线，直观展示"数据新鲜度"置灰+告警
@@ -1636,6 +1662,8 @@ function sim(){
   $('ps-trend').childNodes[0].nodeValue=net>5?'充电中':(net<-5?'放电中':'平衡');
   $('sb-rate').textContent=(4.5+Math.random()*1).toFixed(1);
   $('sb-lq').textContent=Math.round(96+Math.random()*4)+'%';
+  recordLink(Number($('sb-lq').textContent.replace('%','')));
+  drawLinkSpark();
   updateLegend();
   updateTopo();
   updateLoRa();
@@ -1643,6 +1671,7 @@ function sim(){
   evalRules();
   draw();
   recordFrame();
+  simulateLink(); // 断线演示覆盖上方 setFresh('bms',...) 的设置，达到「断线→断线、正常→实时」
 }
 const warnSvg=`<svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg>`;
 /* 告警声音（Web Audio，需用户首次点击后才可播放） */
