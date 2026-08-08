@@ -364,6 +364,22 @@
   .topo-legend i.ok{background:var(--ok)} .topo-legend i.warn{background:var(--warn)} .topo-legend i.off{background:var(--off)}
   .topo-canvas{flex:1;min-height:0;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow);overflow:auto;display:flex;align-items:center;justify-content:center;padding:14px}
   .topo-svg{width:100%;height:100%;min-width:720px}
+  /* ===== 系统拓扑：树状层级导航 ===== */
+  .topo-crumb{font-size:12px;color:var(--text-2);font-weight:600;padding:3px 10px;border:1px solid var(--line);background:var(--card-2);border-radius:8px;white-space:nowrap}
+  .topo-body{flex:1;min-height:0;display:flex;gap:12px}
+  .topo-tree{width:180px;flex-shrink:0;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow);padding:10px 8px;display:flex;flex-direction:column;gap:3px;overflow:auto}
+  .tree-title{font-size:11px;color:var(--text-2);font-weight:700;padding:4px 8px 8px;border-bottom:1px dashed var(--line);margin-bottom:4px;letter-spacing:.5px}
+  .tree-item{display:flex;align-items:center;gap:8px;width:100%;border:none;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:8px 10px;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit}
+  .tree-item .ti-ic{width:16px;height:16px;flex-shrink:0;stroke-width:1.8;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+  .tree-item:hover{background:var(--bg-2);color:var(--text)}
+  .tree-item.active{background:var(--primary-soft);color:var(--primary)}
+  .tree-item.child{margin-left:10px;border-left:2px solid var(--line);border-radius:0 9px 9px 0}
+  .tree-item.child.active{border-left-color:var(--primary)}
+  .tree-group{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);font-weight:700;padding:7px 10px 2px;letter-spacing:.5px}
+  .tree-group .tg-arrow{font-size:9px;color:var(--off)}
+  .topo-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+  .tpanel{display:none;flex:1;min-height:0;flex-direction:column;gap:12px}
+  .tpanel.active{display:flex}
   .topo-node .node-box{fill:var(--card-2);stroke:var(--line);stroke-width:1.5;transition:all .2s}
   .topo-node .node-ic{fill:none;stroke:var(--primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .topo-node .node-title{fill:var(--text-2);font-size:13px;font-weight:600}
@@ -379,6 +395,79 @@
   .topo-link.off{color:var(--off)}
   .topo-link.off line{animation:none}
   .topo-link.off .link-v{fill:var(--off)}
+  /* ===== LoRa 温度/压力采集 ===== */
+  .lora-nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+  .lora-node{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card-2);position:relative;transition:all .2s}
+  .lora-node .ln-top{display:flex;align-items:center;gap:6px}
+  .lora-node .ln-id{font-size:11px;color:var(--text-2);font-weight:600}
+  .lora-node .ln-type{font-size:10px;padding:1px 7px;border-radius:999px;font-weight:600;background:var(--primary-soft);color:var(--primary)}
+  .lora-node .ln-type.p{background:var(--ok-soft);color:var(--ok)}
+  .lora-node .ln-val{font-size:18px;font-weight:700;font-family:ui-monospace,monospace;display:flex;align-items:baseline;gap:2px}
+  .lora-node .ln-val small{font-size:11px;color:var(--text-2);font-weight:500}
+  .lora-node .ln-alarm{font-size:11px;color:var(--err);font-weight:700;min-height:14px}
+  .lora-node.warn{border-color:var(--err);background:var(--err-soft)}
+  /* ===== 光伏板下温度热力图视图 ===== */
+  .temp-wrap{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .temp-head{display:flex;align-items:center;gap:14px;padding:10px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap;flex-shrink:0}
+  .temp-head .t{font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px}
+  .temp-head .t svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .temp-stats{display:flex;gap:16px;font-size:12px;color:var(--text-2);flex-wrap:wrap}
+  .temp-stats b{font-size:15px;color:var(--text);font-family:ui-monospace,monospace;margin-left:2px}
+  .temp-legend{display:flex;gap:12px;font-size:11px;color:var(--text-2);font-weight:600;flex-wrap:wrap}
+  .temp-legend span{display:inline-flex;align-items:center;gap:4px}
+  .temp-legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+  /* 四囊体占满页面 */
+  .env-row{display:flex;gap:14px;flex:1;min-height:0;align-items:stretch}
+  .env-card{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;min-height:0}
+  .env-card.main{flex:1.18}
+  .env-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+  .env-label{font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+  .env-type{font-size:10px;padding:1px 7px;border-radius:999px;font-weight:700;background:var(--primary-soft);color:var(--primary)}
+  .env-type.sec{background:var(--bg-2);color:var(--text-2)}
+  .env-dim{font-size:11px;color:var(--text-2);font-family:ui-monospace,monospace}
+  .env-inner{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+  .env-kv{background:var(--card-2);border-radius:10px;padding:8px 10px;text-align:center}
+  .env-kv .ek{display:block;font-size:11px;color:var(--text-2);margin-bottom:2px}
+  .env-kv .ev{font-size:16px;font-weight:700;font-family:ui-monospace,monospace;display:flex;align-items:baseline;justify-content:center;gap:1px}
+  .env-kv .ev small{font-size:11px;color:var(--text-2);font-weight:500}
+  .env-grid{flex:1;min-height:0;display:grid;gap:2px;border-radius:6px;overflow:hidden;background:var(--bg-2)}
+  .pv-cell{border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+  .pv-cell.temp{cursor:pointer}
+  .pv-cell.temp:hover{outline:2px solid var(--text);z-index:1}
+  /* 温度视图 tab 切换（囊体热力图 / 探头数据表） */
+  .temp-tabs{display:inline-flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:10px;flex-shrink:0;align-self:flex-start}
+  .tbtn{border:none;background:transparent;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer}
+  .tbtn.active{background:var(--card);color:var(--primary);box-shadow:var(--shadow)}
+  .temp-pane{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .temp-pane[hidden]{display:none}
+  /* 探头数据表 */
+  .tt-stat{display:flex;gap:18px;padding:10px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;font-size:12px;color:var(--text-2);flex-shrink:0;flex-wrap:wrap}
+  .tt-stat b{font-size:15px;color:var(--text);font-family:ui-monospace,monospace;margin-left:2px}
+  .tt-card{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .tt-scroll{flex:1;min-height:0;overflow:auto}
+  .tt-table{width:100%;border-collapse:collapse;font-size:13px}
+  .tt-table th{position:sticky;top:0;background:var(--card-2);color:var(--text-2);font-size:11px;font-weight:700;text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);z-index:1;white-space:nowrap}
+  .tt-table td{padding:6px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tt-table tr:hover td{background:var(--card-2)}
+  .tt-id{font-family:ui-monospace,monospace;font-weight:700}
+  .tt-temp{font-family:ui-monospace,monospace;font-weight:700;font-size:15px}
+  .tt-spark{display:block;width:96px;height:26px}
+  .tt-view{border:1px solid var(--line);background:var(--card-2);color:var(--text-2);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:11px;font-weight:600}
+  .tt-view:hover{border-color:var(--primary);color:var(--primary)}
+  .tt-card[hidden]{display:none}
+  /* 探头数据表子 tab + 时间对齐宽表 */
+  .tt-subtabs{display:inline-flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:10px;flex-shrink:0;align-self:flex-start}
+  .tw-wrap{flex:1;min-height:0;overflow:auto}
+  .tw-table{border-collapse:collapse;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tw-table th{position:sticky;top:0;background:var(--card-2);padding:6px;border-bottom:1px solid var(--line);font-size:10px;color:var(--text-2);font-weight:700;text-align:center;white-space:nowrap;z-index:1}
+  .tw-table td{padding:3px 6px;border:1px solid var(--line);text-align:center;white-space:nowrap}
+  .tw-idx,.tw-time{color:var(--text-2);background:var(--card-2)}
+  /* 探头映射表 */
+  .mp-sel,.mp-num{border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:6px;padding:3px 6px;font-size:12px;font-family:inherit}
+  .mp-sel:hover,.mp-num:hover{border-color:var(--primary)}
+  .mp-num{width:56px}
+  .mp-del{border:1px solid var(--line);background:var(--card-2);color:var(--err);border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11px;font-weight:600}
+  .mp-del:hover{background:var(--err-soft)}
 </style>
 </head>
 <body>
@@ -389,7 +478,7 @@
     <button class="nav-item" data-view="check"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>自检</button>
     <button class="nav-item" data-view="map"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg>地图</button>
     <button class="nav-item" data-view="flight"><svg viewBox="0 0 1024 1024" style="fill:currentColor;stroke:none"><path d="M409.488333 239.177936h204.736191a34.122698 34.122698 0 0 0 34.122698-34.122698V136.809841a34.122698 34.122698 0 0 0-34.122698-34.122698 74.643403 74.643403 0 0 0 0-17.06135 95.117022 95.117022 0 0 0-102.368095-85.306746 95.117022 95.117022 0 0 0-102.368096 85.306746 74.643403 74.643403 0 0 0 0 17.06135 34.122698 34.122698 0 0 0-34.122698 34.122698v68.245397a34.122698 34.122698 0 0 0 34.122698 34.122698z m68.245397-170.613492h68.245397v68.245397H477.73373z m426.533731 68.245397h-221.79754v85.306746c0 28.151226-12.796012 51.184048-28.57776 51.184048H369.820697c-15.781748 0-28.57776-23.032821-28.57776-51.184048v-85.306746H119.445397A68.245397 68.245397 0 0 0 51.2 205.055238v750.699365A68.245397 68.245397 0 0 0 119.445397 1024H904.267461a68.245397 68.245397 0 0 0 68.245396-68.245397V205.055238A68.245397 68.245397 0 0 0 904.267461 136.809841z m-127.960119 349.757659L638.110413 597.46627l23.032821 275.540789-39.667637 31.99003-85.306746-227.769012L425.696615 768.079762v98.102758l-40.09417 29.857361-39.667637-131.798923-119.855979-66.965795l38.388036-31.99003 95.970089 21.75322L473.894927 597.46627l-203.45659-132.225457 40.094171-31.990029 263.597845 85.306746 140.329598-111.751838A51.184048 51.184048 0 0 1 776.307342 486.5675z"/></svg>飞控</button>
-    <button class="nav-item" data-view="topo"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>拓扑</button>
+    <button class="nav-item" data-view="topo"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>图示</button>
     <button class="nav-item" data-view="setup"><svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.74 8.87C2.62 9.08 2.66 9.34 2.86 9.48l2.03 1.58C4.84 11.36 4.8 11.69 4.8 12s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</button>
   </aside>
 
@@ -528,6 +617,13 @@
               </div>
             </div>
           </div>
+          <div class="card" data-dev="lora" style="grid-column:1/-1">
+            <div class="card-head">
+              <span class="t"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>LoRa 温度 / 压力采集</span>
+              <span class="right"><span class="fresh" id="lora-fresh"><span class="dot"></span>实时</span><span class="badge ok" id="lora-badge">正常</span></span>
+            </div>
+            <div class="lora-nodes" id="loraNodes"></div>
+          </div>
         </div>
 
         <div class="monitor-bottom" id="monitorBottom">
@@ -617,59 +713,157 @@
       <section class="view" id="view-topo">
         <div class="topo-wrap">
           <div class="topo-head">
-            <span class="t"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>电源链路拓扑图</span>
-            <span class="topo-legend" style="margin-left:auto">
-              <span class="lg-item"><i class="ok"></i>在线</span>
-              <span class="lg-item"><i class="warn"></i>告警</span>
-              <span class="lg-item"><i class="off"></i>离线</span>
-            </span>
+            <span class="t"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>图示</span>
+            <span class="topo-crumb" id="topoCrumb">电源链路</span>
           </div>
-          <div class="topo-canvas">
-            <svg class="topo-svg" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <marker id="tp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
-              </defs>
-              <g class="topo-link" data-flow="l1"><line x1="205" y1="120" x2="285" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l1" class="link-v" x="245" y="110" text-anchor="middle">600 W</text></g>
-              <g class="topo-link" data-flow="l2"><line x1="435" y1="120" x2="525" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l2" class="link-v" x="480" y="110" text-anchor="middle">7.0 A</text></g>
-              <g class="topo-link" data-flow="l3"><line x1="675" y1="120" x2="765" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l3" class="link-v" x="720" y="110" text-anchor="middle">250 W</text></g>
-              <g class="topo-link" data-flow="l4"><line x1="915" y1="120" x2="995" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l4" class="link-v" x="955" y="110" text-anchor="middle">250 W</text></g>
+          <div class="topo-body">
+            <!-- 左侧树状层级导航 -->
+            <div class="topo-tree">
+              <div class="tree-title">图示</div>
+              <button class="tree-item active" data-tnode="power">
+                <svg class="ti-ic" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>
+                电源链路
+              </button>
+              <div class="tree-group"><span class="tg-arrow">▸</span>温度监测</div>
+              <button class="tree-item child" data-tnode="temp">
+                <svg class="ti-ic" viewBox="0 0 24 24"><path d="M10 2v6l-3 5a4 4 0 1 0 10 0l-3-5V2"/><line x1="9" y1="2" x2="15" y2="2"/><line x1="12" y1="13" x2="12" y2="9"/></svg>
+                温度监测
+              </button>
+            </div>
+            <!-- 右侧内容区 -->
+            <div class="topo-main">
+              <!-- 电源链路面板 -->
+              <div class="tpanel active" id="tpanel-power">
+                <div class="topo-legend" style="align-self:flex-start;padding:2px 6px">
+                  <span class="lg-item"><i class="ok"></i>在线</span>
+                  <span class="lg-item"><i class="warn"></i>告警</span>
+                  <span class="lg-item"><i class="off"></i>离线</span>
+                </div>
+                <div class="topo-canvas">
+                  <svg class="topo-svg" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <marker id="tp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+                    </defs>
+                    <g class="topo-link" data-flow="l1"><line x1="205" y1="120" x2="285" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l1" class="link-v" x="245" y="110" text-anchor="middle">600 W</text></g>
+                    <g class="topo-link" data-flow="l2"><line x1="435" y1="120" x2="525" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l2" class="link-v" x="480" y="110" text-anchor="middle">7.0 A</text></g>
+                    <g class="topo-link" data-flow="l3"><line x1="675" y1="120" x2="765" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l3" class="link-v" x="720" y="110" text-anchor="middle">250 W</text></g>
+                    <g class="topo-link" data-flow="l4"><line x1="915" y1="120" x2="995" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l4" class="link-v" x="955" y="110" text-anchor="middle">250 W</text></g>
 
-              <g class="topo-node" id="tp-node-pv">
-                <rect class="node-box" x="55" y="88" width="150" height="150" rx="12"/>
-                <g class="node-ic"><circle cx="130" cy="96" r="5"/><line x1="130" y1="86" x2="130" y2="90"/><line x1="130" y1="102" x2="130" y2="106"/><line x1="120" y1="96" x2="124" y2="96"/><line x1="136" y1="96" x2="140" y2="96"/><line x1="123" y1="89" x2="126" y2="92"/><line x1="134" y1="100" x2="137" y2="103"/><line x1="137" y1="89" x2="134" y2="92"/><line x1="126" y1="100" x2="123" y2="103"/></g>
-                <text class="node-title" x="130" y="150" text-anchor="middle">光伏面板</text>
-                <text class="node-val" id="tp-pv-v" x="130" y="185" text-anchor="middle">600 W</text>
-                <text class="node-sub" id="tp-pv-s" x="130" y="207" text-anchor="middle">89.5 V</text>
-              </g>
-              <g class="topo-node" id="tp-node-mppt">
-                <rect class="node-box" x="285" y="88" width="150" height="150" rx="12"/>
-                <g class="node-ic"><rect x="352" y="90" width="16" height="15" rx="3"/><path d="M358 94l-3 4h3l-3 5"/></g>
-                <text class="node-title" x="360" y="150" text-anchor="middle">MPPT 控制器</text>
-                <text class="node-val" id="tp-mppt-v" x="360" y="185" text-anchor="middle">7.0 A</text>
-                <text class="node-sub" id="tp-mppt-s" x="360" y="207" text-anchor="middle">效率 42%</text>
-              </g>
-              <g class="topo-node" id="tp-node-bms">
-                <rect class="node-box" x="525" y="88" width="150" height="150" rx="12"/>
-                <g class="node-ic"><rect x="591" y="90" width="18" height="15" rx="2"/><line x1="603" y1="88" x2="603" y2="90"/><line x1="594" y1="95" x2="594" y2="99"/><line x1="600" y1="93" x2="600" y2="101"/><line x1="606" y1="95" x2="606" y2="99"/></g>
-                <text class="node-title" x="600" y="150" text-anchor="middle">电池组 BMS</text>
-                <text class="node-val" id="tp-bms-v" x="600" y="185" text-anchor="middle">85%</text>
-                <text class="node-sub" id="tp-bms-s" x="600" y="207" text-anchor="middle">367.2 V</text>
-              </g>
-              <g class="topo-node" id="tp-node-dcdc">
-                <rect class="node-box" x="765" y="88" width="150" height="150" rx="12"/>
-                <g class="node-ic"><path d="M837 92l-5 6h4l-4 7"/></g>
-                <text class="node-title" x="840" y="150" text-anchor="middle">DCDC 模块</text>
-                <text class="node-val" id="tp-dcdc-v" x="840" y="185" text-anchor="middle">250 W</text>
-                <text class="node-sub" id="tp-dcdc-s" x="840" y="207" text-anchor="middle">41.0 ℃</text>
-              </g>
-              <g class="topo-node" id="tp-node-load">
-                <rect class="node-box" x="995" y="88" width="150" height="150" rx="12"/>
-                <g class="node-ic"><circle cx="1070" cy="97" r="8"/><path d="M1070 97l5-6"/></g>
-                <text class="node-title" x="1070" y="150" text-anchor="middle">机载负载</text>
-                <text class="node-val" id="tp-load-v" x="1070" y="185" text-anchor="middle">250 W</text>
-                <text class="node-sub" id="tp-load-s" x="1070" y="207" text-anchor="middle">在线</text>
-              </g>
-            </svg>
+                    <g class="topo-node" id="tp-node-pv">
+                      <rect class="node-box" x="55" y="88" width="150" height="150" rx="12"/>
+                      <g class="node-ic"><circle cx="130" cy="96" r="5"/><line x1="130" y1="86" x2="130" y2="90"/><line x1="130" y1="102" x2="130" y2="106"/><line x1="120" y1="96" x2="124" y2="96"/><line x1="136" y1="96" x2="140" y2="96"/><line x1="123" y1="89" x2="126" y2="92"/><line x1="134" y1="100" x2="137" y2="103"/><line x1="137" y1="89" x2="134" y2="92"/><line x1="126" y1="100" x2="123" y2="103"/></g>
+                      <text class="node-title" x="130" y="150" text-anchor="middle">光伏面板</text>
+                      <text class="node-val" id="tp-pv-v" x="130" y="185" text-anchor="middle">600 W</text>
+                      <text class="node-sub" id="tp-pv-s" x="130" y="207" text-anchor="middle">89.5 V</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-mppt">
+                      <rect class="node-box" x="285" y="88" width="150" height="150" rx="12"/>
+                      <g class="node-ic"><rect x="352" y="90" width="16" height="15" rx="3"/><path d="M358 94l-3 4h3l-3 5"/></g>
+                      <text class="node-title" x="360" y="150" text-anchor="middle">MPPT 控制器</text>
+                      <text class="node-val" id="tp-mppt-v" x="360" y="185" text-anchor="middle">7.0 A</text>
+                      <text class="node-sub" id="tp-mppt-s" x="360" y="207" text-anchor="middle">效率 42%</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-bms">
+                      <rect class="node-box" x="525" y="88" width="150" height="150" rx="12"/>
+                      <g class="node-ic"><rect x="591" y="90" width="18" height="15" rx="2"/><line x1="603" y1="88" x2="603" y2="90"/><line x1="594" y1="95" x2="594" y2="99"/><line x1="600" y1="93" x2="600" y2="101"/><line x1="606" y1="95" x2="606" y2="99"/></g>
+                      <text class="node-title" x="600" y="150" text-anchor="middle">电池组 BMS</text>
+                      <text class="node-val" id="tp-bms-v" x="600" y="185" text-anchor="middle">85%</text>
+                      <text class="node-sub" id="tp-bms-s" x="600" y="207" text-anchor="middle">367.2 V</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-dcdc">
+                      <rect class="node-box" x="765" y="88" width="150" height="150" rx="12"/>
+                      <g class="node-ic"><path d="M837 92l-5 6h4l-4 7"/></g>
+                      <text class="node-title" x="840" y="150" text-anchor="middle">DCDC 模块</text>
+                      <text class="node-val" id="tp-dcdc-v" x="840" y="185" text-anchor="middle">250 W</text>
+                      <text class="node-sub" id="tp-dcdc-s" x="840" y="207" text-anchor="middle">41.0 ℃</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-load">
+                      <rect class="node-box" x="995" y="88" width="150" height="150" rx="12"/>
+                      <g class="node-ic"><circle cx="1070" cy="97" r="8"/><path d="M1070 97l5-6"/></g>
+                      <text class="node-title" x="1070" y="150" text-anchor="middle">机载负载</text>
+                      <text class="node-val" id="tp-load-v" x="1070" y="185" text-anchor="middle">250 W</text>
+                      <text class="node-sub" id="tp-load-s" x="1070" y="207" text-anchor="middle">在线</text>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              <!-- 温度监测面板 -->
+              <div class="tpanel" id="tpanel-temp">
+                <div class="temp-wrap">
+                  <div class="temp-tabs">
+                    <button class="tbtn active" data-ttab="grid">囊体热力图</button>
+                    <button class="tbtn" data-ttab="table">探头数据表</button>
+                    <button class="tbtn" data-ttab="mapping">探头映射</button>
+                  </div>
+                  <div class="temp-pane" id="pane-grid">
+                    <div class="temp-head">
+                      <span class="t"><svg viewBox="0 0 24 24"><path d="M10 2v6l-3 5a4 4 0 1 0 10 0l-3-5V2"/><line x1="9" y1="2" x2="15" y2="2"/></svg>光伏板下温度 · 分布式监测</span>
+                      <div class="temp-stats" style="margin-left:auto">
+                        <span>探头 <b id="pv-count">0</b></span>
+                        <span>最高 <b id="pv-max">—</b></span>
+                        <span>平均 <b id="pv-avg">—</b></span>
+                        <span>告警 <b id="pv-alarm">0</b></span>
+                      </div>
+                      <div class="temp-legend">
+                        <span><i style="background:#3b82f6"></i>&lt;45</span>
+                        <span><i style="background:#22c55e"></i>45-50</span>
+                        <span><i style="background:#eab308"></i>50-55</span>
+                        <span><i style="background:#f97316"></i>55-60</span>
+                        <span><i style="background:#ef4444"></i>&gt;60</span>
+                      </div>
+                    </div>
+                    <div class="env-row" id="envRow"></div>
+                  </div>
+                  <div class="temp-pane" id="pane-table" hidden>
+                    <div class="tt-stat">
+                      <span>探头 <b id="tt-count">0</b></span>
+                      <span>当前最高 <b id="tt-max">—</b></span>
+                      <span>当前平均 <b id="tt-avg">—</b></span>
+                      <span>告警(&gt;60) <b id="tt-alarm">0</b></span>
+                      <button class="ctl-btn" id="ttExport" style="margin-left:auto" title="导出所有探头的当前快照与历史时序数据为 CSV">导出当前数据为 CSV</button>
+                    </div>
+                    <div class="tt-subtabs">
+                      <button class="tbtn active" data-stab="overview">指标总览</button>
+                      <button class="tbtn" data-stab="wide">时间对齐</button>
+                    </div>
+                    <div class="tt-card" id="stab-overview">
+                      <div class="tt-scroll">
+                        <table class="tt-table">
+                          <thead><tr><th>探头ID</th><th>位置</th><th>当前温度</th><th>最高</th><th>最低</th><th>平均</th><th>变化趋势</th><th>历史</th></tr></thead>
+                          <tbody id="ttBody"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div class="tt-card" id="stab-wide" hidden>
+                      <div class="tw-wrap">
+                        <table class="tw-table">
+                          <thead id="twHead"></thead>
+                          <tbody id="twBody"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="temp-pane" id="pane-mapping" hidden>
+                    <div class="tt-stat">
+                      <span>探头 <b id="mp-count">0</b></span>
+                      <span style="color:var(--text-2)">物理编号保持不变，换板只需改「囊体 / 行 / 列」</span>
+                      <div style="margin-left:auto;display:flex;gap:8px">
+                        <button class="ctl-btn" id="mpAdd">＋ 添加探头</button>
+                        <button class="ctl-btn" id="mpReset">恢复默认</button>
+                      </div>
+                    </div>
+                    <div class="tt-card">
+                      <div class="tt-scroll">
+                        <table class="tt-table">
+                          <thead><tr><th>探头编号</th><th>囊体</th><th>行</th><th>列</th><th>基准温度℃</th><th>操作</th></tr></thead>
+                          <tbody id="mpBody"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -704,7 +898,7 @@
               <div class="set-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>界面与主题</div>
               <div class="set-row"><label>主题</label><select id="setTheme"><option>浅色</option><option>深色</option></select></div>
               <div class="set-row"><label>信息密度</label><select id="setDensity"><option>舒适</option><option>密集</option></select></div>
-              <div class="set-row"><label>告警声音</label><select id="setSound"><option>开启</option><option>关闭</option></select></div>
+              <div class="set-row"><label>告警声音</label><select id="setSound"><option>关闭</option><option>开启</option></select></div>
               <div class="set-row"><label>高对比度</label><select id="setContrast"><option>关闭</option><option>开启</option></select></div>
               <div class="set-row"><label>强调色</label><select id="setAccent"><option selected>蓝色</option><option>绿色</option><option>橙色</option><option>紫色</option><option>青色</option></select></div>
               <div class="hint">快捷键：1-5 切换视图 · 空格 暂停曲线 · S 清屏 · T 主题 · D 密度</div>
@@ -780,6 +974,17 @@ document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>{
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   n.classList.add('active');$('view-'+n.dataset.view).classList.add('active');
+});
+/* 系统拓扑：树状层级导航切换 */
+const TREE_LABEL={power:'电源链路',temp:'温度监测'};
+document.querySelectorAll('.tree-item').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tree-item').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tpanel').forEach(p=>p.classList.remove('active'));
+  t.classList.add('active');
+  const tn=t.dataset.tnode;
+  $('tpanel-'+tn).classList.add('active');
+  if($('topoCrumb'))$('topoCrumb').textContent=TREE_LABEL[tn]||'';
+  if(tn==='temp'){updateTemp();updateTempWide();}
 });
 /* 侧面板 Tab */
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
@@ -973,6 +1178,307 @@ function updateTopo(){
   document.querySelectorAll('.topo-node').forEach(n=>n.classList.toggle('off',off&&n.id==='tp-node-dcdc'));
   document.querySelectorAll('.topo-link').forEach(l=>l.classList.toggle('off',off&&(l.dataset.flow==='l3'||l.dataset.flow==='l4')));
 }
+/* 光伏板下温度热力图（四囊体并排：副·主·主·副） */
+const ENV=[
+  {name:'副囊 · 左',type:'sec',cols:8,rows:12,innerT:22.5,pres:3.2},
+  {name:'主囊 · 左',type:'main',cols:9,rows:13,innerT:24.8,pres:3.8},
+  {name:'主囊 · 右',type:'main',cols:9,rows:13,innerT:24.6,pres:3.8},
+  {name:'副囊 · 右',type:'sec',cols:8,rows:12,innerT:22.8,pres:3.1}
+];
+/* 温度探头配置：物理编号 pid（T01..）为主键，位置(囊体/行/列)与基准温度可编辑并持久化。
+   换板时只需改 pid 对应的位置，历史数据以 pid 连续保留。
+   默认布局格式 [囊体索引, 行r, 列c, 基准温度℃] */
+const PROBE_STORE='lingyun_temp_probes_v1';
+function defaultProbes(){
+  const base=[
+    [0,2,2,46],[0,2,7,45],[0,5,3,52],[0,5,6,50],[0,6,5,51],[0,8,2,44],[0,8,7,43],[0,11,3,47],[0,11,6,46],
+    [1,2,2,49],[1,2,8,48],[1,4,5,55],[1,5,7,53],[1,6,5,58],[1,7,5,61],[1,7,6,59],[1,8,5,57],[1,9,5,54],[1,11,2,48],[1,11,8,47],[1,12,5,52],[1,13,2,47],[1,13,8,46],
+    [2,2,2,49],[2,2,8,48],[2,4,5,55],[2,5,7,53],[2,6,5,58],[2,7,5,61],[2,7,6,59],[2,8,5,57],[2,9,5,54],[2,11,2,48],[2,11,8,47],[2,12,5,52],[2,13,2,47],[2,13,8,46],
+    [3,2,2,46],[3,2,7,45],[3,5,3,52],[3,5,6,50],[3,6,5,51],[3,8,2,44],[3,8,7,43],[3,11,3,47],[3,11,6,46]
+  ];
+  return base.map((p,i)=>({pid:'T'+String(i+1).padStart(2,'0'),ei:p[0],row:p[1],col:p[2],base:p[3]}));
+}
+function loadProbes(){
+  try{const s=localStorage.getItem(PROBE_STORE);if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)return a;}}catch(e){}
+  return defaultProbes();
+}
+let PROBES=loadProbes();
+function saveProbes(){try{localStorage.setItem(PROBE_STORE,JSON.stringify(PROBES));}catch(e){}}
+function nextPid(){let n=1;const used=new Set(PROBES.map(p=>p.pid));while(used.has('T'+String(n).padStart(2,'0')))n++;return 'T'+String(n).padStart(2,'0');}
+function probeOf(pid){return PROBES.find(p=>p.pid===pid);}
+function pvColor(t){
+  if(t<45)return '#3b82f6';
+  if(t<50)return '#22c55e';
+  if(t<55)return '#eab308';
+  if(t<60)return '#f97316';
+  return '#ef4444';
+}
+const pvVals={};
+const pvHist={};   // 每个探头的历史温度 key=pid（T01..），换板不换编号则历史连续
+const HIST_LEN=180; // 保留的采样点数
+function initTemp(){
+  $('envRow').innerHTML=ENV.map((env,ei)=>{
+    const grid=[];
+    for(let r=1;r<=env.rows;r++)for(let c=1;c<=env.cols;c++){
+      const p=PROBES.find(x=>x.ei===ei&&x.row===r&&x.col===c);
+      if(p){const k=p.pid;pvVals[k]=p.base;grid.push('<div class="pv-cell temp" data-k="'+k+'" onclick="showPvHist(\''+k+'\')" title="'+k+' · '+env.name+' 第'+r+'行 第'+c+'列 · '+p.base.toFixed(1)+'℃（点击查看历史）" style="grid-row:'+r+';grid-column:'+c+';background:'+pvColor(p.base)+'">'+Math.round(p.base)+'</div>');}
+      else{grid.push('<div class="pv-cell" style="grid-row:'+r+';grid-column:'+c+'"></div>');}
+    }
+    return '<div class="env-card'+(env.type==='main'?' main':'')+'"><div class="env-head"><span class="env-label">'+env.name+'<span class="env-type'+(env.type==='sec'?' sec':'')+'">'+(env.type==='main'?'主囊':'副囊')+'</span></span><span class="env-dim">'+env.cols+'×'+env.rows+'</span></div>'+
+      '<div class="env-inner">'+
+        '<div class="env-kv"><span class="ek">内部温度</span><span class="ev"><span id="env-'+ei+'-it">'+env.innerT.toFixed(1)+'</span><small>℃</small></span></div>'+
+        '<div class="env-kv"><span class="ek">内部压力</span><span class="ev"><span id="env-'+ei+'-p">'+env.pres.toFixed(1)+'</span><small>kPa</small></span></div>'+
+      '</div>'+
+      '<div class="env-grid" style="grid-template-columns:repeat('+env.cols+',1fr);grid-template-rows:repeat('+env.rows+',1fr)">'+grid.join('')+'</div></div>';
+  }).join('');
+}
+function updateTemp(){
+  let sum=0,count=0,hi=-Infinity,alarm=0;
+  PROBES.forEach(p=>{
+    const k=p.pid;
+    const v=pvVals[k]+rand(0,0.7);
+    pvVals[k]=v;
+    const el=document.querySelector('.pv-cell[data-k="'+k+'"]');
+    if(el){el.style.background=pvColor(v);el.textContent=Math.round(v);el.title=k+' · '+ENV[p.ei].name+' 第'+p.row+'行 第'+p.col+'列 · '+v.toFixed(1)+'℃（点击查看历史）';}
+    (pvHist[k]=pvHist[k]||[]).push(v);if(pvHist[k].length>HIST_LEN)pvHist[k].shift();
+    sum+=v;count++;if(v>hi)hi=v;if(v>60)alarm++;
+  });
+  const avg=count?(sum/count):0;
+  $('pv-count').textContent=count;
+  $('pv-max').textContent=hi>-Infinity?Math.round(hi)+'℃':'—';
+  $('pv-avg').textContent=Math.round(avg)+'℃';
+  $('pv-alarm').textContent=alarm;
+  /* 各囊体内部温度 / 压力 实时刷新 */
+  ENV.forEach((env,ei)=>{
+    const it=env.innerT+rand(-0.4,0.4);
+    const p=env.pres+rand(-0.06,0.06);
+    const itEl=$('env-'+ei+'-it'); if(itEl)itEl.textContent=it.toFixed(1);
+    const pEl=$('env-'+ei+'-p'); if(pEl)pEl.textContent=p.toFixed(1);
+  });
+  /* 探头数据表实时刷新 */
+  let tmx=-Infinity,tsum=0,talarm=0;
+  PROBES.forEach(p=>{
+    const k=p.pid;
+    const v=pvVals[k];const hist=pvHist[k]||[];
+    const vEl=$('tt-'+k+'-v');if(vEl){vEl.textContent=v.toFixed(1);vEl.style.color=pvColor(v);}
+    if(v>tmx)tmx=v;tsum+=v;if(v>60)talarm++;
+    if(hist.length){
+      const mx=Math.max(...hist),mn=Math.min(...hist),avg=hist.reduce((a,b)=>a+b,0)/hist.length;
+      const maxEl=$('tt-'+k+'-max');if(maxEl)maxEl.textContent=mx.toFixed(1);
+      const minEl=$('tt-'+k+'-min');if(minEl)minEl.textContent=mn.toFixed(1);
+      const avgEl=$('tt-'+k+'-avg');if(avgEl)avgEl.textContent=avg.toFixed(1);
+      const n=Math.min(hist.length,60),win=hist.slice(-n),wmn=Math.min(...win),wmx=Math.max(...win),rng=(wmx-wmn)||1;
+      const pts=win.map((val,i)=>{const x=(i/(n-1))*96;const y=26-((val-wmn)/rng)*24-1;return x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+      const sp=$('tt-'+k+'-spark');if(sp)sp.setAttribute('points',pts);
+    }
+  });
+  $('tt-max').textContent=tmx>-Infinity?tmx.toFixed(1)+'℃':'—';
+  $('tt-avg').textContent=(tsum/PROBES.length).toFixed(1)+'℃';
+  $('tt-alarm').textContent=talarm;
+  updateTempWide();
+}
+/* 点击温度方格 → 弹窗查看历史曲线 */
+function showPvHist(k){
+  const pr=probeOf(k);const env=pr?ENV[pr.ei]:null;
+  const now=pvVals[k]!=null?pvVals[k]:null;
+  const h=pvHist[k]||[];const hi=h.length?Math.max(...h):0;const lo=h.length?Math.min(...h):0;
+  openModal(k+' · '+(env?env.name:'未知')+(pr?(' 第'+pr.row+'行 第'+pr.col+'列'):''),`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="env-kv"><span class="ek">位置</span><span class="ev" style="font-size:14px">${pr?(pr.row+'行 '+pr.col+'列'):'—'}</span></div>
+      <div class="env-kv"><span class="ek">当前温度</span><span class="ev">${now!=null?now.toFixed(1):'—'}<small>℃</small></span></div>
+      <div class="env-kv"><span class="ek">区间(高/低)</span><span class="ev" style="font-size:13px">${hi.toFixed(0)}/${lo.toFixed(0)}<small>℃</small></span></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-2);margin-bottom:4px">历史温度曲线（近 ${HIST_LEN} 个采样点）</div>
+    <canvas id="pvHistChart" width="384" height="190" style="width:100%;height:190px;background:var(--bg-2);border-radius:8px;display:block"></canvas>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-2)">提示：探头物理编号 ${k} 保持不变，位置在「探头映射」页可自由调整，换板不换编号历史数据连续。</div>`);
+  drawPvHist(k);
+}
+function drawPvHist(k){
+  const cv=document.getElementById('pvHistChart');if(!cv)return;
+  const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;const hist=pvHist[k]||[];
+  ctx.clearRect(0,0,W,H);
+  if(hist.length<2){ctx.fillStyle='rgba(148,163,184,.8)';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('数据采集中…',W/2,H/2);return;}
+  let mn=Math.min(...hist),mx=Math.max(...hist);if(mx-mn<2){mx+=1;mn-=1;}
+  const pad=24,col=pvColor(mx);
+  /* 横向网格线 + 刻度 */
+  ctx.strokeStyle='rgba(100,116,139,.25)';ctx.fillStyle='rgba(100,116,139,.6)';ctx.font='10px sans-serif';ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const y=pad+(H-2*pad)*i/4;const v=mx-(mx-mn)*i/4;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.fillText(v.toFixed(0)+'℃',W-pad-4,y+3);}
+  /* 曲线 */
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+  hist.forEach((v,i)=>{const x=pad+(W-2*pad)*i/(hist.length-1);const y=H-pad-(H-2*pad)*(v-mn)/(mx-mn);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  /* 渐变填充 */
+  ctx.lineTo(W-pad,H-pad);ctx.lineTo(pad,H-pad);ctx.closePath();
+  const g=ctx.createLinearGradient(0,pad,0,H-pad);g.addColorStop(0,col+'44');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fill();
+  /* 当前点 */
+  const cvy=H-pad-(H-2*pad)*(hist[hist.length-1]-mn)/(mx-mn);
+  ctx.beginPath();ctx.arc(W-pad,cvy,3,0,7);ctx.fillStyle=col;ctx.fill();
+}
+/* 探头数据表：所有探头当前温度 + 趋势曲线 + 历史 */
+function initTempTable(){
+  $('ttBody').innerHTML=PROBES.map((p)=>{
+    const env=ENV[p.ei];
+    return '<tr data-k="'+p.pid+'">'+
+      '<td class="tt-id">'+p.pid+'</td>'+
+      '<td>'+env.name.replace(/ · .*/,'')+' · '+p.row+'行'+p.col+'列</td>'+
+      '<td class="tt-temp" id="tt-'+p.pid+'-v" style="color:'+pvColor(p.base)+'">'+p.base.toFixed(1)+'</td>'+
+      '<td id="tt-'+p.pid+'-max">—</td>'+
+      '<td id="tt-'+p.pid+'-min">—</td>'+
+      '<td id="tt-'+p.pid+'-avg">—</td>'+
+      '<td><svg class="tt-spark" viewBox="0 0 96 26" preserveAspectRatio="none"><polyline id="tt-'+p.pid+'-spark" fill="none" stroke="'+pvColor(p.base)+'" stroke-width="1.5" points=""/></svg></td>'+
+      '<td><button class="tt-view" onclick="showPvHist(\''+p.pid+'\')">曲线</button></td>'+
+    '</tr>';
+  }).join('');
+  $('tt-count').textContent=PROBES.length;
+}
+/* 温度视图 tab 切换 */
+document.querySelectorAll('.tbtn[data-ttab]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tbtn[data-ttab]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $('pane-grid').hidden = b.dataset.ttab!=='grid';
+  $('pane-table').hidden = b.dataset.ttab!=='table';
+  $('pane-mapping').hidden = b.dataset.ttab!=='mapping';
+});
+/* 时间对齐宽表：每行一个采样点、每列一个探头 */
+const WIDE_ROWS=60;
+function initTempWide(){
+  $('twHead').innerHTML='<tr><th>采样序号</th><th>相对时间s</th>'+PROBES.map(p=>'<th>'+p.pid+'</th>').join('')+'</tr>';
+  let rows='';
+  for(let i=0;i<WIDE_ROWS;i++){
+    let cells='<td class="tw-idx">—</td><td class="tw-time">—</td>';
+    PROBES.forEach((p,c)=>{cells+='<td class="tw-cell" id="tw-'+i+'-'+c+'">—</td>';});
+    rows+='<tr id="tw-row-'+i+'">'+cells+'</tr>';
+  }
+  $('twBody').innerHTML=rows;
+}
+function updateTempWide(){
+  if($('stab-wide').hidden)return;
+  const minLen=Math.min(...PROBES.map(p=>(pvHist[p.pid]||[]).length));
+  const start=Math.max(0,minLen-WIDE_ROWS);
+  for(let i=0;i<WIDE_ROWS;i++){
+    const row=$('tw-row-'+i);if(!row)continue;
+    const idx=start+i;
+    row.children[0].textContent=idx>=0?idx:'—';
+    row.children[1].textContent=idx>=0?(idx*0.2).toFixed(1):'—';
+    PROBES.forEach((p,c)=>{
+      const td=$('tw-'+i+'-'+c);if(!td)return;
+      const h=pvHist[p.pid]||[];
+      const v=idx>=0&&idx<h.length?h[idx]:null;
+      td.textContent=v!=null?v.toFixed(1):'—';
+      td.style.color=v!=null?pvColor(v):'var(--text-2)';
+      td.style.background=v!=null?pvColor(v)+'22':'transparent';
+    });
+  }
+}
+/* 探头数据表子 tab 切换 */
+document.querySelectorAll('.tbtn[data-stab]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tbtn[data-stab]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $('stab-overview').hidden=b.dataset.stab!=='overview';
+  $('stab-wide').hidden=b.dataset.stab!=='wide';
+  if(b.dataset.stab==='wide')updateTempWide();
+});
+/* 导出温度探头数据为 CSV（当前快照 + 历史时序） */
+$('ttExport').onclick=()=>{
+  if(!PROBES.some(p=>(pvHist[p.pid]||[]).length)){
+    addLog('warn','暂无历史数据可导出');return;
+  }
+  const rows=['# 灵云01 光伏板下温度 · 探头数据导出','# 生成时间：'+new Date().toLocaleString(),'',
+    '== 当前快照 ==','探头ID,囊体,行,列,当前温度℃,最高℃,最低℃,平均℃'];
+  PROBES.forEach(p=>{
+    const env=ENV[p.ei];const k=p.pid;
+    const hist=pvHist[k]||[];const cur=pvVals[k]!=null?pvVals[k]:null;
+    const mx=hist.length?Math.max(...hist):null;const mn=hist.length?Math.min(...hist):null;
+    const avg=hist.length?hist.reduce((a,b)=>a+b,0)/hist.length:null;
+    rows.push([k,env.name.split('·')[0].trim(),p.row,p.col,
+      cur!=null?cur.toFixed(1):'',mx!=null?mx.toFixed(1):'',mn!=null?mn.toFixed(1):'',avg!=null?avg.toFixed(1):''].join(','));
+  });
+  rows.push('','== 历史时序（宽表：每行一个采样点、每列一个探头，时间对齐，采样间隔约 0.2s） ==');
+  const maxLen=Math.max(0,...PROBES.map(p=>(pvHist[p.pid]||[]).length));
+  rows.push(['采样序号','相对时间s'].concat(PROBES.map(p=>p.pid)).join(','));
+  for(let i=0;i<maxLen;i++){
+    const cells=[i,(i*0.2).toFixed(1)];
+    PROBES.forEach(p=>{const h=pvHist[p.pid]||[];cells.push(h[i]!=null?h[i].toFixed(1):'');});
+    rows.push(cells.join(','));
+  }
+  download('lingyun-gcs-temp-history.csv','\uFEFF'+rows.join('\n'),'text/csv');
+  addLog('ok','温度探头数据已导出为 CSV');
+};
+/* 探头映射表：可视化编辑 物理编号 → 囊体/行/列/基准温度 */
+function applyProbes(){
+  saveProbes();
+  initTemp();       // 重建热力图网格
+  initTempTable();  // 重建长表
+  initTempWide();   // 重建宽表表头
+  initMapping();    // 重建映射表
+}
+function initMapping(){
+  $('mpBody').innerHTML=PROBES.map(p=>{
+    const opts=ENV.map((e,ei)=>'<option value="'+ei+'"'+(p.ei===ei?' selected':'')+'>'+e.name+'</option>').join('');
+    return '<tr>'+
+      '<td class="tt-id">'+p.pid+'</td>'+
+      '<td><select class="mp-sel" data-mp="ei" data-pid="'+p.pid+'">'+opts+'</select></td>'+
+      '<td><input class="mp-num" type="number" min="1" max="'+ENV[p.ei].rows+'" data-mp="row" data-pid="'+p.pid+'" value="'+p.row+'"></td>'+
+      '<td><input class="mp-num" type="number" min="1" max="'+ENV[p.ei].cols+'" data-mp="col" data-pid="'+p.pid+'" value="'+p.col+'"></td>'+
+      '<td><input class="mp-num" type="number" min="0" max="80" data-mp="base" data-pid="'+p.pid+'" value="'+p.base+'"></td>'+
+      '<td><button class="mp-del" data-del="'+p.pid+'">删除</button></td>'+
+    '</tr>';
+  }).join('');
+  $('mp-count').textContent=PROBES.length;
+  /* 编辑：立即生效并持久化 */
+  $('mpBody').oninput=e=>{
+    const t=e.target;if(!t.dataset.mp)return;
+    const p=probeOf(t.dataset.pid);if(!p)return;
+    let v=parseInt(t.value,10);if(isNaN(v))return;
+    if(t.dataset.mp==='ei'){
+      p.ei=v<0?0:Math.min(v,ENV.length-1);
+      if(p.row>ENV[p.ei].rows)p.row=ENV[p.ei].rows;
+      if(p.col>ENV[p.ei].cols)p.col=ENV[p.ei].cols;
+    }else if(t.dataset.mp==='row'){p.row=Math.max(1,Math.min(v,ENV[p.ei].rows));}
+    else if(t.dataset.mp==='col'){p.col=Math.max(1,Math.min(v,ENV[p.ei].cols));}
+    else if(t.dataset.mp==='base'){p.base=v;}
+    applyProbes();
+  };
+  /* 删除探头（同时清除其数据） */
+  $('mpBody').onclick=e=>{
+    const b=e.target.closest('.mp-del');if(!b)return;
+    const pid=b.dataset.del;
+    PROBES=PROBES.filter(p=>p.pid!==pid);
+    delete pvVals[pid];delete pvHist[pid];
+    applyProbes();addLog('ok','已删除探头 '+pid);
+  };
+  /* 添加 / 恢复默认 */
+  $('mpAdd').onclick=()=>{const pid=nextPid();PROBES.push({pid,ei:0,row:2,col:2,base:45});applyProbes();addLog('ok','已添加探头 '+pid);};
+  $('mpReset').onclick=()=>{PROBES=defaultProbes();Object.keys(pvVals).forEach(k=>delete pvVals[k]);Object.keys(pvHist).forEach(k=>delete pvHist[k]);applyProbes();addLog('ok','已恢复探头默认布局');};
+}
+/* LoRa 温度/压力采集 */
+const LORA_DEF=[
+  {id:1,type:'temp',base:26,amp:2.5,unit:'℃'},
+  {id:2,type:'pressure',base:101.3,amp:1.2,unit:'kPa'},
+  {id:3,type:'temp',base:31,amp:3,unit:'℃'},
+  {id:4,type:'pressure',base:104.8,amp:0.9,unit:'kPa'},
+  {id:5,type:'temp',base:38,amp:4,unit:'℃'}
+];
+function initLoRa(){
+  $('loraNodes').innerHTML=LORA_DEF.map(n=>{
+    const isT=n.type==='temp';
+    return '<div class="lora-node" id="lora-'+n.id+'"><div class="ln-top"><span class="ln-id">#'+n.id+'</span><span class="ln-type'+(isT?'':' p')+'">'+(isT?'温度':'压力')+'</span></div><div class="ln-val"><b id="lora-'+n.id+'-v">—</b><small>'+n.unit+'</small></div><span class="ln-alarm" id="lora-'+n.id+'-a"></span></div>';
+  }).join('');
+}
+function updateLoRa(){
+  LORA_DEF.forEach(n=>{
+    const el=$('lora-'+n.id),vEl=$('lora-'+n.id+'-v'),aEl=$('lora-'+n.id+'-a');
+    const v=n.base+rand(0,n.amp);
+    vEl.textContent=v.toFixed(1);
+    let alarm=0;
+    if(n.type==='temp'&&Math.random()<0.05){
+      if(v>n.base+n.amp*0.75)alarm=1;
+      else if(v<n.base-n.amp*0.85)alarm=-1;
+    }
+    el.classList.toggle('warn',alarm!==0);
+    aEl.textContent=alarm===1?'超上限':(alarm===-1?'超下限':'');
+  });
+}
 /* 模拟 + 告警 */
 function rand(b,a){return b+(Math.random()*2-1)*a;}
 /* 数据新鲜度 / 离线置灰 */
@@ -1032,6 +1538,8 @@ function sim(){
   $('sb-lq').textContent=Math.round(96+Math.random()*4)+'%';
   updateLegend();
   updateTopo();
+  updateLoRa();
+  updateTemp();
   draw();
 }
 const warnSvg=`<svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg>`;
@@ -1039,7 +1547,7 @@ const warnSvg=`<svg class="a-ic" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><
 let actx=null;
 function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
 document.addEventListener('pointerdown',ensureAudio);
-function playAlarm(lv){if(!actx||localStorage.getItem('gcs_sound')==='off')return;try{const o=actx.createOscillator(),g=actx.createGain();
+function playAlarm(lv){if(!actx||localStorage.getItem('gcs_sound')!=='on')return;try{const o=actx.createOscillator(),g=actx.createGain();
   o.type=lv==='严重'?'square':'sine';o.frequency.value=lv==='严重'?880:620;
   g.gain.setValueAtTime(0.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.25,actx.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.35);
   o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4);}catch(e){}}
@@ -1047,15 +1555,24 @@ function playAlarm(lv){if(!actx||localStorage.getItem('gcs_sound')==='off')retur
 let alarms=[],alarmFilter='all';
 function loadAlarms(){try{const a=JSON.parse(localStorage.getItem('gcs_alarms'));return Array.isArray(a)?a:[];}catch(e){return [];}}
 function saveAlarms(){try{localStorage.setItem('gcs_alarms',JSON.stringify(alarms.slice(0,200)));}catch(e){}}
-function updAlarm(){const n=alarms.filter(a=>!a.acked).length;const b=$('sb-alarm');b.textContent=n;$('sb-alarm-wrap').classList.toggle('has',n>0);}
+function updAlarm(){const n=alarms.filter(a=>!a.acked&&!isShelved(a)).length;const b=$('sb-alarm');b.textContent=n;$('sb-alarm-wrap').classList.toggle('has',n>0);}
+function shelveAlarm(a,ms){
+  a.shelveUntil=ms?Date.now()+ms:Infinity;
+  saveAlarms();renderAlarms();updAlarm();addLog('info','已屏蔽告警：'+a.msg);
+}
+function isShelved(a){return a.shelveUntil!=null&&a.shelveUntil>Date.now();}
+function clearShelve(a){a.shelveUntil=0;saveAlarms();renderAlarms();updAlarm();addLog('info','已解除屏蔽：'+a.msg);}
 function renderAlarms(){
   const box=$('alarm-list');box.innerHTML='';
   alarms.slice(0,100).forEach(a=>{
     if(alarmFilter==='unack'&&a.acked)return;
     if(alarmFilter==='err'&&a.lv!=='严重')return;
+    const sheld=isShelved(a);
     const el=document.createElement('div');el.className='alarm-item '+(a.lv==='严重'?'err':'warn')+(a.acked?' acked':'');
-    el.innerHTML=`${warnSvg}<span class="lv">${a.lv}</span><span class="msg">${a.msg}</span><span class="time">${a.time}</span><button class="ack">${a.acked?'已确认':'确认'}</button>`;
-    if(!a.acked)el.querySelector('.ack').onclick=()=>{a.acked=true;saveAlarms();renderAlarms();updAlarm();};
+    el.innerHTML=`${warnSvg}<span class="lv">${a.lv}</span><span class="msg">${a.msg}</span><span class="time">${a.time}</span>${sheld?'<span class="ack">已屏蔽</span>':'<button class="ack" data-shelve>屏蔽 1h</button>'}<button class="ack" data-unshelve>${sheld?'解除':'确认'}</button>`;
+    if(!a.acked&&!sheld)el.querySelector('[data-shelve]').onclick=()=>shelveAlarm(a,3600e3);
+    if(sheld)el.querySelector('[data-unshelve]').onclick=()=>clearShelve(a);
+    else el.querySelector('[data-unshelve]').onclick=()=>{a.acked=true;saveAlarms();renderAlarms();updAlarm();};
     box.appendChild(el);
   });
 }
@@ -1064,7 +1581,8 @@ function addAlarm(lv,msg){
   const now=new Date().toLocaleTimeString('zh-CN',{hour12:false});
   const dup=alarms.find(a=>a.msg===msg);
   if(dup){dup.time=now;dup.acked=false;saveAlarms();renderAlarms();$('sb-msg').textContent='⚠ '+msg;return;}
-  alarms.unshift({lv,msg,time:now,acked:false});
+  if(alarms.some(a=>a.msg===msg&&isShelved(a)))return; // 屏蔽期间不重复入队
+  alarms.unshift({lv,msg,time:now,acked:false,shelveUntil:0});
   if(alarms.length>200)alarms.pop();
   saveAlarms();renderAlarms();updAlarm();$('sb-msg').textContent='⚠ '+msg;
 }
@@ -1076,8 +1594,9 @@ document.querySelectorAll('.af-btn').forEach(b=>b.onclick=()=>{
   renderAlarms();
 });
 alarms=loadAlarms();
+alarms.forEach(a=>{ if(a.shelveUntil==null)a.shelveUntil=0; });
 if(!alarms.length){ // 首次使用：填充演示告警
-  alarms=[{lv:'提示',msg:'DCDC 散热温度接近上限',time:'09:12:33',acked:false},{lv:'严重',msg:'BMS 单体压差超阈值',time:'09:10:02',acked:false}];
+  alarms=[{lv:'提示',msg:'DCDC 散热温度接近上限',time:'09:12:33',acked:false,shelveUntil:0},{lv:'严重',msg:'BMS 单体压差超阈值',time:'09:10:02',acked:false,shelveUntil:0}];
 }
 renderAlarms();updAlarm();
 function addLog(type,msg){const box=$('log'),d=new Date().toLocaleTimeString('zh-CN',{hour12:false});
@@ -1087,7 +1606,7 @@ function addLog(type,msg){const box=$('log'),d=new Date().toLocaleTimeString('zh
 
 /* ===== 设置视图联动 ===== */
 const SET_FIELDS=['setSerial','setBaud','setRate','setBmsTemp','setDiffV','setDcdcTemp','setOffline','setTempUnit','setSocUnit','setPowerUnit','setTheme','setDensity','setSound','setContrast','setAccent'];
-const SET_DEFAULT={'setSerial':'/dev/ttyUSB0','setBaud':'115200','setRate':'5 Hz','setBmsTemp':'50','setDiffV':'0.05','setDcdcTemp':'45','setOffline':'3','setTempUnit':'℃','setSocUnit':'百分比 (%)','setPowerUnit':'W','setTheme':'浅色','setDensity':'舒适','setSound':'开启','setContrast':'关闭','setAccent':'蓝色'};
+const SET_DEFAULT={'setSerial':'/dev/ttyUSB0','setBaud':'115200','setRate':'5 Hz','setBmsTemp':'50','setDiffV':'0.05','setDcdcTemp':'45','setOffline':'3','setTempUnit':'℃','setSocUnit':'百分比 (%)','setPowerUnit':'W','setTheme':'浅色','setDensity':'舒适','setSound':'关闭','setContrast':'关闭','setAccent':'蓝色'};
 function applyContrast(v){document.documentElement.setAttribute('data-contrast',v?'high':'off');localStorage.setItem('gcs_contrast',v?'high':'off');}
 function syncSetSels(){
   $('setTheme').value=document.documentElement.getAttribute('data-theme')==='dark'?'深色':'浅色';
@@ -1106,13 +1625,13 @@ function download(name,content,mime){const a=document.createElement('a');a.href=
 function importSetFrom(data){SET_FIELDS.forEach(id=>{const el=$(id);if(el&&data[id]!=null)el.value=data[id];});if(data.theme){const t=data.theme;document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';}if(data.density){const d=data.density;document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';}if(data.contrast)applyContrast(data.contrast==='high');if(data.accent)applyAccent(data.accent);if(data.setSound)localStorage.setItem('gcs_sound',data.setSound==='开启'?'on':'off');syncSetSels();}
 $('exportSet').onclick=()=>{download('lingyun-gcs-config.json',JSON.stringify(collectSet(),null,2),'application/json');addLog('ok','配置已导出为 JSON');$('sb-msg').textContent='配置已导出';};
 $('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
-$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','on');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';};
+$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','off');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';};
 $('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';};
 /* 曲线导出 CSV（仅导出开启中的系列） */
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
 syncSetSels();
 
-ring(85);size();draw();runCheck();updateTopo();setInterval(sim,200);
+ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();setInterval(sim,200);
 </script>
 </body>
 </html>
