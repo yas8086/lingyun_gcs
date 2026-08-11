@@ -211,6 +211,8 @@
   .btn{border:none;border-radius:var(--r-md);padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;background:var(--primary);color:#fff}
   .btn.ghost{background:var(--card-2);color:var(--text);border:1px solid var(--line)}
   .btn.danger{background:var(--err);color:#fff}
+  /* 危险操作确认态 */
+  .btn.confirming,.ctl-btn.confirming,.af-btn.confirming{background:var(--err)!important;color:#fff!important;border-color:transparent!important}
   .replay .file-name{color:var(--text-2);font-size:13px}
   .replay .bar{width:100%;height:8px;border-radius:var(--r-full);background:var(--bg-2);overflow:hidden}
   .replay .bar i{display:block;height:100%;width:0%;background:var(--primary)}
@@ -1599,7 +1601,7 @@ function initMapping(){
   };
   /* 添加 / 恢复默认 */
   $('mpAdd').onclick=()=>{const pid=nextPid();PROBES.push({pid,ei:0,row:2,col:2,base:45});applyProbes();addLog('ok','已添加探头 '+pid);};
-  $('mpReset').onclick=()=>{PROBES=defaultProbes();Object.keys(pvVals).forEach(k=>delete pvVals[k]);Object.keys(pvHist).forEach(k=>delete pvHist[k]);applyProbes();addLog('ok','已恢复探头默认布局');};
+  $('mpReset').onclick=()=>confirmTwice($('mpReset'),'恢复默认',()=>{PROBES=defaultProbes();Object.keys(pvVals).forEach(k=>delete pvVals[k]);Object.keys(pvHist).forEach(k=>delete pvHist[k]);applyProbes();addLog('ok','已恢复探头默认布局');});
 }
 /* LoRa 温度/压力采集 */
 const LORA_DEF=[
@@ -1793,7 +1795,7 @@ function addAlarm(lv,msg){
 }
 document.querySelectorAll('.af-btn').forEach(b=>b.onclick=()=>{
   const f=b.dataset.f;
-  if(f==='clear'){alarms=[];saveAlarms();renderAlarms();updAlarm();return;}
+  if(f==='clear'){confirmTwice(b,'清空',()=>{alarms=[];saveAlarms();renderAlarms();updAlarm();});return;}
   alarmFilter=f;
   document.querySelectorAll('.af-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
   renderAlarms();
@@ -1850,6 +1852,13 @@ function toast(msg,type='ok'){
   t.textContent=msg;wrap.appendChild(t);
   setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),200);},3000);
 }
+/* 危险操作两步确认：第一次点击进入确认态（红色+3s倒计时），倒计时内再点才执行 action */
+function confirmTwice(btn,label,action){
+  if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.classList.remove('confirming');btn.textContent=label;action();return;}
+  btn.dataset.armed='1';btn.classList.add('confirming');const orig=label;let n=3;
+  btn.textContent='确认'+label+'？('+n+'s)';
+  btn._ct=setInterval(()=>{n--;if(n<=0){clearInterval(btn._ct);btn.dataset.armed='';btn.classList.remove('confirming');btn.textContent=orig;}else btn.textContent='确认'+label+'？('+n+'s)';},1000);
+}
 function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast('已导出：'+name);}
 $('recToggle').onclick=()=>{recording=!recording;$('recToggle').textContent=recording?'● 记录中':'○ 已暂停';addLog('info',recording?'开始记录遥测':'已暂停记录');};
 $('recExport').onclick=()=>download('lingyun-gcs-log.json',JSON.stringify(recData,null,2),'application/json');
@@ -1857,7 +1866,7 @@ $('recImport').onclick=()=>{const inp=document.createElement('input');inp.type='
 function importSetFrom(data){SET_FIELDS.forEach(id=>{const el=$(id);if(el&&data[id]!=null)el.value=data[id];});if(data.theme){const t=data.theme;document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';}if(data.density){const d=data.density;document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';}if(data.contrast)applyContrast(data.contrast==='high');if(data.accent)applyAccent(data.accent);if(data.setSound)localStorage.setItem('gcs_sound',data.setSound==='开启'?'on':'off');syncSetSels();}
 $('exportSet').onclick=()=>{download('lingyun-gcs-config.json',JSON.stringify(collectSet(),null,2),'application/json');addLog('ok','配置已导出为 JSON');$('sb-msg').textContent='配置已导出';};
 $('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';toast('配置导入成功');}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
-$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','off');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';toast('已恢复默认设置');};
+$('resetSet').onclick=()=>confirmTwice($('resetSet'),'恢复默认',()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','off');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';toast('已恢复默认设置');});
 $('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';toast('设置已保存');};
 /* 曲线导出 CSV（仅导出开启中的系列） */
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
