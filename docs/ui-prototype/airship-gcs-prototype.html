@@ -506,6 +506,17 @@
   .mp-num{width:56px}
   .mp-del{border:1px solid var(--line);background:var(--card-2);color:var(--err);border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11px;font-weight:600}
   .mp-del:hover{background:var(--err-soft)}
+  /* ===== Toast 全局反馈 ===== */
+  .toast-wrap{position:fixed;top:64px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{min-width:220px;max-width:340px;padding:10px 14px;border-radius:var(--r-md);box-shadow:var(--shadow-3);
+    display:flex;align-items:center;gap:8px;font-size:var(--fs-body);font-weight:600;pointer-events:auto;
+    animation:toast-in .25s cubic-bezier(.2,.9,.3,1.2)}
+  .toast.ok{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}
+  .toast.err{background:var(--err-soft);color:var(--err);border:1px solid var(--err)}
+  .toast.info{background:var(--primary-soft);color:var(--primary);border:1px solid var(--primary)}
+  .toast.out{animation:toast-out .2s ease forwards}
+  @keyframes toast-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes toast-out{to{transform:translateX(24px);opacity:0}}
 </style>
 </head>
 <body>
@@ -1161,7 +1172,7 @@ $('ruleBody').onchange=e=>{const t=e.target;if(!t.dataset.r)return;const r=alarm
   else if(d==='en')r.enabled=t.checked;
   saveRules();
 };
-$('ruleAdd').onclick=()=>{alarmRules.push({dev:'dcdc',fid:'temp',op:'gt',val:45,lv:'严重',enabled:true});renderRules();saveRules();};
+$('ruleAdd').onclick=()=>{alarmRules.push({dev:'dcdc',fid:'temp',op:'gt',val:45,lv:'严重',enabled:true});renderRules();saveRules();toast('规则已添加');};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-rdel]');if(!b)return;alarmRules.splice(+b.dataset.rdel,1);renderRules();saveRules();});
 function evalRules(){
   alarmRules.filter(r=>r.enabled).forEach(r=>{
@@ -1751,10 +1762,10 @@ function saveAlarms(){try{localStorage.setItem('gcs_alarms',JSON.stringify(alarm
 function updAlarm(){const n=alarms.filter(a=>!a.acked&&!isShelved(a)).length;const b=$('sb-alarm');b.textContent=n;$('sb-alarm-wrap').classList.toggle('has',n>0);}
 function shelveAlarm(a,ms){
   a.shelveUntil=ms?Date.now()+ms:Infinity;
-  saveAlarms();renderAlarms();updAlarm();addLog('info','已屏蔽告警：'+a.msg);
+  saveAlarms();renderAlarms();updAlarm();addLog('info','已屏蔽告警：'+a.msg);toast('已屏蔽告警：'+a.msg);
 }
 function isShelved(a){return a.shelveUntil!=null&&a.shelveUntil>Date.now();}
-function clearShelve(a){a.shelveUntil=0;saveAlarms();renderAlarms();updAlarm();addLog('info','已解除屏蔽：'+a.msg);}
+function clearShelve(a){a.shelveUntil=0;saveAlarms();renderAlarms();updAlarm();addLog('info','已解除屏蔽：'+a.msg);toast('已解除屏蔽：'+a.msg);}
 function renderAlarms(){
   const box=$('alarm-list');box.innerHTML='';
   alarms.slice(0,100).forEach(a=>{
@@ -1833,15 +1844,21 @@ $('setTempUnit').addEventListener('change',applyUnits);
 $('setPowerUnit').addEventListener('change',applyUnits);
 /* 配置导出 / 导入 */
 function collectSet(){const o={};SET_FIELDS.forEach(id=>{const el=$(id);if(el)o[id]=el.value;});o.theme=document.documentElement.getAttribute('data-theme');o.density=document.documentElement.getAttribute('data-density');o.contrast=document.documentElement.getAttribute('data-contrast');o.accent=document.documentElement.getAttribute('data-accent');o.exportedAt=new Date().toISOString();return o;}
-function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();}
+function toast(msg,type='ok'){
+  const wrap=$('toastWrap');if(!wrap)return;
+  const t=document.createElement('div');t.className='toast '+type;
+  t.textContent=msg;wrap.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),200);},3000);
+}
+function download(name,content,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast('已导出：'+name);}
 $('recToggle').onclick=()=>{recording=!recording;$('recToggle').textContent=recording?'● 记录中':'○ 已暂停';addLog('info',recording?'开始记录遥测':'已暂停记录');};
 $('recExport').onclick=()=>download('lingyun-gcs-log.json',JSON.stringify(recData,null,2),'application/json');
 $('recImport').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(Array.isArray(d)&&d.length){recData=d;addLog('ok','已导入 '+d.length+' 条记录');}}catch(e){addLog('err','记录文件解析失败');}};r.readAsText(f);};inp.click();};
 function importSetFrom(data){SET_FIELDS.forEach(id=>{const el=$(id);if(el&&data[id]!=null)el.value=data[id];});if(data.theme){const t=data.theme;document.documentElement.setAttribute('data-theme',t);localStorage.setItem('gcs_theme',t);$('themeBtn').textContent=t==='dark'?'浅色':'深色';}if(data.density){const d=data.density;document.documentElement.setAttribute('data-density',d);localStorage.setItem('gcs_density',d);$('densityBtn').textContent=d==='comfortable'?'密度：舒适':'密度：密集';}if(data.contrast)applyContrast(data.contrast==='high');if(data.accent)applyAccent(data.accent);if(data.setSound)localStorage.setItem('gcs_sound',data.setSound==='开启'?'on':'off');syncSetSels();}
 $('exportSet').onclick=()=>{download('lingyun-gcs-config.json',JSON.stringify(collectSet(),null,2),'application/json');addLog('ok','配置已导出为 JSON');$('sb-msg').textContent='配置已导出';};
-$('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
-$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','off');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';};
-$('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';};
+$('importSet').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importSetFrom(JSON.parse(r.result));addLog('ok','配置导入成功');$('sb-msg').textContent='配置已导入';toast('配置导入成功');}catch(err){addLog('err','配置文件解析失败');}};r.readAsText(f);};inp.click();};
+$('resetSet').onclick=()=>{SET_FIELDS.forEach(id=>{const el=$(id);if(el)el.value=SET_DEFAULT[id];});document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-density','comfortable');applyContrast(false);applyAccent('blue');localStorage.setItem('gcs_theme','light');localStorage.setItem('gcs_density','comfortable');localStorage.setItem('gcs_sound','off');$('themeBtn').textContent='深色';$('densityBtn').textContent='密度：舒适';syncSetSels();addLog('ok','已恢复默认设置');$('sb-msg').textContent='已恢复默认设置';toast('已恢复默认设置');};
+$('saveSet').onclick=()=>{addLog('ok','设置已保存');$('sb-msg').textContent='设置已保存';toast('设置已保存');};
 /* 曲线导出 CSV（仅导出开启中的系列） */
 $('exportBtn').onclick=()=>{const on=Object.keys(series).filter(k=>series[k].on);if(!on.length){addLog('warn','请先开启至少一个曲线参数');return;}const max=Math.max(...on.map(k=>series[k].data.length));if(!max){addLog('warn','暂无曲线数据');return;}const labels={v:'总压(V)',pv:'光伏功率(W)',outp:'输出功率(W)',i:'总电流(A)'};const rows=[['index'].concat(on.map(k=>labels[k])).join(',')];for(let i=0;i<max;i++){const cells=[i];on.forEach(k=>{const v=series[k].data[i];cells.push(v!=null?v:'');});rows.push(cells.join(','));}download('lingyun-gcs-curve.csv','\uFEFF'+rows.join('\n'),'text/csv');addLog('ok','曲线数据已导出为 CSV');$('sb-msg').textContent='曲线已导出';};
 /* 状态快照导出（JSON） */
@@ -1887,5 +1904,6 @@ applySbWidgets();
 
 ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();setInterval(sim,200);
 </script>
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
 </body>
 </html>
