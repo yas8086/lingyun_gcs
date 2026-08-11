@@ -523,6 +523,26 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   }
+  /* ===== 响应式补全 ===== */
+  /* 侧栏（图示右侧面板）弹性收窄 */
+  @media(max-width:1280px){.side-panel{max-width:340px;min-width:260px}}
+  /* 树状导航折叠为图标列（藏文字与分组标题，仅留图标） */
+  @media(max-width:1024px){
+    .topo-tree{width:56px}
+    .topo-tree .tree-item .ti-tx,.topo-tree .tree-title,.topo-tree .tree-group{display:none}
+    .topo-tree .tree-item{justify-content:center;padding:10px 4px}
+    .topo-tree .tree-item.child{margin-left:0;border-left:none}
+  }
+  /* 窄屏：左侧导航转底部 tab bar */
+  @media(max-width:768px){
+    .shell{flex-direction:column}
+    .nav{width:100%;flex-direction:row;order:2;border-right:none;border-top:1px solid var(--line);padding:4px 0;justify-content:space-around}
+    .nav .logo{display:none}
+    .nav-item{width:auto;flex:1}
+    .content{padding:8px}
+    .topbar{flex-wrap:wrap}
+    .dev-lamp{overflow-x:auto}
+  }
 </style>
 </head>
 <body>
@@ -798,12 +818,12 @@
               <div class="tree-title">图示</div>
               <button class="tree-item active" data-tnode="power">
                 <svg class="ti-ic" aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>
-                电源链路
+                <span class="ti-tx">电源链路</span>
               </button>
               <div class="tree-group"><span class="tg-arrow">▸</span>温度监测</div>
               <button class="tree-item child" data-tnode="temp">
                 <svg class="ti-ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 2v6l-3 5a4 4 0 1 0 10 0l-3-5V2"/><line x1="9" y1="2" x2="15" y2="2"/><line x1="12" y1="13" x2="12" y2="9"/></svg>
-                温度监测
+                <span class="ti-tx">温度监测</span>
               </button>
             </div>
             <!-- 右侧内容区 -->
