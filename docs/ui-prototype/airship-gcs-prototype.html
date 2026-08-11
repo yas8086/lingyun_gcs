@@ -314,6 +314,29 @@
   /* 图例 hover */
   .chart-legend .lg{transition:opacity .2s,transform .12s}
   .chart-legend .lg:hover{transform:translateY(-1px)}
+  /* ===== 按钮基类与变体（统一交互态） ===== */
+  .btn,.ctl-btn,.icon-btn,.more-btn,.col-btn,.af-btn,.tbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:var(--r-md);
+    font-size:var(--fs-body);font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+  .btn:not(.ghost),.ctl-btn,.icon-btn,.more-btn,.col-btn,.af-btn,.tbtn{padding:7px 14px}
+  .btn:hover,.ctl-btn:hover,.icon-btn:hover,.more-btn:hover,.col-btn:hover{border-color:var(--primary);color:var(--primary)}
+  .btn:active,.ctl-btn:active,.icon-btn:active{transform:translateY(1px)}
+  .btn[disabled],.ctl-btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+  /* 主按钮 */
+  .btn{background:var(--primary);color:#fff;border-color:transparent}
+  .btn:hover{background:var(--primary);color:#fff;filter:brightness(1.08)}
+  /* 危险按钮 */
+  .btn.danger,.ctl-btn.danger{background:var(--err);color:#fff;border-color:transparent}
+  .btn.danger:hover,.ctl-btn.danger:hover{filter:brightness(1.08)}
+  /* 幽灵按钮 */
+  .btn.ghost{background:transparent;color:var(--text-2);border-color:var(--line)}
+  /* 图标按钮 */
+  .icon-btn{width:30px;height:30px;padding:0;border-radius:var(--r-sm)}
+  /* 输入统一聚焦环 */
+  .set-row input,.set-row select,.mp-sel,.mp-num,.input{border:1px solid var(--line);background:var(--card);
+    color:var(--text);border-radius:var(--r-md);padding:6px 10px;font-size:var(--fs-body);font-family:inherit}
+  .set-row input:focus,.set-row select:focus,.mp-sel:focus,.mp-num:focus,.input:focus{
+    outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--ring)}
   /* ===== 高对比度模式 ===== */
   html[data-contrast="high"]{--text:#0b1220;--text-2:#1e293b;--line:#94a3b8;--bg:#f2f5fa;--bg-2:#e2e8f0;--card-2:#eef2f7;--ring:rgba(15,23,42,.22)}
   html[data-contrast="high"] body{font-size:15px}
