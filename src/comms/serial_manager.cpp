@@ -62,6 +62,8 @@ void SerialManager::onReadyRead() {
     parser_->push(serial_.readAll());
     QByteArray json;
     while (parser_->takeFrame(json)) {
+        // 记录完整原始帧：AA55 帧头 + JSON + 换行（保留原始报文用于回放/复现）
+        emit rawFrameReceived(QByteArray("\xAA\x55") + json + "\n");
         TelemetryData data;
         if (decodeJson(json, data))
             emit telemetryReceived(data);

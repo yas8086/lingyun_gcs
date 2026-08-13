@@ -22,6 +22,7 @@ public:
 
 signals:
     void telemetryReceived(const lgs::TelemetryData &data);
+    void rawFrameReceived(const QByteArray &frame);  // 完整原始帧（AA55 帧头 + JSON）
     void linkStatusChanged(bool connected);
     void errorOccurred(const QString &msg);
 

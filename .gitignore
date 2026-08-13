@@ -8,3 +8,13 @@ build/
 
 # Subagent-Driven 工作台账（scratch，不入库）
 .superpowers/
+
+# Python 运行缓存
+__pycache__/
+*.pyc
+
+# 编译产物 / 临时可执行
+tools/gcs_shot
+
+# UI 截图对比（不入库）
+tools/*.png

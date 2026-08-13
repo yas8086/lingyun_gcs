@@ -1,20 +1,47 @@
 #pragma once
+#include <QString>
 #include <optional>
 #include <vector>
 
 namespace lgs {
 
-// 锂电池 BMS 状态
+// 锂电池 BMS 状态（102 串三元锂）
 struct Bms {
     bool online = false;
     double pack_v = 0.0;   // 电池包总压 V
     double pack_i = 0.0;   // 总电流 A（充电为正）
     int soc = 0;           // 荷电状态 %
+    double rsoc = 0.0;     // 真实 SOC %
     double max_v = 0.0;    // 最高单体电压 V
     double min_v = 0.0;    // 最低单体电压 V
     double diff_v = 0.0;   // 单体压差 V
     double max_t = 0.0;    // 最高单体温度 ℃
+    double min_t = 0.0;    // 最低单体温度 ℃
+    double avg_t = 0.0;    // 平均单体温度 ℃
+    double diff_t = 0.0;   // 单体温差 ℃
+    int riso_p = 0;        // 正极绝缘电阻 kΩ
+    int riso_n = 0;        // 负极绝缘电阻 kΩ
     int alarm = 0;         // 0 正常 / 1 故障 / 2 严重
+};
+
+// 备用电源 BMS 状态（12S 备用电池，串口协议）
+struct BackupBms {
+    bool online = false;
+    double pack_v = 0.0;   // 电池包总压 V
+    double pack_i = 0.0;   // 总电流 A（充电为正）
+    int soc = 0;           // 荷电状态 %
+    int soh = 0;           // 健康状态 %
+    double max_v = 0.0;    // 最高单体电压 V
+    double min_v = 0.0;    // 最低单体电压 V
+    double diff_v = 0.0;   // 单体压差 V
+    double max_t = 0.0;    // 最高单体温度 ℃
+    double min_t = 0.0;    // 最低单体温度 ℃
+    double avg_t = 0.0;    // 平均单体温度 ℃
+    double diff_t = 0.0;   // 单体温差 ℃
+    int alarm = 0;         // 告警标志位（32 位）
+    int protect = 0;       // 保护标志位（32 位）
+    int fault = 0;         // 故障标志位（32 位）
+    int sys = 0;           // 系统状态字（32 位）
 };
 
 // MPPT 光伏控制器状态
@@ -55,12 +82,32 @@ struct Lora {
     std::vector<LoraSample> nodes;
 };
 
+// 飞控 FC 状态（仅 4G 链路提供，《地面站对接协议》5.5 节）
+struct Fc {
+    bool online = false;
+    double roll = 0.0;    // 横滚角 deg
+    double pitch = 0.0;   // 俯仰角 deg
+    double yaw = 0.0;     // 偏航角 deg
+    double lat = 0.0;     // 纬度 deg
+    double lon = 0.0;     // 经度 deg
+    double alt = 0.0;     // 相对起飞点高度 m
+    double vx = 0.0;      // 东向速度 m/s (ENU)
+    double vy = 0.0;      // 北向速度 m/s (ENU)
+    double vz = 0.0;      // 天向速度 m/s (ENU)
+    QString mode;         // 飞行模式
+    bool armed = false;   // 是否解锁
+    double batt_v = 0.0;  // 电池电压 V
+    double batt_pct = 0.0;// 剩余电量 (0~1)
+};
+
 // 一帧完整遥测；std::optional 表示该设备离线/未出现在帧中
 struct TelemetryData {
     double t = 0.0;
     std::optional<Bms> bms;
+    std::optional<BackupBms> backup;
     std::optional<Mppt> mppt;
     std::optional<Dcdc> dcdc;
+    std::optional<Fc> fc;   // 仅 4G 链路
     // lora 特殊：机载收到过一轮采样即存在（nodes 可为空数组），
     // 与 bms/mppt/dcdc 的"离线键消失"语义不同
     std::optional<Lora> lora;

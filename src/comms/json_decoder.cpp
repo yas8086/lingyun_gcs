@@ -6,54 +6,129 @@
 
 namespace lgs {
 
-static double toDouble(const QJsonObject &o, const char *key) {
-    return o.value(QLatin1String(key)).toDouble();
+// 协议要求：机载对 NaN/Inf 输出 JSON null，地面站须接受 null 视为无效值，
+// 勿强转 0 误导显示。以下助手在值有效（非 null）时才写入字段，否则保留默认值。
+static bool readDouble(const QJsonObject &o, const char *key, double &out) {
+    const QJsonValue v = o.value(QLatin1String(key));
+    if (v.isNull() || !v.isDouble())
+        return false;
+    out = v.toDouble();
+    return true;
 }
-static int toInt(const QJsonObject &o, const char *key) {
-    return o.value(QLatin1String(key)).toInt();
+static bool readInt(const QJsonObject &o, const char *key, int &out) {
+    const QJsonValue v = o.value(QLatin1String(key));
+    if (v.isNull() || !v.isDouble())
+        return false;
+    out = v.toInt();
+    return true;
 }
-static bool toBool(const QJsonObject &o, const char *key) {
-    return o.value(QLatin1String(key)).toBool();
+static bool readBool(const QJsonObject &o, const char *key, bool &out) {
+    const QJsonValue v = o.value(QLatin1String(key));
+    if (v.isNull() || !v.isBool())
+        return false;
+    out = v.toBool();
+    return true;
+}
+static bool readString(const QJsonObject &o, const char *key, QString &out) {
+    const QJsonValue v = o.value(QLatin1String(key));
+    if (v.isNull() || !v.isString())
+        return false;
+    out = v.toString();
+    return true;
 }
 
 static Bms parseBms(const QJsonObject &o) {
     Bms b;
-    b.online = toBool(o, "online");
-    b.pack_v = toDouble(o, "pack_v");
-    b.pack_i = toDouble(o, "pack_i");
-    b.soc = toInt(o, "soc");
-    b.max_v = toDouble(o, "max_v");
-    b.min_v = toDouble(o, "min_v");
-    b.diff_v = toDouble(o, "diff_v");
-    b.max_t = toDouble(o, "max_t");
-    b.alarm = toInt(o, "alarm");
+    readBool(o, "online", b.online);
+    readDouble(o, "pack_v", b.pack_v);
+    readDouble(o, "pack_i", b.pack_i);
+    readInt(o, "soc", b.soc);
+    readDouble(o, "rsoc", b.rsoc);
+    readDouble(o, "max_v", b.max_v);
+    readDouble(o, "min_v", b.min_v);
+    readDouble(o, "diff_v", b.diff_v);
+    readDouble(o, "max_t", b.max_t);
+    readDouble(o, "min_t", b.min_t);
+    readDouble(o, "avg_t", b.avg_t);
+    readDouble(o, "diff_t", b.diff_t);
+    readInt(o, "riso_p", b.riso_p);
+    readInt(o, "riso_n", b.riso_n);
+    readInt(o, "alarm", b.alarm);
+    return b;
+}
+
+static BackupBms parseBackup(const QJsonObject &o) {
+    BackupBms b;
+    readBool(o, "online", b.online);
+    readDouble(o, "pack_v", b.pack_v);
+    readDouble(o, "pack_i", b.pack_i);
+    readInt(o, "soc", b.soc);
+    readInt(o, "soh", b.soh);
+    readDouble(o, "max_v", b.max_v);
+    readDouble(o, "min_v", b.min_v);
+    readDouble(o, "diff_v", b.diff_v);
+    readDouble(o, "max_t", b.max_t);
+    readDouble(o, "min_t", b.min_t);
+    readDouble(o, "avg_t", b.avg_t);
+    readDouble(o, "diff_t", b.diff_t);
+    int alarm = 0;
+    int protect = 0;
+    int fault = 0;
+    int sys = 0;
+    readInt(o, "alarm", alarm);
+    readInt(o, "protect", protect);
+    readInt(o, "fault", fault);
+    readInt(o, "sys", sys);
+    b.alarm = alarm;
+    b.protect = protect;
+    b.fault = fault;
+    b.sys = sys;
     return b;
 }
 
 static Mppt parseMppt(const QJsonObject &o) {
     Mppt m;
-    m.online = toBool(o, "online");
-    m.pv_v = toDouble(o, "pv_v");
-    m.pv_p = toDouble(o, "pv_p");
-    m.batt_v = toDouble(o, "batt_v");
-    m.charge_i = toDouble(o, "charge_i");
-    m.today = toDouble(o, "today");
-    m.total = toDouble(o, "total");
-    m.fault = toInt(o, "fault");
+    readBool(o, "online", m.online);
+    readDouble(o, "pv_v", m.pv_v);
+    readDouble(o, "pv_p", m.pv_p);
+    readDouble(o, "batt_v", m.batt_v);
+    readDouble(o, "charge_i", m.charge_i);
+    readDouble(o, "today", m.today);
+    readDouble(o, "total", m.total);
+    readInt(o, "fault", m.fault);
     return m;
 }
 
 static Dcdc parseDcdc(const QJsonObject &o) {
     Dcdc d;
-    d.online = toBool(o, "online");
-    d.in_v = toDouble(o, "in_v");
-    d.out_v = toDouble(o, "out_v");
-    d.out_i = toDouble(o, "out_i");
-    d.out_p = toDouble(o, "out_p");
-    d.temp = toDouble(o, "temp");
-    d.enabled = toBool(o, "enabled");
-    d.fault = toInt(o, "fault");
+    readBool(o, "online", d.online);
+    readDouble(o, "in_v", d.in_v);
+    readDouble(o, "out_v", d.out_v);
+    readDouble(o, "out_i", d.out_i);
+    readDouble(o, "out_p", d.out_p);
+    readDouble(o, "temp", d.temp);
+    readBool(o, "enabled", d.enabled);
+    readInt(o, "fault", d.fault);
     return d;
+}
+
+static Fc parseFc(const QJsonObject &o) {
+    Fc f;
+    readBool(o, "online", f.online);
+    readDouble(o, "roll", f.roll);
+    readDouble(o, "pitch", f.pitch);
+    readDouble(o, "yaw", f.yaw);
+    readDouble(o, "lat", f.lat);
+    readDouble(o, "lon", f.lon);
+    readDouble(o, "alt", f.alt);
+    readDouble(o, "vx", f.vx);
+    readDouble(o, "vy", f.vy);
+    readDouble(o, "vz", f.vz);
+    readString(o, "mode", f.mode);
+    readBool(o, "armed", f.armed);
+    readDouble(o, "batt_v", f.batt_v);
+    readDouble(o, "batt_pct", f.batt_pct);
+    return f;
 }
 
 static Lora parseLora(const QJsonObject &o) {
@@ -83,10 +158,14 @@ bool decodeJson(const QByteArray &json, TelemetryData &out) {
     out.t = root.value(QLatin1String("t")).toDouble();
     if (root.contains(QLatin1String("bms")))
         out.bms = parseBms(root.value(QLatin1String("bms")).toObject());
+    if (root.contains(QLatin1String("backup")))
+        out.backup = parseBackup(root.value(QLatin1String("backup")).toObject());
     if (root.contains(QLatin1String("mppt")))
         out.mppt = parseMppt(root.value(QLatin1String("mppt")).toObject());
     if (root.contains(QLatin1String("dcdc")))
         out.dcdc = parseDcdc(root.value(QLatin1String("dcdc")).toObject());
+    if (root.contains(QLatin1String("fc")))
+        out.fc = parseFc(root.value(QLatin1String("fc")).toObject());
     // lora 存在条件与 bms/mppt/dcdc 不同：收到过采样即存在（nodes 可为空数组）
     if (root.contains(QLatin1String("lora")))
         out.lora = parseLora(root.value(QLatin1String("lora")).toObject());

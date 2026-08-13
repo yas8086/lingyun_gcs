@@ -1,0 +1,155 @@
+#pragma once
+#include <QObject>
+#include <QString>
+#include <QVariant>
+#include <QVariantList>
+#include <QVariantMap>
+#include <QStringList>
+#include <QList>
+#include <QVector>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QByteArray>
+#include <QDateTime>
+#include "model/telemetry_data.h"
+#include "core/alarm_engine.h"
+
+namespace lgs {
+
+class SerialManager;
+class ConfigManager;
+class AlarmEngine;
+
+// 桥接层：把 C++ 后端（遥测/链路/就绪度/告警/串口/配置）暴露给 QML 前端。
+// 采用 context 属性注入，QML 通过 Q_INVOKABLE 方法与信号交互。
+class TelemetryBridge : public QObject {
+    Q_OBJECT
+public:
+    explicit TelemetryBridge(QObject *parent = nullptr);
+
+    void onTelemetry(const lgs::TelemetryData &data);
+    void setLinkOnline(bool online);
+    void setSerialManager(SerialManager *serial);
+    void setConfigManager(ConfigManager *config);
+    void setAlarmEngine(AlarmEngine *engine);
+
+    // 串口控制
+    Q_INVOKABLE QStringList ports() const;
+    Q_INVOKABLE bool openSerial(const QString &port, int baud);
+    Q_INVOKABLE void closeSerial();
+    Q_INVOKABLE bool isSerialOpen() const;
+
+    // 设备在线状态
+    Q_INVOKABLE bool online(const QString &device) const;
+    // 读取设备字段数值；设备离线或字段不存在返回 NaN
+    Q_INVOKABLE double value(const QString &device, const QString &key) const;
+    // 就绪度状态：0 待自检 / 1 就绪可飞 / 2 起飞受限 / 3 不可起飞
+    Q_INVOKABLE int readinessState() const;
+    // LoRa 节点概要（多行文本）
+    Q_INVOKABLE QString loraSummary() const;
+    // LoRa 节点结构化数据：QVariantList<QVariantMap{id,temp,pressure,alarm,isTemp}>
+    Q_INVOKABLE QVariant loraNodes() const;
+    // 温度历史导出（决策 #28，落盘 CSV 含 BOM）：返回导出行数，失败返回 -1
+    Q_INVOKABLE int exportTempCsv(const QString &path) const;
+    // 通用文本写入（实时曲线导出 CSV/快照/报告用）：成功返回 true
+    Q_INVOKABLE bool writeTextFile(const QString &path, const QString &content) const;
+    // 软件所在目录根目录下的 data 文件夹路径（不存在则创建）
+    Q_INVOKABLE QString dataDir() const;
+    // 曲线快照目录：data/曲线快照（不存在则创建）
+    Q_INVOKABLE QString snapshotDir() const;
+    // 数据自动记录配置（决策：逐帧原始报文落盘）
+    Q_INVOKABLE bool recordEnabled() const;
+    Q_INVOKABLE void setRecordEnabled(bool on);
+    Q_INVOKABLE QString recordDir() const;
+    Q_INVOKABLE void setRecordDir(const QString &dir);
+    Q_INVOKABLE bool isRecording() const;           // 当前是否正在写记录文件
+    Q_INVOKABLE QString currentRecordFile() const;  // 当前记录文件完整路径（无则空）
+    // 记录原始帧（由 SerialManager::rawFrameReceived 触发）
+    void onRawFrame(const QByteArray &frame);
+
+    // 配置访问（决策 #24/#29/#30）：偏好经 ConfigManager JSON 持久化
+    Q_INVOKABLE int configTempUnit() const;              // 0=℃ 1=℉
+    Q_INVOKABLE void setConfigTempUnit(int unit);
+    Q_INVOKABLE bool configAlarmSound() const;           // 告警声音开关（默认关）
+    Q_INVOKABLE void setConfigAlarmSound(bool on);
+    Q_INVOKABLE int configChartWindowSecs() const;       // 10/20/30
+    Q_INVOKABLE void setConfigChartWindowSecs(int secs);
+    Q_INVOKABLE QVariant configHiddenModules() const;    // 隐藏模块键集合
+    Q_INVOKABLE void setConfigHiddenModule(const QString &key, bool hidden);
+    // 配置导入导出（决策：跨设备快速配置）：整体 JSON 文件
+    Q_INVOKABLE QString configFilePath() const;          // 当前配置文件路径
+    Q_INVOKABLE bool exportConfig(const QString &path) const;   // 导出配置到 path
+    Q_INVOKABLE bool importConfig(const QString &path);         // 从 path 导入并应用
+    // 界面主题（决策：深色/浅色、密度、高对比度、强调色）——纳入重启恢复与导入导出
+    Q_INVOKABLE bool configDark() const;
+    Q_INVOKABLE void setConfigDark(bool dark);
+    Q_INVOKABLE bool configDense() const;
+    Q_INVOKABLE void setConfigDense(bool dense);
+    Q_INVOKABLE bool configContrast() const;
+    Q_INVOKABLE void setConfigContrast(bool contrast);
+    Q_INVOKABLE QString configAccent() const;
+    Q_INVOKABLE void setConfigAccent(const QString &accent);
+    // 地图配置（决策：在线瓦片天地图/OSM）：图源(0天地图 1OSM)与密钥
+    Q_INVOKABLE int configMapSource() const;
+    Q_INVOKABLE void setConfigMapSource(int source);
+    Q_INVOKABLE QString configMapKey() const;
+    Q_INVOKABLE void setConfigMapKey(const QString &key);
+
+    // 告警列表与确认（决策 #20）
+    void addAlarm(const QString &msg, const QString &level, const QString &source);
+    Q_INVOKABLE QVariant alarms() const;          // 返回 QVariantList<QVariantMap>
+    Q_INVOKABLE void confirmAlarm(int i);
+    Q_INVOKABLE void confirmAllAlarms();
+    Q_INVOKABLE int unconfirmedCount() const;
+
+    // 告警规则（决策 #15/#31）：经 ConfigManager JSON 持久化并应用到 AlarmEngine
+    Q_INVOKABLE QVariant alarmRules() const;              // QVariantList<QVariantMap>
+    Q_INVOKABLE QVariant alarmRuleFields() const;         // 可选字段 [device.field, 标签]
+    Q_INVOKABLE void addAlarmRule(const QVariant &rule);  // rule: {device,field,op,val,lv,enabled,label}
+    Q_INVOKABLE void updateAlarmRule(int i, const QVariant &rule);
+    Q_INVOKABLE void removeAlarmRule(int i);
+    Q_INVOKABLE void restoreDefaultRules();
+
+    // 温度探头映射（决策 #27）：持久化到 temp_probes.json（pid/囊体/行/列/基准）
+    Q_INVOKABLE QVariant probeMapping() const;            // QVariantList<QVariantMap{pid,ei,row,col,base}>
+    Q_INVOKABLE void saveProbeMapping(const QVariant &list);
+    Q_INVOKABLE QVariant defaultProbeMapping() const;
+
+    // 设备卡显示字段配置（决策 #？）：每设备可见字段 key 列表
+    Q_INVOKABLE QStringList fieldConfig(const QString &device) const;
+    Q_INVOKABLE void setFieldConfig(const QString &device, const QVariant &list);
+
+    // 运行时长（决策：状态栏）
+    Q_INVOKABLE int uptimeSeconds() const;
+
+    // 通用日志/事件流（运行日志 + 时间轴）由 QML 侧维护，这里提供启动时刻供计算
+
+signals:
+    void telemetryChanged();                 // 有新遥测
+    void linkChanged(bool online);
+    void alarmRaised(const QString &msg, const QString &level);
+    void alarmsChanged();                    // 告警列表/计数变化
+    void rulesChanged();                     // 告警规则变化
+    void configImported();                   // 配置导入成功，前端需刷新各设置控件
+
+private:
+    lgs::TelemetryData last_;
+    void startRecording();
+    void stopRecording();
+    bool linkOnline_ = false;
+    SerialManager *serial_ = nullptr;
+    ConfigManager *config_ = nullptr;
+    AlarmEngine *engine_ = nullptr;
+    QList<QVariantMap> alarmList_;
+    int unconfirmed_ = 0;
+    // 温度历史（决策 #28）：每轮 LoRa 节点采样，环形上限 200 轮
+    QList<QVariantMap> loraHistory_;
+    QElapsedTimer uptime_;
+    bool uptimeStarted_ = false;
+    // 数据自动记录
+    QFile recordFile_;
+    QString recordPath_;
+    bool recordEnabled_ = true;   // 运行时开关状态（初始化取自 config）
+};
+
+} // namespace lgs

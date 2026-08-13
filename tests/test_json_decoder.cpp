@@ -71,6 +71,62 @@ private slots:
         TelemetryData d;
         QVERIFY(!decodeJson("{invalid", d));
     }
+
+    void decodesBackupAndExtendedBms() {
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1785928200.123,"
+            "\"bms\":{\"online\":true,\"soc\":85,\"rsoc\":84.5,\"max_t\":32.5,"
+            "\"min_t\":31.0,\"avg_t\":31.8,\"diff_t\":1.5,\"riso_p\":520,\"riso_n\":498},"
+            "\"backup\":{\"online\":true,\"pack_v\":48.6,\"pack_i\":1.2,\"soc\":90,"
+            "\"soh\":96,\"max_t\":29.4,\"avg_t\":28.7,\"alarm\":0,\"protect\":0,"
+            "\"fault\":0,\"sys\":3}}";
+        QVERIFY(decodeJson(json, d));
+        // BMS 扩展字段
+        QVERIFY(d.bms.has_value());
+        QCOMPARE(d.bms->rsoc, 84.5);
+        QCOMPARE(d.bms->avg_t, 31.8);
+        QCOMPARE(d.bms->diff_t, 1.5);
+        QCOMPARE(d.bms->riso_p, 520);
+        // backup 设备
+        QVERIFY(d.backup.has_value());
+        QCOMPARE(d.backup->soc, 90);
+        QCOMPARE(d.backup->soh, 96);
+        QCOMPARE(d.backup->sys, 3);
+        QVERIFY(!d.mppt.has_value());
+    }
+
+    void nullValueTreatedAsInvalid() {
+        // 协议：NaN/Inf 序列化为 null，应视为无效值而非强转 0
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1.0,\"bms\":{\"online\":true,\"soc\":85,\"pack_v\":null,"
+            "\"max_t\":null}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.bms.has_value());
+        QCOMPARE(d.bms->soc, 85);          // 有效字段保留
+        QCOMPARE(d.bms->pack_v, 0.0);      // null 字段保持默认值
+        QCOMPARE(d.bms->max_t, 0.0);
+    }
+
+    void decodesFc() {
+        // fc 仅 4G 链路出现；解析后应正确填充
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1785928200.123,"
+            "\"fc\":{\"online\":true,\"roll\":1.5,\"pitch\":-2.0,\"yaw\":45.0,"
+            "\"lat\":31.230400,\"lon\":121.473701,\"alt\":120.5,"
+            "\"vx\":1.0,\"vy\":2.0,\"vz\":0.0,\"mode\":\"AUTO.LOITER\","
+            "\"armed\":true,\"batt_v\":24.0,\"batt_pct\":0.85}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.fc.has_value());
+        QCOMPARE(d.fc->online, true);
+        QCOMPARE(d.fc->roll, 1.5);
+        QCOMPARE(d.fc->lat, 31.230400);
+        QCOMPARE(d.fc->mode, QString("AUTO.LOITER"));
+        QCOMPARE(d.fc->armed, true);
+        QCOMPARE(d.fc->batt_pct, 0.85);
+    }
 };
 
 QTEST_MAIN(TestJsonDecoder)

@@ -1,0 +1,596 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Dialogs
+
+// 设置视图（复刻原型 #view-setup）：
+// 串口配置 / 告警规则表 / 显示单位 / 界面与主题 / 监控模块可见性 / 状态栏微件
+Item {
+    id: root
+
+    property QtObject themeRoot: null
+    signal showNote(string msg)
+
+    // 告警规则（经 bridge CRUD，持久化到 ground_station.json）
+    property var rules: bridge.alarmRules()
+    // C++ 侧规则变化时自动刷新（增删/改不丢失）
+    Connections {
+        target: bridge
+        function onRulesChanged() { root.rules = bridge.alarmRules() }
+    }
+
+    Flickable {
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: grid.implicitHeight
+        clip: true
+        // 响应式网格：宽屏 3 列（减小单模块宽度、减少右侧留白），窄屏递减；同列卡片等高
+        GridLayout {
+            id: grid
+            width: parent.width
+            columns: parent.width > 1300 ? 3 : (parent.width > 900 ? 2 : 1)
+            columnSpacing: 12
+            rowSpacing: 12
+
+            // ===== 串口配置 =====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "串口配置"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "串口设备"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: portCombo
+                            Layout.preferredWidth: 200
+                            model: bridge.ports()
+                            displayText: model.length ? currentText : "未检测到串口"
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "波特率"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: baudCombo
+                            Layout.preferredWidth: 140
+                            model: ["115200","57600","38400","9600"]
+                            font.pixelSize: 12
+                        }
+                        Button {
+                            text: bridge.isSerialOpen() ? "关闭串口" : "打开串口"
+                            background: Rectangle { radius: 8; color: bridge.isSerialOpen() ? root.themeRoot.colErrSoft : root.themeRoot.colPrimarySoft; border.color: bridge.isSerialOpen() ? root.themeRoot.colErr : root.themeRoot.colPrimary }
+                            contentItem: Text { text: parent.text; color: bridge.isSerialOpen() ? root.themeRoot.colErr : root.themeRoot.colPrimary; font.bold: true }
+                            onClicked: {
+                                if (bridge.isSerialOpen()) {
+                                    bridge.closeSerial(); root.showNote("串口已关闭")
+                                } else {
+                                    if (portCombo.count === 0) { root.showNote("未检测到串口设备"); return }
+                                    const ok = bridge.openSerial(portCombo.currentText, parseInt(baudCombo.currentText))
+                                    root.showNote(ok ? "串口已打开：" + portCombo.currentText : "串口打开失败，请检查端口/权限")
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Text { text: "遵循《地面站对接协议》115200 8N1，机载 5Hz 下传"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 配置管理（导入/导出）=====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "配置管理"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    Text { text: "所有设置会在退出时自动保存、下次启动自动恢复。也可导出为配置文件，跨设备快速复用。"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
+                    RowLayout {
+                        spacing: 8
+                        Button {
+                            text: "导出配置"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colPrimarySoft; border.color: root.themeRoot.colPrimary }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.bold: true }
+                            onClicked: {
+                                exportCfgDlg.currentFile = "file://" + bridge.dataDir() + "/地面站配置.json"
+                                exportCfgDlg.open()
+                            }
+                        }
+                        Button {
+                            text: "导入配置"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
+                            onClicked: importCfgDlg.open()
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Text {
+                        text: "当前配置：" + bridge.configFilePath()
+                        font.pixelSize: 10; color: root.themeRoot.colText2
+                        elide: Text.ElideMiddle; Layout.fillWidth: true; wrapMode: Text.NoWrap
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 地图设置 =====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "地图设置"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "底图源"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: mapSourceCombo
+                            model: ["天地图", "OpenStreetMap"]
+                            currentIndex: bridge.configMapSource()
+                            onActivated: {
+                                bridge.setConfigMapSource(index)
+                                tileProvider.setMapSource(index)
+                            }
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "天地图Key"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: mapKeyField
+                            Layout.fillWidth: true
+                            text: bridge.configMapKey()
+                            placeholderText: "申请天地图密钥后填写（选OSM可留空）"
+                            font.pixelSize: 12
+                            onEditingFinished: {
+                                bridge.setConfigMapKey(text.trim())
+                                tileProvider.setMapKey(text.trim())
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Text {
+                        text: bridge.configMapSource() === 0
+                              ? (bridge.configMapKey().length ? "已启用天地图（需联网）" : "天地图需密钥，未填时地图可能无法加载")
+                              : "已启用 OpenStreetMap（无需密钥，需联网）"
+                        font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 显示单位 =====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "显示单位"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    RowLayout {
+                        Text { text: "温度单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: tempUnitCombo
+                            model: ["摄氏度 ℃", "华氏度 ℉"]
+                            currentIndex: bridge.configTempUnit()
+                            onActivated: bridge.setConfigTempUnit(index)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 数据记录 =====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "数据记录"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    Text { text: "打开串口后逐帧自动记录原始报文（断电不丢），重新打开串口记录新文件"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
+                    RowLayout {
+                        spacing: 8
+                        CheckBox {
+                            id: recordCb
+                            checked: bridge.recordEnabled()
+                            // 关闭时需二次确认；开启直接生效
+                            onClicked: {
+                                if (!checked && bridge.recordEnabled()) {
+                                    checked = true                       // 回弹为未改变状态
+                                    confirmRecordOff.open()
+                                }
+                            }
+                            onToggled: {
+                                if (checked && !bridge.recordEnabled())
+                                    bridge.setRecordEnabled(true)
+                            }
+                        }
+                        Text { text: "启用自动记录"; color: root.themeRoot.colText2; font.pixelSize: 13 }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: bridge.isRecording() ? "● 记录中：" + bridge.currentRecordFile() : "○ 未在记录"
+                            font.pixelSize: 11; color: bridge.isRecording() ? root.themeRoot.colOk : root.themeRoot.colText2
+                            Layout.maximumWidth: 200; wrapMode: Text.Wrap
+                        }
+                    }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "保存目录"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: recordDirField
+                            Layout.fillWidth: true
+                            text: bridge.recordDir()
+                            placeholderText: "（留空 = 软件目录/data）"
+                            font.pixelSize: 12
+                            onEditingFinished: bridge.setRecordDir(text.trim())
+                        }
+                        Button {
+                            text: "选择目录"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
+                            onClicked: {
+                                folderDlg.currentFolder = recordDirField.text.length
+                                    ? "file://" + recordDirField.text : "file://" + bridge.dataDir()
+                                folderDlg.open()
+                            }
+                        }
+                        Button {
+                            text: "恢复默认"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
+                            onClicked: { recordDirField.text = ""; bridge.setRecordDir("") }
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 250
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 8
+                    Text { text: "界面与主题"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    RowLayout {
+                        Text { text: "主题"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            model: ["浅色", "深色"]
+                            currentIndex: root.themeRoot.dark ? 1 : 0
+                            onActivated: root.themeRoot.dark = (index === 1)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        Text { text: "字体大小"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            model: ["字体大", "字体小"]
+                            currentIndex: root.themeRoot.dense ? 1 : 0
+                            onActivated: root.themeRoot.dense = (index === 1)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        Text { text: "告警声音"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: alarmSoundCombo
+                            model: ["关闭", "开启"]
+                            currentIndex: bridge.configAlarmSound() ? 1 : 0
+                            onActivated: bridge.setConfigAlarmSound(index === 1)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        Text { text: "高对比度"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            model: ["关闭", "开启"]
+                            currentIndex: root.themeRoot.contrast ? 1 : 0
+                            onActivated: root.themeRoot.contrast = (index === 1)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        Text { text: "强调色"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            model: ["蓝色", "绿色", "橙色", "紫色", "青色"]
+                            currentIndex: ["blue","green","orange","purple","teal"].indexOf(root.themeRoot.accent)
+                            onActivated: root.themeRoot.accent = ["blue","green","orange","purple","teal"][index]
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Text { text: "快捷键：1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 状态栏微件 =====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 180
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "状态栏微件"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    Text { text: "取消勾选可隐藏对应状态栏项，选择将持久化"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 18
+                        Repeater {
+                            model: [["link","链路"],["rate","数据率"],["alarm","告警"],["uptime","运行时长"]]
+                            Row {
+                                spacing: 6
+                                CheckBox {
+                                    checked: !root.themeRoot.isModuleHidden(modelData[0])
+                                    onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
+                                }
+                                Text {
+                                    text: modelData[1]; color: root.themeRoot.colText2; font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== 监控模块可见性（窄模块，并入第二行）=====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 180
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "监控模块可见性"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    Text { text: "取消勾选即可隐藏对应的监控模块，隐藏后数据仍在后台采集"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 18
+                        Repeater {
+                            model: [
+                                ["strip","飞艇横幅"],["power","电源总览"],["device","设备卡片"],
+                                ["log","运行日志"],["readiness","就绪度"],["statusbar","状态栏"],
+                                ["lora","温度/压力采集"]
+                            ]
+                            Row {
+                                spacing: 6
+                                CheckBox {
+                                    checked: !root.themeRoot.isModuleHidden(modelData[0])
+                                    onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
+                                }
+                                Text {
+                                    text: modelData[1]; color: root.themeRoot.colText2; font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== 告警规则（窄模块，并入第二行）=====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 320
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Text { text: "告警规则"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                    Text { text: "规则在每帧遥测中自动求值，满足条件触发告警"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 10
+                        color: root.themeRoot.colCard2
+                        border.color: root.themeRoot.colLine
+                        clip: true
+                        ListView {
+                            anchors.fill: parent; anchors.margins: 8
+                            model: root.rules
+                            spacing: 6
+                            delegate: Rectangle {
+                                width: ListView.view ? ListView.view.width : parent.width
+                                height: 44
+                                radius: 8
+                                color: root.themeRoot.colCard
+                                border.color: root.themeRoot.colLine
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 10
+                                    spacing: 10
+                                    Text {
+                                        text: modelData.label
+                                        font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText
+                                        Layout.preferredWidth: 180; elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        text: modelData.device + "." + modelData.field
+                                        font.pixelSize: 11; color: root.themeRoot.colText2; font.family: "monospace"
+                                    }
+                                    Text {
+                                        text: modelData.type === "threshold"
+                                            ? (modelData.above ? ">" : "<") + " " + modelData.threshold
+                                            : "≠ 0"
+                                        font.pixelSize: 11; color: root.themeRoot.colText2
+                                    }
+                                    Text {
+                                        text: ["提示","告警","严重"][modelData.level] || "提示"
+                                        font.pixelSize: 11; font.bold: true
+                                        color: modelData.level===2 ? root.themeRoot.colErr : (modelData.level===1 ? root.themeRoot.colWarn : root.themeRoot.colText2)
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Rectangle {
+                                        width: 34; height: 18; radius: 9
+                                        color: modelData.enabled ? root.themeRoot.colOk : root.themeRoot.colOff
+                                        Rectangle {
+                                            width: 14; height: 14; radius: 7; color: "white"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.left: parent.left; anchors.leftMargin: modelData.enabled ? 18 : 2
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: root.toggleRule(index)
+                                        }
+                                    }
+                                    Text {
+                                        text: "删除"
+                                        font.pixelSize: 11; color: root.themeRoot.colErr
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: { bridge.removeAlarmRule(index); root.rules = bridge.alarmRules() }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row {
+                        spacing: 8
+                        Button {
+                            text: "＋ 添加规则"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
+                            onClicked: root.addRule()
+                        }
+                        Button {
+                            text: "恢复默认"
+                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
+                            onClicked: { bridge.restoreDefaultRules(); root.rules = bridge.alarmRules(); root.showNote("已恢复默认告警规则") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 目录选择对话框（调用系统目录选择界面，与图示页导出快照的选择目录一致）
+    FolderDialog {
+        id: folderDlg
+        title: "选择记录保存目录"
+        onAccepted: {
+            recordDirField.text = selectedFolder
+            bridge.setRecordDir(selectedFolder)
+        }
+    }
+
+    // 导出配置文件（系统保存文件对话框）
+    FileDialog {
+        id: exportCfgDlg
+        title: "导出配置"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["配置文件 (*.json)"]
+        defaultSuffix: "json"
+        onAccepted: {
+            const ok = bridge.exportConfig(selectedFile.toString().replace(/^file:\/\//, ""))
+            root.showNote(ok ? "配置已导出" : "导出配置失败")
+        }
+    }
+
+    // 导入配置文件（系统打开文件对话框）
+    FileDialog {
+        id: importCfgDlg
+        title: "导入配置"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["配置文件 (*.json)"]
+        onAccepted: {
+            const ok = bridge.importConfig(selectedFile.toString().replace(/^file:\/\//, ""))
+            root.showNote(ok ? "配置已导入并应用" : "导入失败：文件无效或不可读")
+        }
+    }
+
+    // 配置导入成功后刷新各设置控件（使新配置立即生效）
+    Connections {
+        target: bridge
+        function onConfigImported() {
+            root.rules = bridge.alarmRules()
+            tempUnitCombo.currentIndex = bridge.configTempUnit()
+            alarmSoundCombo.currentIndex = bridge.configAlarmSound() ? 1 : 0
+            recordCb.checked = bridge.recordEnabled()
+            recordDirField.text = bridge.recordDir()
+        }
+    }
+
+    // 关闭自动记录的二次确认
+    Dialog {
+        id: confirmRecordOff
+        modal: true
+        anchors.centerIn: parent
+        width: 360
+        title: "关闭自动记录"
+        standardButtons: Dialog.Cancel | Dialog.Ok
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        onAccepted: {
+            bridge.setRecordEnabled(false)
+            recordCb.checked = false
+        }
+        contentItem: Text {
+            anchors.fill: parent
+            text: "关闭后将不再自动记录遥测原始报文，已记录的文件保留。确定关闭吗？"
+            color: root.themeRoot.colText
+            font.pixelSize: 13
+            wrapMode: Text.Wrap
+        }
+    }
+
+    function addRule() {
+        const fields = bridge.alarmRuleFields()
+        const f = fields.length ? fields[0] : {key:"dcdc.temp", label:"DCDC 散热温度"}
+        const [dev, fid] = f.key.split(".")
+        bridge.addAlarmRule({
+            device: dev, field: fid, label: f.label,
+            type: "threshold", threshold: 45, above: true, enabled: true, level: 2
+        })
+        root.rules = bridge.alarmRules()
+        root.showNote("已添加规则")
+    }
+    function toggleRule(i) {
+        const r = root.rules[i]
+        r.enabled = !r.enabled
+        bridge.updateAlarmRule(i, r)
+        root.rules = bridge.alarmRules()
+    }
+}
