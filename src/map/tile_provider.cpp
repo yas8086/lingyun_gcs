@@ -99,7 +99,12 @@ void TileProvider::startDownload(int z, int x, int y, int layer, const QString &
     }
 
     QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "LingYunGroundStation/1.0");
+    // 关键：天地图对「浏览器端」权限类型的 key 强制校验 User-Agent，
+    // 非浏览器 UA 会返回 403（{"code":301012,"msg":"权限类型错误"}），
+    // 故必须伪装成浏览器 UA，否则瓦片全部下载失败、地图空白。
+    req.setRawHeader("User-Agent",
+                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
     // 天地图对「浏览器端」权限类型的 key 强制校验 HTTP Referer 域名白名单；
     // 桌面应用直连不带 Referer 会被 403 拒绝（code:301012 权限类型错误）。
     // 此处补 Referer 以兼容绑定该域名的浏览器端 key（若 key 为「服务端」类型则忽略）。
