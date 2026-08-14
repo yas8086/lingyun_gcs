@@ -199,7 +199,10 @@ Item {
         }
 
         // ===== 右上角操作按钮 =====
+        // z 必须高于下方全屏 dragArea（QML 后定义者 z 序更高），否则点击被
+        // 拖拽 MouseArea 拦截、按钮全部失效
         Column {
+            z: 100
             anchors.top: parent.top; anchors.right: parent.right
             anchors.margins: 14
             spacing: 8
@@ -210,8 +213,16 @@ Item {
                     Button {
                         width: 52; height: 30
                         text: modelData
+                        padding: 0
                         background: Rectangle { radius: 8; color: root.mapLayer === index ? root.themeRoot.colPrimarySoft : root.themeRoot.colCard2; border.color: root.mapLayer === index ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                        contentItem: Text { text: parent.text; color: root.mapLayer === index ? root.themeRoot.colPrimary : root.themeRoot.colText2; font.pixelSize: 12; font.bold: root.mapLayer === index }
+                        contentItem: Text {
+                            text: parent.text
+                            anchors.fill: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: root.mapLayer === index ? root.themeRoot.colPrimary : root.themeRoot.colText2
+                            font.pixelSize: 12; font.bold: root.mapLayer === index
+                        }
                         onClicked: { root.mapLayer = index; root.reqSet = new Object(); canvas.requestPaint() }
                     }
                 }
@@ -220,26 +231,55 @@ Item {
                 spacing: 6
                 Button {
                     width: 40; height: 30; text: "＋"
+                    padding: 0
                     background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
-                    contentItem: Text { text: parent.text; anchors.centerIn: parent; color: root.themeRoot.colText; font.pixelSize: 16 }
-                    onClicked: root.zoom = Math.min(18, root.zoom + 1)
+                    contentItem: Text {
+                        text: parent.text
+                        anchors.fill: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: root.themeRoot.colText; font.pixelSize: 16
+                    }
+                    onClicked: { root.zoom = Math.min(18, root.zoom + 1); canvas.requestPaint() }
                 }
                 Button {
                     width: 40; height: 30; text: "－"
+                    padding: 0
                     background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
-                    contentItem: Text { text: parent.text; anchors.centerIn: parent; color: root.themeRoot.colText; font.pixelSize: 16 }
-                    onClicked: root.zoom = Math.max(3, root.zoom - 1)
+                    contentItem: Text {
+                        text: parent.text
+                        anchors.fill: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: root.themeRoot.colText; font.pixelSize: 16
+                    }
+                    onClicked: { root.zoom = Math.max(3, root.zoom - 1); canvas.requestPaint() }
                 }
                 Button {
                     width: 40; height: 30; text: "回中"
+                    padding: 0
                     background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
-                    contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 11 }
-                    onClicked: { root.centerLon = root.homePos.lon; root.centerLat = root.homePos.lat }
+                    contentItem: Text {
+                        text: parent.text
+                        anchors.fill: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: root.themeRoot.colText2; font.pixelSize: 11
+                    }
+                    onClicked: { root.centerLon = root.homePos.lon; root.centerLat = root.homePos.lat; canvas.requestPaint() }
                 }
                 Button {
                     width: 46; height: 30; text: "跟随"
+                    padding: 0
                     background: Rectangle { radius: 8; color: root.follow ? root.themeRoot.colPrimarySoft : root.themeRoot.colCard2; border.color: root.follow ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                    contentItem: Text { text: parent.text; color: root.follow ? root.themeRoot.colPrimary : root.themeRoot.colText2; font.pixelSize: 11; font.bold: root.follow }
+                    contentItem: Text {
+                        text: parent.text
+                        anchors.fill: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: root.follow ? root.themeRoot.colPrimary : root.themeRoot.colText2
+                        font.pixelSize: 11; font.bold: root.follow
+                    }
                     onClicked: root.follow = !root.follow
                 }
             }
