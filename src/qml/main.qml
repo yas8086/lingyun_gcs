@@ -10,6 +10,13 @@ ApplicationWindow {
     id: root
     visible: false
     title: "灵云01号 飞艇地面站"
+    // 窗口 flags：保留标题栏/系统菜单/最小化/关闭按钮，移除最大化按钮。
+    // 之前用 setMinimumSize==setMaximumSize 锁尺寸让最大化按钮置灰，但固定
+    // 像素尺寸在换不同分辨率屏幕时会显示异常。改为通过 flags 直接移除最大
+    // 化按钮（不可点击），窗口始终保持最大化状态由 WM 自动适配任意分辨率，
+    // 最大化状态下也无法拖拽调整大小，"全屏+不可调整"需求依然成立。
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint
+           | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
     // 最大化/全屏时机由 C++ 侧统一控制（见 main.cpp），QML 只负责 UI。
 
     // ===== 设计 token（对齐原型，浅/深主题 + 强调色 + 密度 + 对比度）=====

@@ -3,7 +3,6 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QScreen>
-#include <QTimer>
 #include <QTime>
 #include <QThread>
 #include <QMetaObject>
@@ -86,18 +85,18 @@ int main(int argc, char *argv[]) {
     // 显式确保根窗口背景色不透明
     if (auto *win = qobject_cast<QQuickWindow*>(engine.rootObjects().first())) {
         win->setColor(QColor("#eef2f7"));
-        // 窗口初始为隐藏（QML visible:false），直接以最大化状态显示，避免小窗口闪现。
+        // 窗口初始为隐藏（QML visible:false），未分配有效几何。
+        // 必须在 showMaximized() 之前先把窗口几何设为屏幕可用尺寸：
+        // 最大化状态由窗口管理器异步处理，若直接以默认小尺寸映射，
+        // 在 WM 完成调整前的第一帧会闪现小窗口（真机有 WM 时可见）。
+        // 先铺满可用区域，再请求最大化，即可完全消除小窗口闪现。
+        win->setGeometry(win->screen()->availableGeometry());
         win->showMaximized();
-        // 等最大化过渡完成后，依据屏幕工作区与装饰框高度推导客户端固定尺寸：
-        // X11 下最大化窗口的 size() 返回的是"恢复尺寸"而非当前显示尺寸，须用
-        // frameGeometry 与 geometry 的差值（顶栏装饰高度）补偿 availableSize。
-        QTimer::singleShot(400, win, [win]() {
-            const int topBorder = win->frameGeometry().height() - win->geometry().height();
-            QSize fixed = win->screen()->availableSize();
-            fixed.setHeight(fixed.height() - topBorder);
-            win->setMinimumSize(fixed);
-            win->setMaximumSize(fixed);
-        });
+        // 注意：不再 setMinimumSize/setMaximumSize 锁定尺寸。
+        // 固定像素尺寸在换不同分辨率屏幕时会导致显示异常（过大/过小/留边）。
+        // 窗口保持最大化状态即可由 WM 自动适配任意分辨率；且 QML 侧已通过
+        // flags 移除最大化按钮（见 main.qml），用户无法还原为可调整大小的
+        // 窗口，因此"全屏 + 不可调整 + 最大化按钮不可用"的需求依然成立。
     }
 
     const int rc = app.exec();
