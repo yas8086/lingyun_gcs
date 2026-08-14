@@ -91,12 +91,16 @@ int main(int argc, char *argv[]) {
         // 在 WM 完成调整前的第一帧会闪现小窗口（真机有 WM 时可见）。
         // 先铺满可用区域，再请求最大化，即可完全消除小窗口闪现。
         win->setGeometry(win->screen()->availableGeometry());
-        win->showMaximized();
+        // 用 setWindowState(Maximized) + show() 替代 showMaximized()：
+        // 两者最终都请求 WM 最大化，但 setWindowState 显式同步窗口状态标志，
+        // 标题栏"最大化/还原"按钮会立即反映当前状态（显示为"还原"），
+        // 避免 showMaximized 后按钮仍停留在"最大化"导致首次点击无响应。
+        win->setWindowState(Qt::WindowMaximized);
+        win->show();
         // 注意：不再 setMinimumSize/setMaximumSize 锁定尺寸。
         // 固定像素尺寸在换不同分辨率屏幕时会导致显示异常（过大/过小/留边）。
-        // 窗口保持最大化状态即可由 WM 自动适配任意分辨率；且 QML 侧已通过
-        // flags 移除最大化按钮（见 main.qml），用户无法还原为可调整大小的
-        // 窗口，因此"全屏 + 不可调整 + 最大化按钮不可用"的需求依然成立。
+        // 窗口保持最大化状态即可由 WM 自动适配任意分辨率；用户可通过标题栏
+        // 最大化/还原按钮或拖拽调整窗口大小，QML 内容在 ScrollView 中可滚动。
     }
 
     const int rc = app.exec();
