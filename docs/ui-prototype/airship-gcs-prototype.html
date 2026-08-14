@@ -413,6 +413,67 @@
   .fp-card .sk-sub{font-size:11px}
   @media(max-width:900px){.fp-body{grid-template-columns:1fr}}
   @media(max-width:1200px){.main{grid-template-columns:1fr}.side-panel{min-width:240px}}
+  /* ===== 摄像头监控（多路视频网格，独立模块） ===== */
+  .cam-panel{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .cam-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap}
+  .cam-head .t{font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px}
+  .cam-head .t svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .cam-head .cam-stat{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ok);padding:3px 10px;border-radius:var(--r-full);background:var(--ok-soft)}
+  .cam-head .cam-stat.off{color:var(--off);background:var(--card-2)}
+  .cam-head .cam-stat .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .cam-head .cam-meta{font-size:11px;color:var(--text-2);font-family:ui-monospace,monospace}
+  /* 顶部相机切换 tab（多路） */
+  .cam-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .cam-tab{border:1px solid var(--line);background:var(--card);color:var(--text-2);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+  .cam-tab:hover{border-color:var(--primary);color:var(--text)}
+  .cam-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .cam-tab .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  /* 视频网格主体：舞台居中容器，grid 尺寸由 JS 按比例控制 */
+  .cam-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px;background:var(--card-2);border:1px solid var(--line);border-radius:12px}
+  .cam-grid{flex:0 0 auto;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(1,1fr);grid-template-rows:repeat(1,1fr)}
+  .cam-grid.g2{grid-template-columns:repeat(2,1fr)}
+  .cam-grid.g4{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr)}
+  .cam-view{position:relative;min-height:0;overflow:hidden;border-radius:12px;background:#000;border:1px solid var(--line);box-shadow:var(--shadow)}
+  .cam-view.active{border-color:var(--primary);box-shadow:0 0 0 2px var(--ring)}
+  /* 视频画面占位（渐变模拟） */
+  .cam-frame{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .cam-frame::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 120% at 50% 30%,#26334d 0%,#0d1524 55%,#060a12 100%)}
+  .cam-frame .cam-pic{position:absolute;width:120px;height:120px;opacity:.12;fill:none;stroke:#8fb3ff;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+  .cam-frame .cam-no{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:6px;color:#7d8ca6;font-size:12px}
+  /* 单路标签（左上角） */
+  .cam-tag{position:absolute;top:10px;left:10px;z-index:2;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:3px 9px;border-radius:6px;backdrop-filter:blur(2px)}
+  .cam-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--err);box-shadow:0 0 0 0 rgba(220,38,38,.6);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.5)}70%{box-shadow:0 0 0 6px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+  .cam-tag .dot.ok{background:var(--ok);box-shadow:0 0 0 0 rgba(22,163,74,.6);animation:pulse-ok 1.6s infinite}
+  @keyframes pulse-ok{0%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}70%{box-shadow:0 0 0 6px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+  /* OSD 参数叠加（右下角，模拟遥测叠加） */
+  .cam-osd{position:absolute;right:10px;bottom:10px;z-index:2;display:flex;flex-direction:column;gap:2px;font-size:10.5px;font-family:ui-monospace,monospace;color:#cfe0ff;background:rgba(0,0,0,.4);padding:6px 10px;border-radius:6px;backdrop-filter:blur(2px);line-height:1.5}
+  .cam-osd .o-row{display:flex;gap:8px;white-space:nowrap}
+  .cam-osd .o-row b{color:#fff;font-weight:700}
+  .cam-osd.hidden{display:none}
+  /* 每路悬浮控制（hover 显示） */
+  .cam-ov{position:absolute;top:10px;right:10px;z-index:3;display:flex;gap:5px;opacity:0;transition:opacity .15s}
+  .cam-view:hover .cam-ov{opacity:1}
+  .cam-ov button{width:26px;height:26px;border:none;border-radius:6px;background:rgba(0,0,0,.5);color:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .cam-ov button:hover{background:var(--primary)}
+  /* 底部控制条 */
+  .cam-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap}
+  .cam-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:8px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:600;transition:all .15s}
+  .cam-btn:hover{border-color:var(--primary);color:var(--primary)}
+  .cam-btn svg{width:15px;height:15px;stroke-width:2;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+  .cam-btn.rec{color:var(--err);border-color:var(--err)}
+  .cam-btn.rec.on{background:var(--err);color:#fff}
+  .cam-btn.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .cam-bar .cam-sep{width:1px;height:20px;background:var(--line)}
+  /* 布局切换（1/2/4 路） */
+  .cam-lay{display:flex;gap:3px;margin-left:auto}
+  .lay-btn{width:26px;height:26px;border:1px solid var(--line);background:var(--card-2);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:2px;color:var(--text-2)}
+  .lay-btn:hover{border-color:var(--primary);color:var(--primary)}
+  .lay-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .lay-btn .bl{width:5px;height:5px;border-radius:1px;background:currentColor}
+  /* 四路按钮点点呈田字 2×2，与实际摄像头排布一致 */
+  .lay-btn[data-lay="4"]{display:grid;grid-template-columns:repeat(2,5px);grid-template-rows:repeat(2,5px);align-content:center;justify-content:center;gap:2px}
+  @media(max-width:900px){.cam-grid{grid-template-columns:1fr!important;grid-template-rows:none!important}.cam-grid.g2,.cam-grid.g4{grid-template-columns:1fr;grid-template-rows:repeat(4,180px)}}
   /* ===== 电源总览 ===== */
   .power-strip{display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;box-shadow:var(--shadow);flex:0 0 auto}
   .ps-title{display:flex;align-items:center;gap:14px;font-weight:700;font-size:14px;flex-wrap:wrap}
@@ -561,7 +622,7 @@
   /* LoRa 节点容器：节点多时内部滚动，不突破卡片外框 */
   .lora-nodes{max-height:360px;overflow:auto;min-width:0}
   /* 图示/设置 view 内统一高度链路，避免正方形视口溢出 */
-  #view-check,#view-map,#view-flight,#view-topo,#view-setup{min-height:0;height:100%;max-height:100%}
+  #view-check,#view-map,#view-flight,#view-camera,#view-topo,#view-setup{min-height:0;height:100%;max-height:100%}
   #view-topo > .topo-wrap,#view-check > .check-panel,#view-setup > .setup-panel{min-height:0;flex:1}
   /* 规则表与任何带 tt-table 的 set-group：横向超宽时在 set-group 内滚动，不溢出自身模块 */
   .set-group .tt-table{min-width:600px}
@@ -679,6 +740,7 @@
     <button class="nav-item" data-view="check"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>自检</button>
     <button class="nav-item" data-view="map"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg>地图</button>
     <button class="nav-item" data-view="flight"><svg aria-hidden="true" viewBox="0 0 1024 1024" style="fill:currentColor;stroke:none"><path d="M409.488333 239.177936h204.736191a34.122698 34.122698 0 0 0 34.122698-34.122698V136.809841a34.122698 34.122698 0 0 0-34.122698-34.122698 74.643403 74.643403 0 0 0 0-17.06135 95.117022 95.117022 0 0 0-102.368095-85.306746 95.117022 95.117022 0 0 0-102.368096 85.306746 74.643403 74.643403 0 0 0 0 17.06135 34.122698 34.122698 0 0 0-34.122698 34.122698v68.245397a34.122698 34.122698 0 0 0 34.122698 34.122698z m68.245397-170.613492h68.245397v68.245397H477.73373z m426.533731 68.245397h-221.79754v85.306746c0 28.151226-12.796012 51.184048-28.57776 51.184048H369.820697c-15.781748 0-28.57776-23.032821-28.57776-51.184048v-85.306746H119.445397A68.245397 68.245397 0 0 0 51.2 205.055238v750.699365A68.245397 68.245397 0 0 0 119.445397 1024H904.267461a68.245397 68.245397 0 0 0 68.245396-68.245397V205.055238A68.245397 68.245397 0 0 0 904.267461 136.809841z m-127.960119 349.757659L638.110413 597.46627l23.032821 275.540789-39.667637 31.99003-85.306746-227.769012L425.696615 768.079762v98.102758l-40.09417 29.857361-39.667637-131.798923-119.855979-66.965795l38.388036-31.99003 95.970089 21.75322L473.894927 597.46627l-203.45659-132.225457 40.094171-31.990029 263.597845 85.306746 140.329598-111.751838A51.184048 51.184048 0 0 1 776.307342 486.5675z"/></svg>飞控</button>
+    <button class="nav-item" data-view="camera"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/><circle cx="9.5" cy="12" r="2.5"/></svg>摄像头</button>
     <button class="nav-item" data-view="topo"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>图示</button>
     <button class="nav-item" data-view="setup"><svg aria-hidden="true" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.74 8.87C2.62 9.08 2.66 9.34 2.86 9.48l2.03 1.58C4.84 11.36 4.8 11.69 4.8 12s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</button>
   </aside>
@@ -877,6 +939,73 @@
             <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg><div class="sk-tip">位置与航迹</div><div class="sk-sub">GPS / 速度 / 航向</div></div>
             <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><div class="sk-tip">飞行模式</div><div class="sk-sub">手动 / 定高 / 任务</div></div>
             <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><div class="sk-tip">HUD 视频流</div><div class="sk-sub">机载相机实时画面</div></div>
+          </div>
+        </div>
+      </section>
+      <section class="view" id="view-camera">
+        <div class="cam-panel">
+          <div class="cam-head">
+            <span class="t"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/><circle cx="9.5" cy="12" r="2.5"/></svg>摄像头监控</span>
+            <span class="cam-stat"><span class="dot"></span>网口已连接</span>
+            <span class="cam-meta">192.168.1.100 · RTSP · 25fps · 1080P</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-2)">数传网口直连 · 与串口遥测独立并行</span>
+          </div>
+          <!-- 多路相机切换 tab -->
+          <div class="cam-tabs" id="camTabs">
+            <button class="cam-tab" data-cam="0"><span class="dot" style="background:var(--ok)"></span>前视相机</button>
+            <button class="cam-tab" data-cam="1"><span class="dot" style="background:var(--ok)"></span>后视相机</button>
+            <button class="cam-tab" data-cam="2"><span class="dot" style="background:var(--err)"></span>吊舱相机</button>
+            <button class="cam-tab" data-cam="3"><span class="dot" style="background:var(--ok)"></span>地面相机</button>
+          </div>
+          <!-- 视频网格（多路，布局 1/2/4） -->
+          <div class="cam-stage" id="camStage">
+          <div class="cam-grid g1" id="camGrid">
+            <div class="cam-view active" data-cam="0">
+              <div class="cam-frame"><svg class="cam-pic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="4" y1="8" x2="7" y2="11"/><line x1="20" y1="8" x2="17" y2="11"/></svg><div class="cam-no">前视相机 · 画面占位<br>接入网口视频流后实时显示</div></div>
+              <span class="cam-tag"><span class="dot ok"></span>前视 · LIVE</span>
+              <div class="cam-osd">
+                <div class="o-row"><b>2026-08-14 10:23:45</b></div>
+                <div class="o-row">LAT <b>30.26715°N</b>&nbsp;&nbsp;LON <b>120.15342°E</b></div>
+                <div class="o-row">ALT <b>150.2m</b>&nbsp;&nbsp;SPD <b>12.5m/s</b>&nbsp;&nbsp;HDG <b>087°</b></div>
+              </div>
+              <div class="cam-ov">
+                <button title="放大">⛶</button>
+                <button title="截图">📷</button>
+              </div>
+            </div>
+            <div class="cam-view" data-cam="1" style="display:none">
+              <div class="cam-frame"><svg class="cam-pic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="4" y1="8" x2="7" y2="11"/><line x1="20" y1="8" x2="17" y2="11"/></svg><div class="cam-no">后视相机 · 画面占位</div></div>
+              <span class="cam-tag"><span class="dot ok"></span>后视 · LIVE</span>
+              <div class="cam-osd"><div class="o-row"><b>2026-08-14 10:23:45</b></div><div class="o-row">LAT <b>30.26715°N</b>&nbsp;&nbsp;LON <b>120.15342°E</b></div><div class="o-row">ALT <b>150.2m</b>&nbsp;&nbsp;HDG <b>087°</b></div></div>
+            </div>
+            <div class="cam-view" data-cam="2" style="display:none">
+              <div class="cam-frame"><svg class="cam-pic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="4" y1="8" x2="7" y2="11"/><line x1="20" y1="8" x2="17" y2="11"/></svg><div class="cam-no">吊舱相机 · 未连接<br>等待网口视频流</div></div>
+              <span class="cam-tag"><span class="dot"></span>吊舱 · OFFLINE</span>
+              <div class="cam-osd"><div class="o-row" style="color:#ff9f9f">信号丢失 · 重连中…</div></div>
+            </div>
+            <div class="cam-view" data-cam="3" style="display:none">
+              <div class="cam-frame"><svg class="cam-pic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="4" y1="8" x2="7" y2="11"/><line x1="20" y1="8" x2="17" y2="11"/></svg><div class="cam-no">地面相机 · 画面占位</div></div>
+              <span class="cam-tag"><span class="dot ok"></span>地面 · LIVE</span>
+              <div class="cam-osd"><div class="o-row"><b>2026-08-14 10:23:45</b></div><div class="o-row">LAT <b>30.26715°N</b>&nbsp;&nbsp;LON <b>120.15342°E</b></div><div class="o-row">ALT <b>150.2m</b>&nbsp;&nbsp;SPD <b>12.5m/s</b>&nbsp;&nbsp;HDG <b>087°</b></div></div>
+            </div>
+          </div>
+          </div>
+          <!-- 底部控制条 -->
+          <div class="cam-bar">
+            <button class="cam-btn" id="camShot"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12" r="3.5"/></svg>截图</button>
+            <button class="cam-btn rec" id="camRec"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>录像</button>
+            <button class="cam-btn" id="camOsdToggle"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>OSD 叠加</button>
+            <button class="cam-btn" id="camRatio"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>比例 16:9</button>
+            <span class="cam-sep"></span>
+            <button class="cam-btn" id="camConn"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>重连</button>
+            <span class="cam-sep"></span>
+            <span style="font-size:11px;color:var(--text-2)">截图/录像保存至本地 · 视频数据来自数传网口</span>
+            <!-- 布局切换 -->
+            <div class="cam-lay">
+              <button class="lay-btn active" data-lay="1" title="单路"><span class="bl"></span></button>
+              <button class="lay-btn" data-lay="2" title="双路"><span class="bl"></span><span class="bl"></span></button>
+              <button class="lay-btn" data-lay="4" title="四路"><span class="bl"></span><span class="bl"></span><span class="bl"></span><span class="bl"></span></button>
+            </div>
           </div>
         </div>
       </section>
@@ -1183,7 +1312,7 @@ function applyAccent(v){document.documentElement.setAttribute('data-accent',v);l
 function accentLabel(){const k=Object.keys(ACCENT_MAP).find(x=>ACCENT_MAP[x]===document.documentElement.getAttribute('data-accent'));return k||'蓝色';}
 document.addEventListener('keydown',e=>{
   if(e.target&&e.target.matches&&e.target.matches('input,select,textarea'))return;
-  const map={'1':'monitor','2':'check','3':'map','4':'flight','5':'setup'};
+  const map={'1':'monitor','2':'check','3':'map','4':'flight','5':'camera','6':'topo'};
   if(map[e.key]){const v=map[e.key];document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));}
   else if(e.key===' '){e.preventDefault();$('pauseBtn').click();}
   else if(e.key==='s'||e.key==='S'){$('clearBtn').click();}
@@ -2192,6 +2321,77 @@ applySbWidgets();
 })();
 
 ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();updateBanner();setInterval(sim,200);
+
+/* ===== 摄像头监控（独立模块） ===== */
+(function(){
+  const grid=$('camGrid');if(!grid)return;
+  const views=[...grid.querySelectorAll('.cam-view')];
+  const tabs=[...document.querySelectorAll('.cam-tab')];
+  const lays=[...document.querySelectorAll('.lay-btn')];
+  const osdBox=document.querySelectorAll('.cam-osd');
+  let osdOn=true,recOn=false;
+  // 相机 tab 切换：切到单路高亮
+  tabs.forEach(t=>t.onclick=()=>{
+    tabs.forEach(x=>x.classList.toggle('active',x===t));
+    const idx=+t.dataset.cam;
+    // 将对应 view 设为 active（高亮），单路时显示该路
+    views.forEach((v,i)=>v.classList.toggle('active',i===idx));
+    if(grid.classList.contains('g1')){views.forEach((v,i)=>v.style.display=i===idx?'':'none');}
+    toast(`已切换至 ${t.textContent.trim()}`);
+  });
+  // 布局切换 1/2/4
+  lays.forEach(b=>b.onclick=()=>{
+    lays.forEach(x=>x.classList.toggle('active',x===b));
+    const n=+b.dataset.lay;
+    grid.className='cam-grid g'+n;
+    views.forEach((v,i)=>v.style.display='');
+    if(n===1){ // 单路显示当前 tab 选中路
+      const cur=tabs.findIndex(x=>x.classList.contains('active'));
+      views.forEach((v,i)=>v.style.display=i===cur?'':'none');
+      views.forEach((v,i)=>v.classList.toggle('active',i===cur));
+    }
+  });
+  // OSD 叠加开关
+  $('camOsdToggle').onclick=()=>{
+    osdOn=!osdOn;
+    $('camOsdToggle').classList.toggle('on',osdOn);
+    osdBox.forEach(o=>o.classList.toggle('hidden',!osdOn));
+    toast(osdOn?'OSD 叠加已开启':'OSD 叠加已关闭');
+  };
+  // 录像开关（红色脉冲）
+  $('camRec').onclick=()=>{
+    recOn=!recOn;
+    $('camRec').classList.toggle('on',recOn);
+    $('camRec').innerHTML=recOn?'<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>停止录像':'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>录像';
+    toast(recOn?'开始录像（保存至本地）':'录像已停止');
+  };
+  // 视频画面比例切换（16:9 / 4:3 / 1:1 / 填充），按舞台可用空间计算尺寸
+  const RATIOS=[['16:9','16:9'],['4:3','4:3'],['1:1','1:1'],['auto','填充']];
+  let ratioIdx=0;
+  const ratioBtn=$('camRatio'),stage=$('camStage');
+  function fitCam(){
+    if(!stage||!grid)return;
+    const sw=stage.clientWidth-16,sh=stage.clientHeight-16; // 扣除 stage padding
+    if(sw<=0||sh<=0){requestAnimationFrame(fitCam);return;} // 视图隐藏时等待可见后重算
+    if(RATIOS[ratioIdx][0]==='auto'){grid.style.width='100%';grid.style.height='100%';return;}
+    const [w,h]=RATIOS[ratioIdx][0].split(':').map(Number),r=w/h;
+    let gw=sw,gh=gw/r;if(gh>sh){gh=sh;gw=gh*r;}
+    grid.style.width=Math.round(gw)+'px';grid.style.height=Math.round(gh)+'px';
+  }
+  ratioBtn.onclick=()=>{ratioIdx=(ratioIdx+1)%RATIOS.length;ratioBtn.textContent='比例 '+RATIOS[ratioIdx][1];fitCam();toast('画面比例：'+RATIOS[ratioIdx][1]);};
+  window.addEventListener('resize',fitCam);
+  fitCam();
+  // 切到摄像头视图时重算比例（原视图隐藏时无法取尺寸）
+  const camNav=document.querySelector('.nav-item[data-view=camera]');
+  if(camNav)camNav.addEventListener('click',()=>setTimeout(fitCam,0));
+  // 截图
+  $('camShot').onclick=()=>{toast('已保存截图 snapshot_'+Date.now()+'.png');};
+  // 重连
+  $('camConn').onclick=()=>{
+    $('camConn').classList.add('on');toast('正在重连网口视频流…');
+    setTimeout(()=>{$('camConn').classList.remove('on');toast('网口视频流已恢复');},1200);
+  };
+})();
 </script>
 <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
 </body>

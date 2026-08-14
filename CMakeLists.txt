@@ -41,10 +41,13 @@ qt_add_resources(lingyun_gcs_qml "qml_res"
           src/qml/views/SelfCheckView.qml
           src/qml/views/MapView.qml
           src/qml/views/FlightView.qml
+          src/qml/views/CameraView.qml
           src/qml/views/TopoView.qml
           src/qml/views/SettingsView.qml
           src/qml/img/airship.svg
           src/qml/img/airship-blue.svg
+          src/qml/img/camera.svg
+          src/qml/img/camera-nav.svg
           src/qml/img/flight-data.svg
 )
 

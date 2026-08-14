@@ -152,6 +152,7 @@ ApplicationWindow {
                         {name:"自检",ic:"✓"},
                         {name:"地图",ic:"🗺"},
                         {name:"飞控",ic:"✈"},
+                        {name:"摄像头",svg:"qrc:/qml/img/camera-nav.svg"},
                         {name:"图示",ic:"📊"},
                         {name:"设置",ic:"⚙"}
                     ]
@@ -169,11 +170,31 @@ ApplicationWindow {
                         Column {
                             anchors.centerIn: parent
                             spacing: 6
-                            Text {
+                            // 图标区：摄像头用 SVG 线稿（对齐 HTML 原型样式），其余用 emoji
+                            Item {
+                                width: 22; height: 22
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: modelData.ic
-                                font.pixelSize: 22
-                                color: root.currentNav === index ? root.colPrimary : root.colText2
+                                Image {
+                                    id: navIcImg
+                                    anchors.fill: parent
+                                    visible: modelData.svg !== undefined
+                                    source: modelData.svg ? modelData.svg : ""
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                Text {
+                                    visible: modelData.svg === undefined
+                                    text: modelData.ic || ""
+                                    font.pixelSize: 22
+                                    color: root.currentNav === index ? root.colPrimary : root.colText2
+                                }
+                                // SVG 图标着色（随激活状态变色，对齐 .nav-item svg 的 stroke:currentColor）
+                                MultiEffect {
+                                    visible: modelData.svg !== undefined
+                                    anchors.fill: parent
+                                    source: navIcImg
+                                    colorization: 1.0
+                                    colorizationColor: root.currentNav === index ? root.colPrimary : root.colText2
+                                }
                             }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -330,9 +351,20 @@ ApplicationWindow {
                         source: "qrc:/qml/views/FlightView.qml"
                         onLoaded: { item.themeRoot = root }
                     }
-                    // 图示页
+                    // 摄像头监控页（独立模块，复刻原型）
                     Loader {
                         active: root.currentNav === 4
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        source: "qrc:/qml/views/CameraView.qml"
+                        onLoaded: {
+                            item.themeRoot = root
+                            item.showNote.connect(root.showToast)
+                        }
+                    }
+                    // 图示页
+                    Loader {
+                        active: root.currentNav === 5
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/TopoView.qml"
@@ -343,7 +375,7 @@ ApplicationWindow {
                     }
                     // 设置页
                     Loader {
-                        active: root.currentNav === 5
+                        active: root.currentNav === 6
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/SettingsView.qml"
@@ -841,13 +873,14 @@ ApplicationWindow {
     }
 
     // ===== 全局快捷键（与设置页提示一致）=====
-    // 1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度
+    // 1-7 切换视图 · 空格 暂停曲线 · T 主题 · D 密度
     Shortcut { sequence: "1"; onActivated: root.currentNav = 0 }
     Shortcut { sequence: "2"; onActivated: root.currentNav = 1 }
     Shortcut { sequence: "3"; onActivated: root.currentNav = 2 }
     Shortcut { sequence: "4"; onActivated: root.currentNav = 3 }
     Shortcut { sequence: "5"; onActivated: root.currentNav = 4 }
     Shortcut { sequence: "6"; onActivated: root.currentNav = 5 }
+    Shortcut { sequence: "7"; onActivated: root.currentNav = 6 }
     Shortcut {
         sequence: "Space"
         onActivated: root.rtcPlaying = !root.rtcPlaying
