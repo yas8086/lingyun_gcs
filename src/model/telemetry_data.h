@@ -1,5 +1,6 @@
 #pragma once
 #include <QString>
+#include <QMetaType>
 #include <optional>
 #include <vector>
 
@@ -114,3 +115,5 @@ struct TelemetryData {
 };
 
 } // namespace lgs
+
+Q_DECLARE_METATYPE(lgs::TelemetryData)

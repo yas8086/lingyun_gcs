@@ -54,7 +54,11 @@ Item {
     property var reqSet: new Object()
     function tileUrl(z, x, y) {
         const key = z + "/" + x + "/" + y + "/" + root.mapLayer
-        if (root.reqSet[key]) return
+        // 失败重试退避：上次失败时间戳仍在退避窗口内（30s）则跳过，避免
+        // 网络不可达/权限错误(403)时 onPaint 每秒全量重试造成请求洪峰
+        const t = root.reqSet[key]
+        if (t === true) return
+        if (typeof t === "number" && Date.now() - t < 30000) return
         root.reqSet[key] = true
         tileProvider.requestTile(z, x, y, root.mapLayer)
     }
@@ -144,6 +148,12 @@ Item {
                 if (layer !== root.mapLayer) return
                 canvas.loadImage("file://" + path)
                 canvas.requestPaint()
+            }
+            // 下载失败：记录失败时间戳用于退避重试（避免地图持久白块的同时，
+            // 也防止网络不可达时每秒全量重试造成请求洪峰）
+            function onTileFailed(z, x, y, layer) {
+                const key = z + "/" + x + "/" + y + "/" + layer
+                root.reqSet[key] = Date.now()
             }
         }
 

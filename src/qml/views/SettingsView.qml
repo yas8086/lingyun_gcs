@@ -11,6 +11,10 @@ Item {
     property QtObject themeRoot: null
     signal showNote(string msg)
 
+    // 串口打开状态（带 dataTick 依赖：isSerialOpen 是 Q_INVOKABLE 方法调用，
+    // QML 绑定只求值一次，须由 dataTick 触发重算，否则按钮文字/颜色不刷新）
+    property bool serialIsOpen: { void root.themeRoot.dataTick; return bridge.isSerialOpen() }
+
     // 告警规则（经 bridge CRUD，持久化到 ground_station.json）
     property var rules: bridge.alarmRules()
     // C++ 侧规则变化时自动刷新（增删/改不丢失）
@@ -48,9 +52,11 @@ Item {
                         Text { text: "串口设备"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
                             id: portCombo
-                            Layout.preferredWidth: 200
+                            editable: true
+                            Layout.preferredWidth: 220
                             model: bridge.ports()
-                            displayText: model.length ? currentText : "未检测到串口"
+                            // 可编辑：既可从下拉选标准串口，也可手动输入虚拟串口路径
+                            // （如 /tmp/gcs_pty2），便于本地模拟联调。
                             font.pixelSize: 12
                         }
                         Item { Layout.fillWidth: true }
@@ -65,16 +71,29 @@ Item {
                             font.pixelSize: 12
                         }
                         Button {
-                            text: bridge.isSerialOpen() ? "关闭串口" : "打开串口"
-                            background: Rectangle { radius: 8; color: bridge.isSerialOpen() ? root.themeRoot.colErrSoft : root.themeRoot.colPrimarySoft; border.color: bridge.isSerialOpen() ? root.themeRoot.colErr : root.themeRoot.colPrimary }
-                            contentItem: Text { text: parent.text; color: bridge.isSerialOpen() ? root.themeRoot.colErr : root.themeRoot.colPrimary; font.bold: true }
+                            // 用 root.serialIsOpen（带 dataTick 依赖）替代 bridge.isSerialOpen()
+                            // 直接调用，确保按钮文字/颜色随串口状态实时刷新
+                            text: root.serialIsOpen ? "关闭串口" : "打开串口"
+                            background: Rectangle {
+                                radius: 8
+                                color: root.serialIsOpen ? root.themeRoot.colErrSoft : root.themeRoot.colPrimarySoft
+                                border.color: root.serialIsOpen ? root.themeRoot.colErr : root.themeRoot.colPrimary
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: root.serialIsOpen ? root.themeRoot.colErr : root.themeRoot.colPrimary
+                                font.bold: true
+                            }
                             onClicked: {
-                                if (bridge.isSerialOpen()) {
-                                    bridge.closeSerial(); root.showNote("串口已关闭")
+                                if (root.serialIsOpen) {
+                                    // 关闭串口二次确认
+                                    confirmSerialOff.open()
                                 } else {
-                                    if (portCombo.count === 0) { root.showNote("未检测到串口设备"); return }
-                                    const ok = bridge.openSerial(portCombo.currentText, parseInt(baudCombo.currentText))
-                                    root.showNote(ok ? "串口已打开：" + portCombo.currentText : "串口打开失败，请检查端口/权限")
+                                    // editable 下允许手动输入任意路径，空则提示
+                                    const port = portCombo.editText.trim()
+                                    if (port === "") { root.showNote("未检测到串口设备"); return }
+                                    const ok = bridge.openSerial(port, parseInt(baudCombo.currentText))
+                                    root.showNote(ok ? "串口已打开：" + port : "串口打开失败：" + bridge.lastSerialError())
                                 }
                             }
                         }
@@ -195,6 +214,17 @@ Item {
                             model: ["摄氏度 ℃", "华氏度 ℉"]
                             currentIndex: bridge.configTempUnit()
                             onActivated: bridge.setConfigTempUnit(index)
+                            font.pixelSize: 12
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        Text { text: "压力单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        ComboBox {
+                            id: pressUnitCombo
+                            model: ["kPa", "Pa", "bar", "psi"]
+                            currentIndex: bridge.configPressureUnit()
+                            onActivated: bridge.setConfigPressureUnit(index)
                             font.pixelSize: 12
                         }
                         Item { Layout.fillWidth: true }
@@ -512,8 +542,11 @@ Item {
         id: folderDlg
         title: "选择记录保存目录"
         onAccepted: {
-            recordDirField.text = selectedFolder
-            bridge.setRecordDir(selectedFolder)
+            // selectedFolder 返回 file:///... 形式的 URL，须去前缀存真实路径，
+            // 否则记录目录非法、且再次打开会拼出 file://file:/// 双重前缀
+            const dir = selectedFolder.toString().replace(/^file:\/\//, "")
+            recordDirField.text = dir
+            bridge.setRecordDir(dir)
         }
     }
 
@@ -551,28 +584,94 @@ Item {
             alarmSoundCombo.currentIndex = bridge.configAlarmSound() ? 1 : 0
             recordCb.checked = bridge.recordEnabled()
             recordDirField.text = bridge.recordDir()
+            // 地图设置与串口设置一并恢复，避免导入后显示与实际不一致
+            mapSourceCombo.currentIndex = bridge.configMapSource()
+            mapKeyField.text = bridge.configMapKey()
+            portCombo.currentIndex = Math.max(0, portCombo.find(bridge.port()))
+            baudCombo.currentText = bridge.baud().toString()
         }
     }
 
-    // 关闭自动记录的二次确认
-    Dialog {
-        id: confirmRecordOff
+    // 关闭串口的二次确认（自定义 Popup：样式与地面站主题一致，按钮行为明确）
+    Popup {
+        id: confirmSerialOff
         modal: true
         anchors.centerIn: parent
         width: 360
-        title: "关闭自动记录"
-        standardButtons: Dialog.Cancel | Dialog.Ok
+        padding: 16
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        onAccepted: {
-            bridge.setRecordEnabled(false)
-            recordCb.checked = false
+        background: Rectangle { color: root.themeRoot.colCard; border.color: root.themeRoot.colLine; radius: 14 }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text { text: "关闭串口"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+            Text {
+                text: "确定关闭串口吗？关闭后数据将停止接收。"
+                color: root.themeRoot.colText2; font.pixelSize: 13; wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 10
+                Button {
+                    text: "取消"
+                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 13 }
+                    onClicked: confirmSerialOff.close()
+                }
+                Button {
+                    text: "确定关闭"
+                    background: Rectangle { radius: 8; color: root.themeRoot.colErrSoft; border.color: root.themeRoot.colErr }
+                    contentItem: Text { text: parent.text; color: root.themeRoot.colErr; font.pixelSize: 13; font.bold: true }
+                    onClicked: {
+                        bridge.closeSerial()
+                        root.showNote("串口已关闭")
+                        confirmSerialOff.close()
+                    }
+                }
+            }
         }
-        contentItem: Text {
-            anchors.fill: parent
-            text: "关闭后将不再自动记录遥测原始报文，已记录的文件保留。确定关闭吗？"
-            color: root.themeRoot.colText
-            font.pixelSize: 13
-            wrapMode: Text.Wrap
+    }
+
+    // 关闭自动记录的二次确认（自定义 Popup，样式与主题一致）
+    Popup {
+        id: confirmRecordOff
+        modal: true
+        anchors.centerIn: parent
+        width: 380
+        padding: 16
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle { color: root.themeRoot.colCard; border.color: root.themeRoot.colLine; radius: 14 }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text { text: "关闭自动记录"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+            Text {
+                text: "关闭后将不再自动记录遥测原始报文，已记录的文件保留。确定关闭吗？"
+                color: root.themeRoot.colText2; font.pixelSize: 13; wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 10
+                Button {
+                    text: "取消"
+                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 13 }
+                    onClicked: confirmRecordOff.close()
+                }
+                Button {
+                    text: "确定关闭"
+                    background: Rectangle { radius: 8; color: root.themeRoot.colErrSoft; border.color: root.themeRoot.colErr }
+                    contentItem: Text { text: parent.text; color: root.themeRoot.colErr; font.pixelSize: 13; font.bold: true }
+                    onClicked: {
+                        bridge.setRecordEnabled(false)
+                        recordCb.checked = false
+                        root.showNote("已关闭自动记录")
+                        confirmRecordOff.close()
+                    }
+                }
+            }
         }
     }
 

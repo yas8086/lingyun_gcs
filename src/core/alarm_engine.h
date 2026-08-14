@@ -3,6 +3,7 @@
 #include <QString>
 #include <QElapsedTimer>
 #include <QMap>
+#include <QSet>
 #include <QTimer>
 #include <QVector>
 #include "model/telemetry_data.h"
@@ -69,6 +70,7 @@ private:
     QTimer timer_;
     QMap<QString, qint64> lastSeen_; // device id -> ms
     QMap<QString, bool> alarmActive_; // rule id -> active
+    QSet<int> activeLoraNodes_;      // 当前帧活跃的 LoRa 节点 id
     QVector<AlarmRule> rules_;
     QVector<AlarmRule> defaults_;
 };
@@ -78,3 +80,5 @@ std::optional<double> ruleValue(const QString &device, const QString &field,
                                 const lgs::TelemetryData &data);
 
 } // namespace lgs
+
+Q_DECLARE_METATYPE(lgs::AlarmEvent)

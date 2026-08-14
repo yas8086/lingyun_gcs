@@ -26,6 +26,24 @@ Item {
 
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
 
+    // ===== 压力单位换算（配置于设置页：0=kPa 1=Pa 2=bar 3=psi）=====
+    function presLabel() {
+        void root.themeRoot.dataTick
+        return ["kPa","Pa","bar","psi"][bridge.configPressureUnit()] || "kPa"
+    }
+    // v_kpa：入参为 kPa 数值，按配置单位换算为显示字符串
+    function presStr(v_kpa) {
+        void root.themeRoot.dataTick
+        if (isNaN(v_kpa)) return "--"
+        const pa = v_kpa * 1000
+        switch (bridge.configPressureUnit()) {
+            case 1: return "" + Math.round(pa)            // Pa
+            case 2: return (pa/100000).toFixed(3)         // bar
+            case 3: return (pa/6894.7573).toFixed(1)      // psi
+            default: return (pa/1000).toFixed(1)          // kPa
+        }
+    }
+
     // ===== 电源链路拓扑数据 =====
     function tPv()  { void root.themeRoot.dataTick; return root.off("mppt") ? 0 : Math.round(bridge.value("mppt","pv_p")||0) }
     function tPvV() { void root.themeRoot.dataTick; return root.off("mppt") ? 0 : (bridge.value("mppt","pv_v")||0) }
@@ -46,11 +64,24 @@ Item {
     property var probes: root.loadProbes()
     property var pvVals: new Object()
     property var pvHist: new Object()
+    property var cellIndex: new Object()   // "ei:r:c" -> probe（热力图 O(1) 查表）
     property int mappingRefresh: 0   // 探头映射编辑后自增，强制刷新映射表
+    // 探头数据表 · 持久化 model（增量更新核心：数组引用不变，仅 mutate 属性）
+    property var probeRowModel: []
+    property int _probeModelGen: -1  // 与 mappingRefresh 对齐，判断是否需重建结构
 
     function loadProbes() {
         const arr = bridge.probeMapping()
-        return arr
+        return arr || []   // 空值守卫：首次无映射文件等返回 null 时兜底为空数组
+    }
+    // 由 probes 重建 cellIndex 查表（在 load/apply 后调用）
+    function rebuildCellIndex() {
+        const idx = new Object()
+        for (const p of root.probes) {
+            const key = p.ei + ":" + p.row + ":" + p.col
+            idx[key] = p   // 同格多探头时后者覆盖（示意布局，正常不重叠）
+        }
+        root.cellIndex = idx
     }
     function probeOf(pid) {
         for (const p of root.probes) if (p.pid === pid) return p
@@ -61,11 +92,10 @@ Item {
         void root.themeRoot.dataTick
         const r = Math.floor(idx / cols) + 1
         const c = idx % cols + 1
-        for (const p of root.probes) {
-            if (p.ei === ei && p.row === r && p.col === c) {
-                const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
-                return root.pvColor(v)
-            }
+        const p = root.cellIndex[ei + ":" + r + ":" + c]
+        if (p) {
+            const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
+            return root.pvColor(v)
         }
         return root.themeRoot.colBg2
     }
@@ -73,11 +103,10 @@ Item {
         void root.themeRoot.dataTick
         const r = Math.floor(idx / cols) + 1
         const c = idx % cols + 1
-        for (const p of root.probes) {
-            if (p.ei === ei && p.row === r && p.col === c) {
-                const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
-                return String(Math.round(v))
-            }
+        const p = root.cellIndex[ei + ":" + r + ":" + c]
+        if (p) {
+            const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
+            return String(Math.round(v))
         }
         return ""
     }
@@ -85,10 +114,7 @@ Item {
     function cellProbe(ei, cols, idx) {
         const r = Math.floor(idx / cols) + 1
         const c = idx % cols + 1
-        for (const p of root.probes) {
-            if (p.ei === ei && p.row === r && p.col === c) return p
-        }
-        return null
+        return root.cellIndex[ei + ":" + r + ":" + c] || null
     }
     // 点击探头方块 → 弹窗显示详情
     function showProbeDetail(p) {
@@ -110,7 +136,56 @@ Item {
         if (t < 60) return "#f97316"
         return "#ef4444"
     }
-    // 探头数/统计
+    // 探头数据表行 · 增量更新版本：
+    // 结构变化（增删/改映射）时重建数组；数据刷新仅 in-place 更新属性
+    function rebuildProbeRows() {
+        root._probeModelGen = root.mappingRefresh
+        const model = []
+        for (const p of root.probes) {
+            const env = root.envDef[p.ei]
+            model.push({
+                pid: p.pid,
+                pos: env.name.split("·")[0].trim() + " · " + p.row + "行" + p.col + "列",
+                cur: p.base, max: NaN, min: NaN, avg: NaN,
+                color: root.pvColor(p.base),
+                _ei: p.ei, _row: p.row, _col: p.col, _base: p.base
+            })
+        }
+        root.probeRowModel = model
+    }
+    function updateProbeRows() {
+        // 结构过期 → 先重建
+        if (root._probeModelGen !== root.mappingRefresh)
+            root.rebuildProbeRows()
+        const model = root.probeRowModel
+        for (let i = 0; i < model.length; i++) {
+            const r = model[i]
+            const pid = r.pid
+            const v = root.pvVals[pid] != null ? root.pvVals[pid] : r._base
+            const hist = root.pvHist[pid] || []
+            let mx = NaN, mn = NaN, avg = NaN
+            if (hist.length > 0) {
+                // 逐元素遍历（比 ...spread 更省内存/GC）
+                mx = hist[0]; mn = hist[0]
+                let sum = 0
+                for (let k = 0; k < hist.length; k++) {
+                    const h = hist[k]
+                    if (h > mx) mx = h
+                    if (h < mn) mn = h
+                    sum += h
+                }
+                avg = sum / hist.length
+            }
+            // in-place 更新，保持对象引用 → ListView 只刷新绑定属性，不重建 delegate
+            r.cur = v
+            r.max = mx
+            r.min = mn
+            r.avg = avg
+            r.color = root.pvColor(v)
+        }
+        root.probeModelPoke = (root.probeModelPoke + 1) % 1000000
+    }
+    property int probeModelPoke: 0
     function probeCount() { return root.probes.length }
     function probeStats() {
         void root.themeRoot.dataTick
@@ -121,28 +196,6 @@ Item {
         }
         return {count:cnt, max: mx>-Infinity?mx:NaN, avg: cnt?sum/cnt:NaN, alarm:alarm}
     }
-    // 探头数据表行
-    function probeRows() {
-        void root.themeRoot.dataTick
-        const rows = []
-        for (const p of root.probes) {
-            const env = root.envDef[p.ei]
-            const hist = root.pvHist[p.pid] || []
-            const v = root.pvVals[p.pid] != null ? root.pvVals[p.pid] : p.base
-            let mx=NaN, mn=NaN, avg=NaN
-            if (hist.length) {
-                mx = Math.max(...hist); mn = Math.min(...hist)
-                avg = hist.reduce((a,b)=>a+b,0)/hist.length
-            }
-            rows.push({
-                pid:p.pid,
-                pos: env.name.split("·")[0].trim() + " · " + p.row + "行" + p.col + "列",
-                cur: v, max:mx, min:mn, avg:avg,
-                color: root.pvColor(v)
-            })
-        }
-        return rows
-    }
     // ===== 探头映射编辑（原型 applyProbes 逻辑）=====
     function nextPid() {
         let n = 1
@@ -150,10 +203,12 @@ Item {
         while (used.has("T" + (n < 10 ? "0" + n : n))) n++
         return "T" + (n < 10 ? "0" + n : n)
     }
-    // 编辑后：持久化 + 刷新映射表 + 通知热力图/长表/宽表重算
+    // 编辑后：持久化 + 刷新映射表 + 重建查表索引 + 通知热力图/长表/宽表重算
     function applyMapping() {
         bridge.saveProbeMapping(root.probes)
+        root.rebuildCellIndex()
         root.mappingRefresh++
+        root.rebuildProbeRows()   // 结构变化立即重建 probeRowModel
         root.themeRoot.dataTick++
     }
     function addProbe() {
@@ -189,10 +244,12 @@ Item {
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
         ctx.fillText("序", idxW/2, headerH/2)
-        ctx.fillText("时间s", idxW + timeW/2, headerH/2)
+        ctx.fillText("相对s", idxW + timeW/2, headerH/2)
         for (let c = 0; c < n; c++) ctx.fillText(probes[c].pid, idxW + timeW + c*colW + colW/2, headerH/2)
         // 数据行
         const WIDE_ROWS = 60
+        // 每点采样间隔：温度监测 1s/点（与温度采样 Timer interval 一致），相对时间 = 序号 × 间隔
+        const ROW_SEC = 1.0
         let minLen = Infinity
         for (const p of probes) minLen = Math.min(minLen, (root.pvHist[p.pid] || []).length)
         if (minLen === Infinity) minLen = 0
@@ -205,7 +262,7 @@ Item {
             ctx.font = "10px monospace"
             ctx.fillStyle = root.themeRoot.colText2
             ctx.fillText(idx >= 0 ? String(idx) : "—", idxW/2, y + rowH/2)
-            ctx.fillText(idx >= 0 ? (idx*0.2).toFixed(1) : "—", idxW + timeW/2, y + rowH/2)
+            ctx.fillText(idx >= 0 ? (idx*ROW_SEC).toFixed(1) : "—", idxW + timeW/2, y + rowH/2)
             for (let c = 0; c < n; c++) {
                 const h = root.pvHist[probes[c].pid] || []
                 const v = (idx >= 0 && idx < h.length) ? h[idx] : null
@@ -320,17 +377,19 @@ Item {
                 }
             }
 
-            // 右侧面板
+            // 右侧面板（与左侧导航同为白色大卡，RowLayout.fillHeight 保证底部对齐）
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: 14
-                color: root.themeRoot.colBg
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
                 clip: true
 
                 // ===== 电源链路拓扑（Canvas 绘制）=====
                 Loader {
-                    visible: root.treeNode === 0
+                    active: root.treeNode === 0
+                    visible: active
                     anchors.fill: parent
                     anchors.margins: 12
                     sourceComponent: powerPanel
@@ -338,7 +397,8 @@ Item {
 
                 // ===== 温度监测面板 =====
                 Loader {
-                    visible: root.treeNode === 1
+                    active: root.treeNode === 1
+                    visible: active
                     anchors.fill: parent
                     anchors.margins: 12
                     sourceComponent: tempPanel
@@ -346,7 +406,8 @@ Item {
 
                 // ===== 实时曲线面板 =====
                 Loader {
-                    visible: root.treeNode === 2
+                    active: root.treeNode === 2
+                    visible: active
                     anchors.fill: parent
                     anchors.margins: 12
                     sourceComponent: chartPanel
@@ -359,11 +420,9 @@ Item {
     Component {
         id: powerPanel
         Item {
-            Rectangle {
+            // 直接放在右侧大卡（colCard）上，不再嵌套重复卡
+            Item {
                 anchors.fill: parent
-                radius: 12
-                color: root.themeRoot.colCard
-                border.color: root.themeRoot.colLine
                 // 图例
                 Row {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.margins: 12
@@ -481,12 +540,12 @@ Item {
                     }
                 }
 
-                // 统计条
+                // 统计条（灰底卡，放在右侧白色大卡上形成层次）
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
                     radius: 10
-                    color: root.themeRoot.colCard
+                    color: root.themeRoot.colCard2
                     border.color: root.themeRoot.colLine
                     RowLayout {
                         anchors.fill: parent; anchors.margins: 14
@@ -532,7 +591,7 @@ Item {
                                 Layout.preferredWidth: env.type === "main" ? 118 : 100
                                 Layout.maximumWidth: root.width * 0.34
                                 radius: 12
-                                color: root.themeRoot.colCard
+                                color: root.themeRoot.colCard2
                                 border.color: root.themeRoot.colLine
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 10
@@ -558,7 +617,7 @@ Item {
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: 8
-                                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 40; radius: 8; color: root.themeRoot.colCard2
+                                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 40; radius: 8; color: root.themeRoot.colCard
                                             Column { anchors.centerIn: parent; spacing: 2
                                                 Text { text: "内部温度"; font.pixelSize: 10; color: root.themeRoot.colText2; anchors.horizontalCenter: parent.horizontalCenter }
                                                 Row {
@@ -568,18 +627,18 @@ Item {
                                                 }
                                             }
                                         }
-                                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 40; radius: 8; color: root.themeRoot.colCard2
+                                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 40; radius: 8; color: root.themeRoot.colCard
                                             Column { anchors.centerIn: parent; spacing: 2
                                                 Text { text: "内部压力"; font.pixelSize: 10; color: root.themeRoot.colText2; anchors.horizontalCenter: parent.horizontalCenter }
                                                 Row {
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    Text { text: (env.pres).toFixed(1); font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
-                                                    Text { text: "kPa"; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                                    Text { text: root.presStr(env.pres); font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
+                                                    Text { text: root.presLabel(); font.pixelSize: 10; color: root.themeRoot.colText2 }
                                                 }
                                             }
                                         }
                                     }
-                                    // 网格（原型 .env-grid，repeat(cols/rows,1fr) 自适应填满）
+                                    // 网格（原型 .env-grid，repeat(cols/rows,1fr) 自适应填满，纵向长方形单元格）
                                     Rectangle {
                                         Layout.fillWidth: true; Layout.fillHeight: true
                                         color: root.themeRoot.colBg2
@@ -603,7 +662,7 @@ Item {
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: root.cellText(envCard.envIndex, env.cols, index)
-                                                        font.pixelSize: 9; font.bold: true; color: "white"
+                                                        font.pixelSize: 13; font.bold: true; color: "white"
                                                         visible: root.cellText(envCard.envIndex, env.cols, index) !== ""
                                                     }
                                                     MouseArea {
@@ -657,7 +716,7 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: 12
-                            color: root.themeRoot.colCard
+                            color: root.themeRoot.colCard2
                             border.color: root.themeRoot.colLine
                             clip: true
                             ColumnLayout {
@@ -686,7 +745,7 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     clip: true
-                                    model: root.probeRows()
+                                    model: (void root.probeModelPoke, root.probeRowModel)
                                     spacing: 0
                                     delegate: Rectangle {
                                         width: ListView.view ? ListView.view.width : parent.width
@@ -712,22 +771,31 @@ Item {
                     Item {
                         visible: tmpRoot.stab === 1
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
+                        ColumnLayout {
                             anchors.fill: parent
-                            radius: 12
-                            color: root.themeRoot.colCard
-                            border.color: root.themeRoot.colLine
-                            clip: true
-                            Flickable {
-                                anchors.fill: parent
+                            spacing: 6
+                            // 说明：时间列为相对采样时间（每点 1 秒），非系统时间
+                            Text {
+                                text: "时间列为相对采样时间（每点 1s），从本次打开温度监测起计数，非系统时钟"
+                                font.pixelSize: 11; color: root.themeRoot.colText2
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true; Layout.fillHeight: true
+                                radius: 12
+                                color: root.themeRoot.colCard2
+                                border.color: root.themeRoot.colLine
                                 clip: true
-                                contentWidth: wideCanvas.width
-                                contentHeight: wideCanvas.height
-                                Canvas {
-                                    id: wideCanvas
-                                    width: 44 + 60 + root.probes.length * 46
-                                    height: 30 + 60 * 24
-                                    onPaint: { const ctx = getContext("2d"); root.drawTempWide(ctx, width, height) }
+                                Flickable {
+                                    anchors.fill: parent
+                                    clip: true
+                                    contentWidth: wideCanvas.width
+                                    contentHeight: wideCanvas.height
+                                    Canvas {
+                                        id: wideCanvas
+                                        width: 44 + 60 + root.probes.length * 46
+                                        height: 30 + 60 * 24
+                                        onPaint: { const ctx = getContext("2d"); root.drawTempWide(ctx, width, height) }
+                                    }
                                 }
                             }
                         }
@@ -746,7 +814,7 @@ Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 44
                             radius: 10
-                            color: root.themeRoot.colCard
+                            color: root.themeRoot.colCard2
                             border.color: root.themeRoot.colLine
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 12
@@ -784,7 +852,7 @@ Item {
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             radius: 12
-                            color: root.themeRoot.colCard
+                            color: root.themeRoot.colCard2
                             border.color: root.themeRoot.colLine
                             clip: true
                             ListView {
@@ -880,40 +948,37 @@ Item {
         id: chartPanel
         Item {
             id: chartRoot
-            // 曲线采样数据（每系列一个数组，与可见数据一一对应）
-            property var vData: []     // BMS总压
-            property var pvData: []    // 光伏功率
-            property var outpData: []  // 输出功率
-            property var iData: []     // 总电流
-            property bool playing: true
-            property int idx: 0
-            property int maxPoints: 100
+            // 曲线数据存于 themeRoot（main.qml 顶层 rtcData/rtcIdx），面板仅做展示与
+            // 增量同步。顶层数据在 TopoView 被 Loader 销毁重建时仍保留，
+            // 因此切出图示页再回来，曲线历史不丢、且全程持续采样。
 
-            function sample() {
-                if (!chartRoot.playing) return
-                chartRoot.idx++
-                const x = chartRoot.idx
-                const v = bridge.value("bms","pack_v"), pv = bridge.value("mppt","pv_p")
-                const op = bridge.value("dcdc","out_p"), i = bridge.value("bms","pack_i")
-                chartRoot.vData.push(isNaN(v)?0:v); chartRoot.pvData.push(isNaN(pv)?0:pv)
-                chartRoot.outpData.push(isNaN(op)?0:op); chartRoot.iData.push(isNaN(i)?0:i)
-                if (chartRoot.vData.length > chartRoot.maxPoints) {
-                    chartRoot.vData.shift(); chartRoot.pvData.shift()
-                    chartRoot.outpData.shift(); chartRoot.iData.shift()
+            // 将 themeRoot.rtcData 的缺失点增量追加到 series，并同步 X 轴范围。
+            // onCompleted 时 count=0，一次性补齐全部历史；此后每次 rtcTick 补一个新点。
+            function syncSeries() {
+                const R = root.themeRoot
+                if (!R) return   // themeRoot 尚未注入（TopoView onLoaded 之前），跳过
+                const n = R.rtcData.v.length
+                // 顶层已 shift（超窗口上限）时，先移除 series 最前点保持对齐
+                while (sVolt.count > n) {
                     sVolt.remove(0); sPv.remove(0); sOutp.remove(0); sI.remove(0)
                 }
-                sVolt.append(x, isNaN(v)?0:v)
-                sPv.append(x, isNaN(pv)?0:pv)
-                sOutp.append(x, isNaN(op)?0:op)
-                sI.append(x, isNaN(i)?0:i)
-                cx2.min = Math.max(0, chartRoot.idx - chartRoot.maxPoints)
-                cx2.max = chartRoot.idx
+                const start = sVolt.count
+                for (let k = start; k < n; k++) {
+                    const x = R.rtcIdx - (n - 1 - k)
+                    sVolt.append(x, R.rtcData.v[k])
+                    sPv.append(x, R.rtcData.pv[k])
+                    sOutp.append(x, R.rtcData.outp[k])
+                    sI.append(x, R.rtcData.i[k])
+                }
+                cx2.min = Math.max(0, R.rtcIdx - R.rtcMax)
+                cx2.max = R.rtcIdx
             }
             function clearCharts() {
                 sVolt.clear(); sPv.clear(); sOutp.clear(); sI.clear()
-                chartRoot.vData=[]; chartRoot.pvData=[]; chartRoot.outpData=[]; chartRoot.iData=[]
-                chartRoot.idx = 0
-                cx2.min = 0; cx2.max = chartRoot.maxPoints
+                const R = root.themeRoot
+                R.rtcData = ({"v":[], "pv":[], "outp":[], "i":[]})
+                R.rtcIdx = 0
+                cx2.min = 0; cx2.max = R.rtcMax
             }
             // 生成时间戳文件名后缀 YYYYMMDD_HHMMSS
             function ts() {
@@ -937,7 +1002,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
                     radius: 10
-                    color: root.themeRoot.colCard
+                    color: root.themeRoot.colCard2
                     border.color: root.themeRoot.colLine
                     RowLayout {
                         anchors.fill: parent; anchors.margins: 10
@@ -951,8 +1016,8 @@ Item {
                             background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: {
-                                chartRoot.playing = !chartRoot.playing
-                                pauseBtn.text = chartRoot.playing ? "⏸ 暂停" : "▶ 继续"
+                                root.themeRoot.rtcPlaying = !root.themeRoot.rtcPlaying
+                                pauseBtn.text = root.themeRoot.rtcPlaying ? "⏸ 暂停" : "▶ 继续"
                             }
                         }
                         Button {
@@ -974,7 +1039,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 12
-                    color: root.themeRoot.colCard
+                    color: root.themeRoot.colCard2
                     border.color: root.themeRoot.colLine
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 8
@@ -1007,13 +1072,13 @@ Item {
                     }
                 }
             }
-            // 采样定时器（仅实时曲线页可见且未暂停时运行）
-            Timer {
-                interval: 500
-                running: root.treeNode === 2 && chartRoot.playing
-                repeat: true
-                onTriggered: chartRoot.sample()
+            // 采样由 main.qml 顶层 Timer 常驻驱动（无论在哪页都持续采样）；
+            // 面板监听 themeRoot.rtcTick 增量追加，并在重建时补齐既有历史。
+            Connections {
+                target: root.themeRoot
+                function onRtcTickChanged() { chartRoot.syncSeries() }
             }
+            Component.onCompleted: chartRoot.syncSeries()
             // 监听快照保存请求，导出当前曲线图片（白色背景）
             Connections {
                 target: root
@@ -1101,6 +1166,12 @@ Item {
         onAccepted: root.snapSave(selectedFile)
     }
 
+    // 初始化：加载探头映射后重建查表索引 + 初始化探头行 model
+    Component.onCompleted: {
+        root.rebuildCellIndex()
+        root.rebuildProbeRows()
+    }
+
     // 周期刷新：温度探头数值演化 + 曲线数据采样（仅温度监测/实时曲线页需要）
     Timer {
         interval: 1000
@@ -1118,6 +1189,8 @@ Item {
                 if (h.length > 180) h.shift()
                 root.pvHist[k] = h
             }
+            // 探头数据表 · 增量更新（in-place，不重建 delegate）
+            root.updateProbeRows()
             root.themeRoot.dataTick++
         }
     }

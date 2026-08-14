@@ -87,6 +87,15 @@ ApplicationWindow {
     property int currentNav: 0
     property int dataTick: 0
 
+    // 实时曲线采样数据（提升到顶层而非 TopoView：TopoView 用 Loader 懒加载，
+    // 切出图示页即被销毁。数据放顶层才能跨页面保留，实现"切出再回曲线不重绘"，
+    // 且采样 Timer 常驻，无论在哪页都持续采样，保证曲线连续。）
+    property var rtcData: ({"v":[], "pv":[], "outp":[], "i":[]})
+    property int rtcIdx: 0
+    property int rtcTick: 0
+    property int rtcMax: 100
+    property bool rtcPlaying: true
+
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
     function fmtInt(v) { return isNaN(v) ? "--" : Math.round(v); }
     function isOnline(dev) { return bridge.online(dev); }
@@ -360,6 +369,13 @@ ApplicationWindow {
                             }
                         }
                         onClosed: root.activeDevPop = ""
+                        // 打开期间定时刷新数据，保证状态详情实时更新
+                        Timer {
+                            interval: 500
+                            running: devPop.opened
+                            repeat: true
+                            onTriggered: root.refreshDevPop()
+                        }
                         Column {
                             spacing: 8
                             Text {
@@ -460,12 +476,14 @@ ApplicationWindow {
                             Rectangle {
                                 width: 9; height: 9; radius: 4.5
                                 anchors.verticalCenter: parent.verticalCenter
-                                color: bridge.isSerialOpen() ? root.colOk : root.colOff
+                                // 加 dataTick 依赖：isSerialOpen 是 Q_INVOKABLE 方法调用，
+                                // QML 绑定只计算一次不重新求值，必须通过 dataTick 触发刷新
+                                color: { void root.dataTick; bridge.isSerialOpen() ? root.colOk : root.colOff }
                             }
                             Text {
                                 text: { void root.dataTick; bridge.isSerialOpen() ? "链路正常" : "链路断开" }
                                 font.pixelSize: 12; font.bold: true
-                                color: bridge.isSerialOpen() ? root.colOk : root.colErr
+                                color: { void root.dataTick; bridge.isSerialOpen() ? root.colOk : root.colErr }
                             }
                         }
                         Text { visible: !root.isModuleHidden("rate"); text: "数据率 " + root.fmt(5.0,1) + " Hz"; font.pixelSize: 12; color: root.colText2 }
@@ -477,8 +495,18 @@ ApplicationWindow {
                         }
                         Text {
                             visible: !root.isModuleHidden("uptime")
-                            text: "运行时长 " + root.uptimeStr
-                            font.pixelSize: 12; color: root.colText2
+                            text: { void root.dataTick; "运行时长 " + root.uptimeStr }
+                            font.pixelSize: 12; font.bold: true; font.family: "monospace"
+                            color: root.colText
+                            // 悬停提示计时起点（从串口打开起）
+                            ToolTip.text: "从串口打开开始计时，关闭串口清零"
+                            ToolTip.visible: uptimeTipHover.containsMouse
+                            ToolTip.delay: 400
+                            MouseArea {
+                                id: uptimeTipHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                            }
                         }
                         // 最新消息预览
                         Text {
@@ -514,7 +542,11 @@ ApplicationWindow {
         return pad(h)+":"+pad(m)+":"+pad(ss)
     }
 
-    function openDevPop(dev, sourceItem) {
+    // 刷新设备状态 popover 内容：按当前 activeDevPop 重新读取实时值。
+    // 单独抽出供 devPop 打开期间定时调用，保证点开后数据持续更新而非静态快照。
+    function refreshDevPop() {
+        const dev = root.activeDevPop
+        if (!dev) return
         const fields = {
             bms: [["pack_v","总压"],["pack_i","电流"],["max_t","最高温"],["max_v","最高单体"],["diff_v","压差"]],
             mppt:[["pv_p","光伏功率"],["batt_v","电池电压"],["charge_i","充电电流"],["today","日发电量"],["total","总发电"]],
@@ -531,7 +563,11 @@ ApplicationWindow {
             arr.push({k:f[1], v:v})
         }
         root.devPopKvs = arr
+    }
+
+    function openDevPop(dev, sourceItem) {
         root.activeDevPop = dev
+        root.refreshDevPop()
         // 相对窗口定位，水平居中于按钮，紧贴按钮下方 2px，并做屏幕边界钳制防止右侧溢出
         if (sourceItem) {
             var pt = sourceItem.mapToItem(null, 0, sourceItem.height + 2)
@@ -580,6 +616,12 @@ ApplicationWindow {
         if (!bridge.online(dev)) return false
         const v = bridge.value(dev, key)
         return v > lo && v < hi
+    }
+
+    // 应用恢复到前台时重触发曲线同步：Qt 的 ChartView 在窗口不可见时暂停渲染，
+    // 恢复后 append 操作不会自动生效，需手动触发 rtcTick 使 chartPanel 重同步。
+    onActiveChanged: {
+        if (root.active) root.rtcTick++
     }
 
     function showToast(msg) {
@@ -769,5 +811,46 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    // 实时曲线采样（常驻顶层，无论当前在哪页都持续采样，保证曲线连续）
+    Timer {
+        interval: 500
+        running: true
+        repeat: true
+        onTriggered: {
+            if (!root.rtcPlaying) return   // 暂停时不采样
+            const v = bridge.value("bms","pack_v"), pv = bridge.value("mppt","pv_p")
+            const op = bridge.value("dcdc","out_p"), i = bridge.value("bms","pack_i")
+            root.rtcData.v.push(isNaN(v)?0:v); root.rtcData.pv.push(isNaN(pv)?0:pv)
+            root.rtcData.outp.push(isNaN(op)?0:op); root.rtcData.i.push(isNaN(i)?0:i)
+            if (root.rtcData.v.length > root.rtcMax) {
+                root.rtcData.v.shift(); root.rtcData.pv.shift()
+                root.rtcData.outp.shift(); root.rtcData.i.shift()
+            }
+            root.rtcIdx++
+            root.rtcTick++   // 触发 chartPanel.syncSeries 增量追加
+        }
+    }
+
+    // ===== 全局快捷键（与设置页提示一致）=====
+    // 1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度
+    Shortcut { sequence: "1"; onActivated: root.currentNav = 0 }
+    Shortcut { sequence: "2"; onActivated: root.currentNav = 1 }
+    Shortcut { sequence: "3"; onActivated: root.currentNav = 2 }
+    Shortcut { sequence: "4"; onActivated: root.currentNav = 3 }
+    Shortcut { sequence: "5"; onActivated: root.currentNav = 4 }
+    Shortcut { sequence: "6"; onActivated: root.currentNav = 5 }
+    Shortcut {
+        sequence: "Space"
+        onActivated: root.rtcPlaying = !root.rtcPlaying
+    }
+    Shortcut {
+        sequence: "T"
+        onActivated: root.dark = !root.dark
+    }
+    Shortcut {
+        sequence: "D"
+        onActivated: root.dense = !root.dense
     }
 }

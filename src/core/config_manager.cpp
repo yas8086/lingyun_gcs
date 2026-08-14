@@ -2,12 +2,12 @@
 #include <QFile>
 #include <QTextStream>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QJsonArray>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
 #include <QCoreApplication>
+#include <optional>
 
 namespace lgs {
 
@@ -15,9 +15,7 @@ namespace {
 
 // 在 JSON 配置目录下读写（含 BOM，便于 Windows 记事本打开）
 QString configDir() {
-    const QString base = QStandardPaths::writableLocation(
-        QStandardPaths::AppConfigLocation);
-    return base;
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
 }
 
 QJsonObject readFile(const QString &path) {
@@ -34,19 +32,25 @@ QJsonObject readFile(const QString &path) {
 void writeFile(const QString &path, const QJsonObject &obj) {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning("ConfigManager: 写入配置失败 %s: %s", qPrintable(path),
+                 qPrintable(f.errorString()));
         return;
+    }
     QTextStream out(&f);
     out.setGenerateByteOrderMark(true); // 含 BOM
     out << QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Indented));
     out.flush();
 }
 
-AlarmRule ruleFromJson(const QJsonObject &o) {
+// 解析单条规则；id/device/field 缺失或为空的非法规则返回空 optional，调用方忽略
+std::optional<AlarmRule> ruleFromJson(const QJsonObject &o) {
     AlarmRule r;
     r.id = o.value(QLatin1String("id")).toString();
     r.device = o.value(QLatin1String("device")).toString();
     r.field = o.value(QLatin1String("field")).toString();
+    if (r.id.isEmpty() || r.device.isEmpty() || r.field.isEmpty())
+        return std::nullopt; // 非法规则
     r.label = o.value(QLatin1String("label")).toString();
     r.type = (o.value(QLatin1String("type")).toString() == "threshold")
                  ? AlarmRule::Threshold : AlarmRule::Fault;
@@ -77,174 +81,141 @@ QJsonObject ruleToJson(const AlarmRule &r) {
 
 ConfigManager::ConfigManager() {
     filePath_ = configDir() + QLatin1String("/ground_station.json");
+    root_ = readFile(filePath_); // 一次性读入内存缓存
 }
 
 QString ConfigManager::filePath() const { return filePath_; }
 
+void ConfigManager::reload() { root_ = readFile(filePath_); }
+void ConfigManager::flush() { writeFile(filePath_, root_); }
+
+QJsonValue ConfigManager::value(const char *key, const QJsonValue &def) const {
+    const QJsonValue v = root_.value(QLatin1String(key));
+    return v.isUndefined() ? def : v;
+}
+
+void ConfigManager::set(const char *key, const QJsonValue &v) {
+    root_.insert(QLatin1String(key), v);
+    flush(); // 即时落盘，保证 setter 语义（配置需持久化）
+}
+
 QString ConfigManager::port() const {
-    return readFile(filePath_).value(QLatin1String("port")).toString();
+    return value("port").toString();
 }
 
 qint32 ConfigManager::baud() const {
-    return readFile(filePath_).value(QLatin1String("baud")).toInt(115200);
+    return value("baud", 115200).toInt(115200);
 }
 
-void ConfigManager::setPort(const QString &p) {
-    QJsonObject o = readFile(filePath_);
-    o["port"] = p;
-    writeFile(filePath_, o);
-}
-
-void ConfigManager::setBaud(qint32 b) {
-    QJsonObject o = readFile(filePath_);
-    o["baud"] = b;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setPort(const QString &p) { set("port", p); }
+void ConfigManager::setBaud(qint32 b) { set("baud", b); }
 
 void ConfigManager::saveWindowGeometry(const QByteArray &geo) {
-    QJsonObject o = readFile(filePath_);
-    o["window_geometry"] = QString::fromLatin1(geo.toBase64());
-    writeFile(filePath_, o);
+    set("window_geometry", QString::fromLatin1(geo.toBase64()));
 }
 
 QByteArray ConfigManager::windowGeometry() const {
-    const QString s = readFile(filePath_)
-                          .value(QLatin1String("window_geometry")).toString();
-    if (s.isEmpty())
-        return {};
-    return QByteArray::fromBase64(s.toLatin1());
+    const QString s = value("window_geometry").toString();
+    return s.isEmpty() ? QByteArray() : QByteArray::fromBase64(s.toLatin1());
 }
 
 QVector<AlarmRule> ConfigManager::loadAlarmRules(
     const QVector<AlarmRule> &defaults) const {
-    const QJsonArray arr = readFile(filePath_).value(QLatin1String("alarm_rules"))
-                               .toArray();
-    if (arr.isEmpty())
+    // 键不存在（首次运行/未配置）时回退默认规则；键存在但为空数组时返回空集，
+    // 允许用户保存"无规则"状态。
+    if (!root_.contains(QLatin1String("alarm_rules")))
         return defaults;
+    const QJsonArray arr = root_.value(QLatin1String("alarm_rules")).toArray();
+    if (arr.isEmpty())
+        return {};
     QVector<AlarmRule> rules;
     rules.reserve(arr.size());
-    for (const auto &v : arr)
-        rules.push_back(ruleFromJson(v.toObject()));
+    for (const auto &v : arr) {
+        const auto r = ruleFromJson(v.toObject());
+        if (r)
+            rules.push_back(*r); // 非法规则跳过
+    }
     return rules;
 }
 
 void ConfigManager::saveAlarmRules(const QVector<AlarmRule> &rules) {
-    QJsonObject o = readFile(filePath_);
     QJsonArray arr;
     for (const auto &r : rules)
         arr.append(ruleToJson(r));
-    o["alarm_rules"] = arr;
-    writeFile(filePath_, o);
+    set("alarm_rules", arr);
 }
 
 int ConfigManager::temperatureUnit() const {
-    return readFile(filePath_).value(QLatin1String("temp_unit")).toInt(0);
+    const int v = value("temp_unit", 0).toInt(0);
+    return (v == 0 || v == 1) ? v : 0; // 非法值回退默认
 }
-void ConfigManager::setTemperatureUnit(int unit) {
-    QJsonObject o = readFile(filePath_);
-    o["temp_unit"] = unit;
-    writeFile(filePath_, o);
+void ConfigManager::setTemperatureUnit(int unit) { set("temp_unit", unit); }
+
+int ConfigManager::pressureUnit() const {
+    const int v = value("pressure_unit", 0).toInt(0);
+    return (v >= 0 && v <= 3) ? v : 0; // 0=kPa 1=Pa 2=bar 3=psi，非法回退 kPa
 }
-bool ConfigManager::alarmSoundEnabled() const {
-    return readFile(filePath_).value(QLatin1String("alarm_sound")).toBool(false);
-}
-void ConfigManager::setAlarmSoundEnabled(bool on) {
-    QJsonObject o = readFile(filePath_);
-    o["alarm_sound"] = on;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setPressureUnit(int unit) { set("pressure_unit", unit); }
+
 int ConfigManager::chartWindowSecs() const {
-    return readFile(filePath_).value(QLatin1String("chart_window")).toInt(20);
+    const int v = value("chart_window", 20).toInt(20);
+    return (v == 10 || v == 20 || v == 30) ? v : 20; // 合法取值集合，非法回退
 }
-void ConfigManager::setChartWindowSecs(int secs) {
-    QJsonObject o = readFile(filePath_);
-    o["chart_window"] = secs;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setChartWindowSecs(int secs) { set("chart_window", secs); }
 
 QSet<QString> ConfigManager::hiddenModules() const {
-    const QJsonArray arr = readFile(filePath_).value(QLatin1String("hidden_modules"))
-                               .toArray();
+    const QJsonArray arr = value("hidden_modules").toArray();
     QSet<QString> hidden;
     for (const auto &v : arr)
         hidden.insert(v.toString());
     return hidden;
 }
 void ConfigManager::setHiddenModules(const QSet<QString> &hidden) {
-    QJsonObject o = readFile(filePath_);
     QJsonArray arr;
     const QStringList keys = hidden.values();
     for (const auto &k : keys)
         arr.append(k);
-    o["hidden_modules"] = arr;
-    writeFile(filePath_, o);
+    set("hidden_modules", arr);
 }
 
 bool ConfigManager::recordEnabled() const {
-    return readFile(filePath_).value(QLatin1String("record_enabled")).toBool(true);
+    return value("record_enabled", true).toBool(true);
 }
-void ConfigManager::setRecordEnabled(bool on) {
-    QJsonObject o = readFile(filePath_);
-    o["record_enabled"] = on;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setRecordEnabled(bool on) { set("record_enabled", on); }
 QString ConfigManager::recordDir() const {
-    return readFile(filePath_).value(QLatin1String("record_dir")).toString();
+    return value("record_dir").toString();
 }
-void ConfigManager::setRecordDir(const QString &dir) {
-    QJsonObject o = readFile(filePath_);
-    o["record_dir"] = dir;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setRecordDir(const QString &dir) { set("record_dir", dir); }
 
 bool ConfigManager::darkTheme() const {
-    return readFile(filePath_).value(QLatin1String("theme_dark")).toBool(false);
+    return value("theme_dark", false).toBool(false);
 }
-void ConfigManager::setDarkTheme(bool dark) {
-    QJsonObject o = readFile(filePath_);
-    o["theme_dark"] = dark;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setDarkTheme(bool dark) { set("theme_dark", dark); }
 bool ConfigManager::denseTheme() const {
-    return readFile(filePath_).value(QLatin1String("theme_dense")).toBool(false);
+    return value("theme_dense", false).toBool(false);
 }
-void ConfigManager::setDenseTheme(bool dense) {
-    QJsonObject o = readFile(filePath_);
-    o["theme_dense"] = dense;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setDenseTheme(bool dense) { set("theme_dense", dense); }
 bool ConfigManager::contrastTheme() const {
-    return readFile(filePath_).value(QLatin1String("theme_contrast")).toBool(false);
+    return value("theme_contrast", false).toBool(false);
 }
-void ConfigManager::setContrastTheme(bool contrast) {
-    QJsonObject o = readFile(filePath_);
-    o["theme_contrast"] = contrast;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setContrastTheme(bool contrast) { set("theme_contrast", contrast); }
 QString ConfigManager::accentTheme() const {
-    return readFile(filePath_).value(QLatin1String("theme_accent")).toString("blue");
+    return value("theme_accent", "blue").toString("blue");
 }
-void ConfigManager::setAccentTheme(const QString &accent) {
-    QJsonObject o = readFile(filePath_);
-    o["theme_accent"] = accent;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setAccentTheme(const QString &accent) { set("theme_accent", accent); }
 
 int ConfigManager::mapSource() const {
-    return readFile(filePath_).value(QLatin1String("map_source")).toInt(1);
+    const int v = value("map_source", 1).toInt(1);
+    return (v == 0 || v == 1) ? v : 1; // 0天地图 1OSM，非法回退 OSM
 }
-void ConfigManager::setMapSource(int source) {
-    QJsonObject o = readFile(filePath_);
-    o["map_source"] = source;
-    writeFile(filePath_, o);
+void ConfigManager::setMapSource(int source) { set("map_source", source); }
+QString ConfigManager::mapKey() const { return value("map_key").toString(); }
+void ConfigManager::setMapKey(const QString &key) { set("map_key", key); }
+
+// 保留 alarmSoundEnabled 访问（header 有声明）
+bool ConfigManager::alarmSoundEnabled() const {
+    return value("alarm_sound", false).toBool(false);
 }
-QString ConfigManager::mapKey() const {
-    return readFile(filePath_).value(QLatin1String("map_key")).toString();
-}
-void ConfigManager::setMapKey(const QString &key) {
-    QJsonObject o = readFile(filePath_);
-    o["map_key"] = key;
-    writeFile(filePath_, o);
-}
+void ConfigManager::setAlarmSoundEnabled(bool on) { set("alarm_sound", on); }
 
 } // namespace lgs

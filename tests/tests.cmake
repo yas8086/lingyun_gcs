@@ -16,6 +16,13 @@ add_qt_test(test_alarm_engine tests/test_alarm_engine.cpp src/core/alarm_engine.
 target_link_libraries(test_alarm_engine PRIVATE Qt6::Widgets)
 add_qt_test(test_config_manager tests/test_config_manager.cpp src/core/config_manager.cpp src/core/alarm_engine.cpp src/model/telemetry_data.cpp)
 target_link_libraries(test_config_manager PRIVATE Qt6::Widgets)
+# 测试用 QStandardPaths::setTestModeEnabled 把配置写到 ~/.qttest/。
+# 在沙箱/受限 HOME 下删除/写入可能被拦截，导致 defaults() 读到残留配置而失败。
+# 将 HOME 重定向到可写的 build 子目录，保证测试配置目录可读写、用例间互相隔离。
+set(_test_home "${CMAKE_BINARY_DIR}/.testhome")
+file(MAKE_DIRECTORY "${_test_home}")
+set_tests_properties(test_config_manager PROPERTIES ENVIRONMENT "HOME=${_test_home}")
+unset(_test_home)
 # 集成测试：模拟器帧 → 解码 → 桥接层暴露（需 QApplication）
-add_qt_test(test_bridge_integration tests/test_bridge_integration.cpp src/comms/frame_parser.cpp src/comms/json_decoder.cpp src/comms/serial_manager.cpp src/model/telemetry_data.cpp src/core/config_manager.cpp src/core/alarm_engine.cpp src/qmlbridge/telemetry_bridge.cpp)
+add_qt_test(test_bridge_integration tests/test_bridge_integration.cpp src/comms/frame_parser.cpp src/comms/json_decoder.cpp src/comms/serial_manager.cpp src/model/telemetry_data.cpp src/core/config_manager.cpp src/core/alarm_engine.cpp src/qmlbridge/telemetry_bridge.cpp src/qmlbridge/telemetry_bridge_config.cpp src/qmlbridge/telemetry_bridge_rules.cpp src/qmlbridge/telemetry_bridge_record.cpp)
 target_link_libraries(test_bridge_integration PRIVATE Qt6::Widgets Qt6::SerialPort)

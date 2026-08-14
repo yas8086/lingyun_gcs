@@ -2,6 +2,8 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 #include <QString>
+#include <QSet>
+#include <QQueue>
 
 namespace lgs {
 
@@ -12,8 +14,10 @@ class TileProvider : public QObject {
 public:
     explicit TileProvider(QObject *parent = nullptr);
 
-    void setMapKey(const QString &key);   // 天地图密钥（在线配置文件）
-    void setMapSource(int source);        // 0=天地图 1=OSM
+    // 天地图密钥（在线配置文件）；运行时可由 QML 调用以同步设置页修改
+    Q_INVOKABLE void setMapKey(const QString &key);
+    // 图源：0=天地图 1=OSM；运行时可由 QML 调用以同步设置页修改
+    Q_INVOKABLE void setMapSource(int source);
     QString mapKey() const;
     int mapSource() const;
 
@@ -31,9 +35,17 @@ signals:
 
 private:
     QString cachePath(int z, int x, int y, int layer) const;
+    void startDownload(int z, int x, int y, int layer, const QString &path);
+    void enforceCacheQuota(); // 缓存配额：超限按 LRU 删除最久未访问瓦片
+    void startNextPending();  // 启动下一个排队请求（并发上限控制）
     QNetworkAccessManager net_;
     QString key_;
-    int source_ = 1;   // 默认 OSM（无需 key，开箱可用）
+    int source_ = 1;            // 默认 OSM（无需 key，开箱可用）
+    int inFlight_ = 0;          // 当前进行中的下载数
+    static constexpr int kMaxConcurrent = 8; // 并发下载上限
+    struct PendingTile { int z, x, y, layer; };
+    QQueue<PendingTile> pending_; // 超过并发上限的请求排队
+    QSet<QString> inflightKeys_;  // 进行中瓦片 key（去重，避免重复请求未缓存瓦片）
 };
 
 } // namespace lgs

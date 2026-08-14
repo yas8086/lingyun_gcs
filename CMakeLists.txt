@@ -28,6 +28,9 @@ add_executable(lingyun_gcs_qml
     src/core/config_manager.cpp
     src/map/tile_provider.cpp
     src/qmlbridge/telemetry_bridge.cpp
+    src/qmlbridge/telemetry_bridge_config.cpp
+    src/qmlbridge/telemetry_bridge_rules.cpp
+    src/qmlbridge/telemetry_bridge_record.cpp
 )
 
 qt_add_resources(lingyun_gcs_qml "qml_res"

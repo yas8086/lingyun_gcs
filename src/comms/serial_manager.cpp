@@ -6,48 +6,69 @@
 namespace lgs {
 
 SerialManager::SerialManager(QObject *parent)
-    : QObject(parent), parser_(new FrameParser) {
-    connect(&serial_, &QSerialPort::readyRead, this, &SerialManager::onReadyRead);
-    connect(&serial_, &QSerialPort::errorOccurred, this, &SerialManager::onError);
+    : QObject(parent)
+    , serial_(new QSerialPort(this))          // child：随 moveToThread 递归迁移
+    , parser_(std::make_unique<FrameParser>())
+    , watchdog_(new QTimer(this)) {           // child：同上
+    connect(serial_, &QSerialPort::readyRead, this, &SerialManager::onReadyRead);
+    connect(serial_, &QSerialPort::errorOccurred, this, &SerialManager::onError);
+    // 链路超时看门狗：周期检查，超时未收到数据判定链路停滞
+    watchdog_->setInterval(500);
+    watchdog_->setSingleShot(false);
+    connect(watchdog_, &QTimer::timeout, this, &SerialManager::onLinkWatchdog);
 }
 
 SerialManager::~SerialManager() {
     close();
-    delete parser_;
 }
 
 bool SerialManager::open(const QString &port, qint32 baud) {
-    if (serial_.isOpen())
+    if (serial_->isOpen())
         this->close(); // 触发 linkStatusChanged(false)，避免状态灯失真
-    delete parser_;
-    parser_ = new FrameParser; // 重新打开时清空旧缓冲
-    serial_.setPortName(port);
-    serial_.setBaudRate(baud);
-    serial_.setDataBits(QSerialPort::Data8);
-    serial_.setParity(QSerialPort::NoParity);
-    serial_.setStopBits(QSerialPort::OneStop);
-    serial_.setFlowControl(QSerialPort::NoFlowControl);
-    if (!serial_.open(QIODevice::ReadOnly)) {
-        emit errorOccurred(serial_.errorString());
+    parser_ = std::make_unique<FrameParser>(); // 重新打开时清空旧缓冲
+    serial_->setPortName(port);
+    serial_->setBaudRate(baud);
+    serial_->setDataBits(QSerialPort::Data8);
+    serial_->setParity(QSerialPort::NoParity);
+    serial_->setStopBits(QSerialPort::OneStop);
+    serial_->setFlowControl(QSerialPort::NoFlowControl);
+    if (!serial_->open(QIODevice::ReadOnly)) {
+        // 记录失败原因（含 QSerialPort 锁冲突/权限/设备不存在等），供 QML 透出
+        lastOpenError_ = serial_->errorString();
+        emit errorOccurred(lastOpenError_);
         return false;
     }
+    lastOpenError_.clear();
+    linkOnline_ = true;
+    rxClock_.start();
+    watchdog_->start();
     emit linkStatusChanged(true);
     return true;
 }
 
 void SerialManager::close() {
-    if (serial_.isOpen()) {
-        serial_.close();
+    watchdog_->stop();
+    linkOnline_ = false;
+    if (serial_->isOpen()) {
+        serial_->close();
         emit linkStatusChanged(false);
     }
 }
 
+void SerialManager::setLinkTimeoutMs(int ms) {
+    linkTimeoutMs_ = qMax(200, ms);
+}
+
 bool SerialManager::isOpen() const {
-    return serial_.isOpen();
+    return serial_->isOpen();
 }
 
 QString SerialManager::errorString() const {
-    return serial_.errorString();
+    return serial_->errorString();
+}
+
+QString SerialManager::lastOpenError() const {
+    return lastOpenError_;
 }
 
 QStringList SerialManager::availablePorts() const {
@@ -59,21 +80,44 @@ QStringList SerialManager::availablePorts() const {
 }
 
 void SerialManager::onReadyRead() {
-    parser_->push(serial_.readAll());
+    parser_->push(serial_->readAll());
     QByteArray json;
+    bool gotFrame = false;
     while (parser_->takeFrame(json)) {
+        gotFrame = true;
         // 记录完整原始帧：AA55 帧头 + JSON + 换行（保留原始报文用于回放/复现）
-        emit rawFrameReceived(QByteArray("\xAA\x55") + json + "\n");
+        emit rawFrameReceived(kFrameHead + json + "\n");
         TelemetryData data;
         if (decodeJson(json, data))
             emit telemetryReceived(data);
     }
+    if (gotFrame) {
+        rxClock_.restart(); // 收到有效帧即重置超时计时
+        if (!linkOnline_) {
+            linkOnline_ = true;
+            emit linkStatusChanged(true); // 链路恢复
+        }
+    }
 }
 
 void SerialManager::onError(QSerialPort::SerialPortError err) {
+    if (err == QSerialPort::NoError)
+        return;
+    // 统一记录日志；断开类错误额外置离线
+    qWarning("SerialManager: 串口错误 %d: %s", int(err),
+             qPrintable(serial_->errorString()));
     if (err == QSerialPort::ResourceError) {
-        emit errorOccurred(serial_.errorString());
+        emit errorOccurred(serial_->errorString());
         emit linkStatusChanged(false);
+    }
+}
+
+void SerialManager::onLinkWatchdog() {
+    if (!serial_->isOpen() || !linkOnline_)
+        return;
+    if (rxClock_.elapsed() >= linkTimeoutMs_) {
+        linkOnline_ = false;
+        emit linkStatusChanged(false); // 长时间无数据，链路停滞，置离线
     }
 }
 

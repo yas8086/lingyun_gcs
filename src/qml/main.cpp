@@ -5,6 +5,8 @@
 #include <QScreen>
 #include <QTimer>
 #include <QTime>
+#include <QThread>
+#include <QMetaObject>
 #include "comms/serial_manager.h"
 #include "core/data_bus.h"
 #include "core/alarm_engine.h"
@@ -27,7 +29,17 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("LingYun");
     QCoreApplication::setApplicationName("GroundStationQml");
 
-    lgs::SerialManager serial;
+    // 注册自定义元类型，支持跨线程 QueuedConnection
+    qRegisterMetaType<lgs::TelemetryData>("lgs::TelemetryData");
+    qRegisterMetaType<lgs::AlarmEvent>("lgs::AlarmEvent");
+
+    // 串口 IO 工作线程：SerialManager 整体迁入，避免 QSerialPort 阻塞 GUI 线程
+    auto *serialThread = new QThread(&app);
+    auto *serial = new lgs::SerialManager();
+    serial->moveToThread(serialThread);
+    QObject::connect(serialThread, &QThread::finished, serial, &QObject::deleteLater);
+    serialThread->start();
+
     lgs::DataBus bus;
     lgs::AlarmEngine alarm;
     lgs::ConfigManager config;
@@ -36,18 +48,27 @@ int main(int argc, char *argv[]) {
     tileProvider.setMapSource(config.mapSource());
     tileProvider.setMapKey(config.mapKey());
 
-    bridge.setSerialManager(&serial);
+    bridge.setSerialManager(serial);
     bridge.setConfigManager(&config);
     bridge.setAlarmEngine(&alarm);
-    QObject::connect(&serial, &lgs::SerialManager::telemetryReceived,
-                     &bus, &lgs::DataBus::publish);
+
+    // SerialManager 跨线程信号：强制 QueuedConnection
+    QObject::connect(serial, &lgs::SerialManager::telemetryReceived,
+                     &bus, &lgs::DataBus::publish, Qt::QueuedConnection);
     QObject::connect(&bus, &lgs::DataBus::telemetryReady,
                      &bridge, &lgs::TelemetryBridge::onTelemetry);
-    QObject::connect(&serial, &lgs::SerialManager::linkStatusChanged,
-                     &bridge, &lgs::TelemetryBridge::setLinkOnline);
+    // 告警引擎同一份遥测喂入：评估规则告警 + 维护设备在线时刻（离线告警依赖）
+    QObject::connect(&bus, &lgs::DataBus::telemetryReady,
+                     &alarm, &lgs::AlarmEngine::onTelemetry);
+    QObject::connect(serial, &lgs::SerialManager::linkStatusChanged,
+                     &bridge, &lgs::TelemetryBridge::setLinkOnline, Qt::QueuedConnection);
     // 逐帧原始报文 → bridge 自动记录（断电安全落盘）
-    QObject::connect(&serial, &lgs::SerialManager::rawFrameReceived,
-                     &bridge, &lgs::TelemetryBridge::onRawFrame);
+    QObject::connect(serial, &lgs::SerialManager::rawFrameReceived,
+                     &bridge, &lgs::TelemetryBridge::onRawFrame, Qt::QueuedConnection);
+    QObject::connect(serial, &lgs::SerialManager::errorOccurred,
+                     &bridge, [&bridge](const QString &msg) {
+        bridge.addAlarm(msg, "严重", "链路");
+    }, Qt::QueuedConnection);
     QObject::connect(&alarm, &lgs::AlarmEngine::alarmTriggered,
                      &bridge, [&bridge](const lgs::AlarmEvent &e) {
         const QString lv = e.level == lgs::AlarmEvent::Critical ? "严重"
@@ -79,5 +100,12 @@ int main(int argc, char *argv[]) {
         });
     }
 
-    return app.exec();
+    const int rc = app.exec();
+
+    // 退出清理：先在串口线程内关闭端口，再退出线程
+    bridge.closeSerial();
+    serialThread->quit();
+    serialThread->wait(2000);
+
+    return rc;
 }

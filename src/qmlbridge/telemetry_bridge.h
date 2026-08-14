@@ -8,6 +8,7 @@
 #include <QList>
 #include <QVector>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QFile>
 #include <QByteArray>
 #include <QDateTime>
@@ -38,6 +39,10 @@ public:
     Q_INVOKABLE bool openSerial(const QString &port, int baud);
     Q_INVOKABLE void closeSerial();
     Q_INVOKABLE bool isSerialOpen() const;
+    Q_INVOKABLE QString lastSerialError() const;  // 最近一次 openSerial 失败的具体原因
+    // 串口配置（用于导入配置后刷新下拉框）
+    Q_INVOKABLE QString port() const;
+    Q_INVOKABLE int baud() const;
 
     // 设备在线状态
     Q_INVOKABLE bool online(const QString &device) const;
@@ -70,6 +75,8 @@ public:
     // 配置访问（决策 #24/#29/#30）：偏好经 ConfigManager JSON 持久化
     Q_INVOKABLE int configTempUnit() const;              // 0=℃ 1=℉
     Q_INVOKABLE void setConfigTempUnit(int unit);
+    Q_INVOKABLE int configPressureUnit() const;           // 0=kPa 1=Pa 2=bar 3=psi
+    Q_INVOKABLE void setConfigPressureUnit(int unit);
     Q_INVOKABLE bool configAlarmSound() const;           // 告警声音开关（默认关）
     Q_INVOKABLE void setConfigAlarmSound(bool on);
     Q_INVOKABLE int configChartWindowSecs() const;       // 10/20/30
@@ -140,6 +147,7 @@ private:
     SerialManager *serial_ = nullptr;
     ConfigManager *config_ = nullptr;
     AlarmEngine *engine_ = nullptr;
+    QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;
     // 温度历史（决策 #28）：每轮 LoRa 节点采样，环形上限 200 轮
@@ -149,7 +157,8 @@ private:
     // 数据自动记录
     QFile recordFile_;
     QString recordPath_;
-    bool recordEnabled_ = true;   // 运行时开关状态（初始化取自 config）
+    QTimer flushTimer_;   // 定时批量落盘，避免每帧 flush 阻塞 GUI 线程
+    bool recordEnabled_ = true; // 运行时开关状态（初始化取自 config，默认开）
 };
 
 } // namespace lgs

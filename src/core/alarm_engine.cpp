@@ -122,9 +122,10 @@ void AlarmEngine::playSound() {
 
 void AlarmEngine::setRules(const QVector<AlarmRule> &rules) {
     rules_ = rules;
-    // 清空失效规则的活动状态，避免残留
+    // 清空失效规则的活动状态，避免残留，并逐个通知前端清除，保证 UI 与引擎一致
     for (auto it = alarmActive_.begin(); it != alarmActive_.end();) {
         if (it.key().startsWith("rule:")) {
+            emit alarmCleared(it.key());
             it = alarmActive_.erase(it);
         } else {
             ++it;
@@ -145,8 +146,12 @@ void AlarmEngine::updateDevice(const QString &id, bool present) {
             emit alarmCleared(offId);
         }
     } else {
-        // 设备从帧中消失：记录当前，交由超时判定触发离线告警
-        lastSeen_[id] = lastSeen_.value(id, clock_.elapsed());
+        // 设备从帧中消失。仅当该设备曾在线（lastSeen_ 已有记录）时才保留其
+        // 最后在线时刻，交由 scanOffline 超时判定触发离线告警。
+        // 设备"从未上线"（lastSeen_ 无 key）时不得写入/刷新，否则每次收帧都会
+        // 重置其计时，导致永不告警；整段断连时还会把它误报为曾经在线设备的离线。
+        if (lastSeen_.contains(id))
+            lastSeen_[id] = lastSeen_.value(id);
     }
 }
 
@@ -161,8 +166,11 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     evalRules(data);
 
     // LoRa 节点级告警位：0 正常 / 1 超上限 / -1 超下限（仅温度节点有效）
+    // 维护本轮活跃节点 id 集合，处理节点从帧中消失（离线）时清除残留告警
+    QSet<int> activeNodeIds;
     if (data.lora) {
         for (const auto &s : data.lora->nodes) {
+            activeNodeIds.insert(s.id);
             if (s.temp == 0.0) // 压力节点恒 0，跳过
                 continue;
             const QString nid = QString("lora:node%1:alarm").arg(s.id);
@@ -186,6 +194,20 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
             }
         }
     }
+    // 上一轮活跃但本轮消失的节点：清除其告警，避免告警永不恢复
+    for (auto it = activeLoraNodes_.begin(); it != activeLoraNodes_.end();) {
+        if (!activeNodeIds.contains(*it)) {
+            const QString nid = QString("lora:node%1:alarm").arg(*it);
+            if (alarmActive_.value(nid, false)) {
+                alarmActive_[nid] = false;
+                emit alarmCleared(nid);
+            }
+            it = activeLoraNodes_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    activeLoraNodes_ = activeNodeIds;
 }
 
 void AlarmEngine::evalRules(const lgs::TelemetryData &data) {
@@ -206,9 +228,11 @@ void AlarmEngine::evalRules(const lgs::TelemetryData &data) {
         }
 
         if (hit) {
-            // 故障码 ≥2 升级为严重（对应 BMS alarm=2 严重 等）
+            // 仅 BMS `alarm` 为三级语义（0 正常/1 故障/2 严重），≥2 升级为严重；
+            // 其余 fault/alarm 均为 32 位位标志，做数值 ≥2 升级会造成误判，故不升级。
             AlarmEvent::Level lv = rule.level;
-            if (rule.type == AlarmRule::Fault && v.value() >= 2.0)
+            if (rule.type == AlarmRule::Fault && rule.device == "bms" &&
+                rule.field == "alarm" && v.value() >= 2.0)
                 lv = AlarmEvent::Critical;
             if (!alarmActive_.value(rid, false)) {
                 alarmActive_[rid] = true;

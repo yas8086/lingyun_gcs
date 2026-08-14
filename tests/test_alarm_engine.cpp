@@ -5,8 +5,6 @@
 
 using namespace lgs;
 
-Q_DECLARE_METATYPE(lgs::AlarmEvent)
-
 class TestAlarmEngine : public QObject {
     Q_OBJECT
 private slots:

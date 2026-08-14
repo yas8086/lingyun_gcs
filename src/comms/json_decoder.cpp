@@ -19,7 +19,9 @@ static bool readInt(const QJsonObject &o, const char *key, int &out) {
     const QJsonValue v = o.value(QLatin1String(key));
     if (v.isNull() || !v.isDouble())
         return false;
-    out = v.toInt();
+    const double d = v.toDouble();
+    // 容忍整数域字段收到小数（如 3.9）：四舍五入而非静默截断丢精度
+    out = qRound(d);
     return true;
 }
 static bool readBool(const QJsonObject &o, const char *key, bool &out) {
@@ -71,18 +73,10 @@ static BackupBms parseBackup(const QJsonObject &o) {
     readDouble(o, "min_t", b.min_t);
     readDouble(o, "avg_t", b.avg_t);
     readDouble(o, "diff_t", b.diff_t);
-    int alarm = 0;
-    int protect = 0;
-    int fault = 0;
-    int sys = 0;
-    readInt(o, "alarm", alarm);
-    readInt(o, "protect", protect);
-    readInt(o, "fault", fault);
-    readInt(o, "sys", sys);
-    b.alarm = alarm;
-    b.protect = protect;
-    b.fault = fault;
-    b.sys = sys;
+    readInt(o, "alarm", b.alarm);
+    readInt(o, "protect", b.protect);
+    readInt(o, "fault", b.fault);
+    readInt(o, "sys", b.sys);
     return b;
 }
 
@@ -138,11 +132,12 @@ static Lora parseLora(const QJsonObject &o) {
     for (const auto &v : arr) {
         const QJsonObject node = v.toObject();
         LoraSample s;
-        s.id = node.value(QLatin1String("id")).toInt();
-        s.online = node.value(QLatin1String("online")).toInt(1) != 0;
-        s.temp = node.value(QLatin1String("temp")).toDouble();
-        s.pressure = node.value(QLatin1String("pressure")).toDouble();
-        s.alarm = node.value(QLatin1String("alarm")).toInt();
+        // 与其余 parse* 一致：缺失字段保留默认，null 视为无效不覆盖。
+        // online 恒为 1（仅在线节点被打包），无需解析。
+        readInt(node, "id", s.id);
+        readDouble(node, "temp", s.temp);
+        readDouble(node, "pressure", s.pressure);
+        readInt(node, "alarm", s.alarm);
         l.nodes.push_back(s);
     }
     return l;

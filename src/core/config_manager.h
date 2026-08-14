@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QVector>
 #include <QSet>
+#include <QJsonObject>
 #include "core/alarm_engine.h"
 
 namespace lgs {
@@ -39,6 +40,8 @@ public:
     // 用户偏好（决策 #24/#29）：温度单位(0=℃ 1=℉)、告警声音开关、曲线窗口秒数
     int temperatureUnit() const;             // 0=℃ 1=℉
     void setTemperatureUnit(int unit);
+    int pressureUnit() const;                // 压力单位 0=kPa 1=Pa 2=bar 3=psi
+    void setPressureUnit(int unit);
     bool alarmSoundEnabled() const;          // 默认关闭（决策 #19）
     void setAlarmSoundEnabled(bool on);
     int chartWindowSecs() const;             // 20/10/5
@@ -71,9 +74,19 @@ public:
     void setMapKey(const QString &key);
 
     QString filePath() const;
+    // 重载：重新从磁盘读取配置到内存缓存（导入配置后调用，避免前端读到旧值）
+    void reload();
+    // 落盘：将内存缓存写回磁盘（setter 已即时落盘，此法供批量/导入场景使用）
+    void flush();
 
 private:
+    // 按 key 读取内存字段；文件缺失时给默认值
+    QJsonValue value(const char *key, const QJsonValue &def = {}) const;
+    // 修改内存字段并落盘
+    void set(const char *key, const QJsonValue &v);
+
     QString filePath_;
+    QJsonObject root_; // 内存缓存，构造时一次性读入，避免每次 getter 重复磁盘 IO
 };
 
 } // namespace lgs
