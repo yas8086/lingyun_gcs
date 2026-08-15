@@ -22,6 +22,14 @@ QString TelemetryBridge::snapshotDir() const {
     return dir;
 }
 
+QString TelemetryBridge::cameraDir() const {
+    // 摄像头截图/录像按天归档：data/摄像头/yyyy-MM-dd
+    const QString dir = dataDir() + QStringLiteral("/摄像头")
+        + QDateTime::currentDateTime().toString("/yyyy-MM-dd");
+    QDir().mkpath(dir);
+    return dir;
+}
+
 bool TelemetryBridge::recordEnabled() const {
     return recordEnabled_;
 }

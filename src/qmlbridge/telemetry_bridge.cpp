@@ -100,6 +100,8 @@ bool TelemetryBridge::openSerial(const QString &port, int baud) {
                                   Q_RETURN_ARG(QString, err));
         lastSerialError_ = err.isEmpty() ? QStringLiteral("未知错误") : err;
     }
+    // 通知前端刷新串口状态（按钮文字/颜色/状态栏链路），否则切页后才更新
+    emit stateChanged();
     return ok;
 }
 QString TelemetryBridge::lastSerialError() const {
@@ -112,6 +114,8 @@ void TelemetryBridge::closeSerial() {
     if (!serial_) return;
     // 跨线程异步调用 SerialManager::close（QueuedConnection）
     QMetaObject::invokeMethod(serial_, "close", Qt::QueuedConnection);
+    // 通知前端刷新串口状态（按钮文字/颜色/状态栏链路）
+    emit stateChanged();
 }
 bool TelemetryBridge::isSerialOpen() const {
     if (!serial_) return false;

@@ -653,6 +653,9 @@ Item {
                                             Repeater {
                                                 model: env.cols * env.rows
                                                 Rectangle {
+                                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                                    scale: ma_1.pressed ? 0.96 : 1.0
+                                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Layout.fillWidth: true; Layout.fillHeight: true
                                                     Layout.preferredWidth: 1; Layout.preferredHeight: 1
                                                     radius: 2
@@ -666,6 +669,8 @@ Item {
                                                         visible: root.cellText(envCard.envIndex, env.cols, index) !== ""
                                                     }
                                                     MouseArea {
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        id: ma_1
                                                         anchors.fill: parent
                                                         hoverEnabled: true
                                                         onClicked: {
@@ -694,6 +699,9 @@ Item {
                         Repeater {
                             model: ["指标总览","时间对齐"]
                             Rectangle {
+                                // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                scale: ma_2.pressed ? 0.96 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                 width: 110; height: 32; radius: 8
                                 color: tmpRoot.stab === index ? root.themeRoot.colPrimarySoft : root.themeRoot.colCard2
                                 border.color: tmpRoot.stab === index ? root.themeRoot.colPrimary : root.themeRoot.colLine
@@ -703,6 +711,9 @@ Item {
                                     color: tmpRoot.stab === index ? root.themeRoot.colPrimary : root.themeRoot.colText2
                                 }
                                 MouseArea {
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    id: ma_2
                                     anchors.fill: parent
                                     onClicked: { tmpRoot.stab = index; if (index === 1) wideCanvas.requestPaint() }
                                 }
@@ -823,8 +834,18 @@ Item {
                                 Text { text: "物理编号保持不变，换板只需改「囊体 / 行 / 列」"; font.pixelSize: 12; color: root.themeRoot.colText2 }
                                 Item { Layout.fillWidth: true }
                                 Button {
+                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                    scale: pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                    HoverHandler {
+                                        id: hover_1
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
                                     text: "＋ 添加探头"
-                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                                    background: Rectangle {
+                                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_1.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                                    }
                                     contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
                                     onClicked: root.addProbe()
                                 }
@@ -869,6 +890,10 @@ Item {
                                         spacing: 12
                                         Text { text: modelData.pid; font.pixelSize: 13; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText; Layout.preferredWidth: 90 }
                                         ComboBox {
+                                            HoverHandler {
+                                                id: hover_2
+                                                cursorShape: Qt.PointingHandCursor
+                                            }
                                             Layout.preferredWidth: 150
                                             model: root.envDef.map(e => e.name)
                                             currentIndex: modelData.ei
@@ -912,6 +937,13 @@ Item {
                                             }
                                         }
                                         Button {
+                                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                            scale: pressed ? 0.94 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                            HoverHandler {
+                                                id: hover_3
+                                                cursorShape: Qt.PointingHandCursor
+                                            }
                                             text: "删除"
                                             Layout.preferredWidth: 60
                                             background: Rectangle { radius: 8; color: root.themeRoot.colErrSoft; border.color: root.themeRoot.colErr }
@@ -1011,9 +1043,19 @@ Item {
                         Text { text: "点击图例可开关参数"; font.pixelSize: 11; color: root.themeRoot.colText2 }
                         Item { Layout.fillWidth: true }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_4
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: pauseBtn
                             text: "⏸ 暂停"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_4.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: {
                                 root.themeRoot.rtcPlaying = !root.themeRoot.rtcPlaying
@@ -1021,14 +1063,34 @@ Item {
                             }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_5
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "清屏"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_5.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: { chartRoot.clearCharts(); root.showNote("已清屏") }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_6
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "导出快照"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_6.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
                             onClicked: chartRoot.exportSnapshot()
                         }
@@ -1147,9 +1209,19 @@ Item {
                 Layout.fillWidth: true; wrapMode: Text.Wrap
             }
             Button {
+                // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                scale: pressed ? 0.94 : 1.0
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                HoverHandler {
+                    id: hover_7
+                    cursorShape: Qt.PointingHandCursor
+                }
                 text: "关闭"
                 Layout.alignment: Qt.AlignRight
-                background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                background: Rectangle {
+                    radius: 8; color: root.themeRoot.colCard2; border.color: (hover_7.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                }
                 contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                 onClicked: probeDetail.close()
             }

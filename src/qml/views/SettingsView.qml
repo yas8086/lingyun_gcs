@@ -51,6 +51,10 @@ Item {
                         spacing: 8
                         Text { text: "串口设备"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_1
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: portCombo
                             editable: true
                             Layout.preferredWidth: 220
@@ -65,16 +69,28 @@ Item {
                         spacing: 8
                         Text { text: "波特率"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_2
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: baudCombo
                             Layout.preferredWidth: 140
                             model: ["115200","57600","38400","9600"]
                             font.pixelSize: 12
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_3
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             // 用 root.serialIsOpen（带 dataTick 依赖）替代 bridge.isSerialOpen()
                             // 直接调用，确保按钮文字/颜色随串口状态实时刷新
                             text: root.serialIsOpen ? "关闭串口" : "打开串口"
                             background: Rectangle {
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                 radius: 8
                                 color: root.serialIsOpen ? root.themeRoot.colErrSoft : root.themeRoot.colPrimarySoft
                                 border.color: root.serialIsOpen ? root.themeRoot.colErr : root.themeRoot.colPrimary
@@ -119,6 +135,13 @@ Item {
                     RowLayout {
                         spacing: 8
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_4
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "导出配置"
                             background: Rectangle { radius: 8; color: root.themeRoot.colPrimarySoft; border.color: root.themeRoot.colPrimary }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.bold: true }
@@ -128,8 +151,18 @@ Item {
                             }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_5
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "导入配置"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_5.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
                             onClicked: importCfgDlg.open()
                         }
@@ -159,6 +192,10 @@ Item {
                         spacing: 8
                         Text { text: "底图源"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_6
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: mapSourceCombo
                             model: ["天地图", "OpenStreetMap"]
                             currentIndex: bridge.configMapSource()
@@ -210,6 +247,10 @@ Item {
                     RowLayout {
                         Text { text: "温度单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_7
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: tempUnitCombo
                             model: ["摄氏度 ℃", "华氏度 ℉"]
                             currentIndex: bridge.configTempUnit()
@@ -221,6 +262,10 @@ Item {
                     RowLayout {
                         Text { text: "压力单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_8
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: pressUnitCombo
                             model: ["kPa", "Pa", "bar", "psi"]
                             currentIndex: bridge.configPressureUnit()
@@ -248,6 +293,13 @@ Item {
                     RowLayout {
                         spacing: 8
                         CheckBox {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_9
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: recordCb
                             checked: bridge.recordEnabled()
                             // 关闭时需二次确认；开启直接生效
@@ -282,8 +334,18 @@ Item {
                             onEditingFinished: bridge.setRecordDir(text.trim())
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_10
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "选择目录"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_10.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
                             onClicked: {
                                 folderDlg.currentFolder = recordDirField.text.length
@@ -292,8 +354,18 @@ Item {
                             }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_11
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "恢复默认"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_11.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: { recordDirField.text = ""; bridge.setRecordDir("") }
                         }
@@ -314,6 +386,10 @@ Item {
                     RowLayout {
                         Text { text: "主题"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_12
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             model: ["浅色", "深色"]
                             currentIndex: root.themeRoot.dark ? 1 : 0
                             onActivated: root.themeRoot.dark = (index === 1)
@@ -324,6 +400,10 @@ Item {
                     RowLayout {
                         Text { text: "字体大小"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_13
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             model: ["字体大", "字体小"]
                             currentIndex: root.themeRoot.dense ? 1 : 0
                             onActivated: root.themeRoot.dense = (index === 1)
@@ -334,6 +414,10 @@ Item {
                     RowLayout {
                         Text { text: "告警声音"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_14
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             id: alarmSoundCombo
                             model: ["关闭", "开启"]
                             currentIndex: bridge.configAlarmSound() ? 1 : 0
@@ -345,6 +429,10 @@ Item {
                     RowLayout {
                         Text { text: "高对比度"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_15
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             model: ["关闭", "开启"]
                             currentIndex: root.themeRoot.contrast ? 1 : 0
                             onActivated: root.themeRoot.contrast = (index === 1)
@@ -355,6 +443,10 @@ Item {
                     RowLayout {
                         Text { text: "强调色"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
                         ComboBox {
+                            HoverHandler {
+                                id: hover_16
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             model: ["蓝色", "绿色", "橙色", "紫色", "青色"]
                             currentIndex: ["blue","green","orange","purple","teal"].indexOf(root.themeRoot.accent)
                             onActivated: root.themeRoot.accent = ["blue","green","orange","purple","teal"][index]
@@ -388,6 +480,13 @@ Item {
                             Row {
                                 spacing: 6
                                 CheckBox {
+                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                    scale: pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                    HoverHandler {
+                                        id: hover_17
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
                                     checked: !root.themeRoot.isModuleHidden(modelData[0])
                                     onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
                                 }
@@ -420,12 +519,19 @@ Item {
                         Repeater {
                             model: [
                                 ["strip","飞艇横幅"],["power","电源总览"],["device","设备卡片"],
-                                ["log","运行日志"],["readiness","就绪度"],["statusbar","状态栏"],
+                                ["log","运行日志"],["statusbar","状态栏"],
                                 ["lora","温度/压力采集"]
                             ]
                             Row {
                                 spacing: 6
                                 CheckBox {
+                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                    scale: pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                    HoverHandler {
+                                        id: hover_18
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
                                     checked: !root.themeRoot.isModuleHidden(modelData[0])
                                     onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
                                 }
@@ -493,6 +599,9 @@ Item {
                                     }
                                     Item { Layout.fillWidth: true }
                                     Rectangle {
+                                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                        scale: ma_1.pressed ? 0.96 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                         width: 34; height: 18; radius: 9
                                         color: modelData.enabled ? root.themeRoot.colOk : root.themeRoot.colOff
                                         Rectangle {
@@ -501,14 +610,23 @@ Item {
                                             anchors.left: parent.left; anchors.leftMargin: modelData.enabled ? 18 : 2
                                         }
                                         MouseArea {
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            id: ma_1
                                             anchors.fill: parent
                                             onClicked: root.toggleRule(index)
                                         }
                                     }
                                     Text {
+                                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                        scale: ma_2.pressed ? 0.96 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                         text: "删除"
                                         font.pixelSize: 11; color: root.themeRoot.colErr
                                         MouseArea {
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            id: ma_2
                                             anchors.fill: parent
                                             onClicked: { bridge.removeAlarmRule(index); root.rules = bridge.alarmRules() }
                                         }
@@ -520,14 +638,34 @@ Item {
                     Row {
                         spacing: 8
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_19
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "＋ 添加规则"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_19.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.pixelSize: 12 }
                             onClicked: root.addRule()
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_20
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "恢复默认"
-                            background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard2; border.color: (hover_20.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: { bridge.restoreDefaultRules(); root.rules = bridge.alarmRules(); root.showNote("已恢复默认告警规则") }
                         }
@@ -614,12 +752,29 @@ Item {
                 Layout.alignment: Qt.AlignRight
                 spacing: 10
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_21
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "取消"
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_21.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 13 }
                     onClicked: confirmSerialOff.close()
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_22
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "确定关闭"
                     background: Rectangle { radius: 8; color: root.themeRoot.colErrSoft; border.color: root.themeRoot.colErr }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colErr; font.pixelSize: 13; font.bold: true }
@@ -655,12 +810,29 @@ Item {
                 Layout.alignment: Qt.AlignRight
                 spacing: 10
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_23
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "取消"
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_23.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 13 }
                     onClicked: confirmRecordOff.close()
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_24
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "确定关闭"
                     background: Rectangle { radius: 8; color: root.themeRoot.colErrSoft; border.color: root.themeRoot.colErr }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colErr; font.pixelSize: 13; font.bold: true }

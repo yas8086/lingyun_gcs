@@ -62,6 +62,8 @@ public:
     Q_INVOKABLE QString dataDir() const;
     // 曲线快照目录：data/曲线快照（不存在则创建）
     Q_INVOKABLE QString snapshotDir() const;
+    // 摄像头截图/录像目录：data/摄像头/当前日期（按天分文件夹，不存在则创建）
+    Q_INVOKABLE QString cameraDir() const;
     // 数据自动记录配置（决策：逐帧原始报文落盘）
     Q_INVOKABLE bool recordEnabled() const;
     Q_INVOKABLE void setRecordEnabled(bool on);
@@ -134,6 +136,7 @@ public:
 signals:
     void telemetryChanged();                 // 有新遥测
     void linkChanged(bool online);
+    void stateChanged();                     // 串口开关 / 配置变更（模块可见性等），前端据此刷新 UI
     void alarmRaised(const QString &msg, const QString &level);
     void alarmsChanged();                    // 告警列表/计数变化
     void rulesChanged();                     // 告警规则变化

@@ -8,7 +8,8 @@ import QtQuick.Effects
 // 本文件承担：主题 token 体系、左侧导航、顶栏、内容视图切换、底部状态栏、Toast、紧急操作。
 ApplicationWindow {
     id: root
-    visible: false
+    // visible 由 visibility: Window.Maximized 隐式控制，不要显式声明 visible
+    // 避免 "Conflicting properties 'visible' and 'visibility'" 警告。
     title: "灵云01号 飞艇地面站"
     // 启动时默认最大化（与 C++ 侧 setWindowState + show() 互补）。
     // 某些窗口管理器下 C++ 设状态后按钮图标会有一拍异步延迟；这里显式声明
@@ -158,8 +159,12 @@ ApplicationWindow {
                         {name:"设置",ic:"⚙"}
                     ]
                     Rectangle {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: ma_1.pressed ? 0.96 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                         width: 64; height: 64; radius: 12
-                        color: root.currentNav === index ? root.colPrimarySoft : "transparent"
+                        color: root.currentNav === index ? root.colPrimarySoft
+                             : (ma_1.containsMouse ? root.colCard2 : "transparent")
                         // 激活指示条（原 prototype .nav-item.active::before）
                         Rectangle {
                             visible: root.currentNav === index
@@ -206,6 +211,9 @@ ApplicationWindow {
                             }
                         }
                         MouseArea {
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            id: ma_1
                             anchors.fill: parent
                             onClicked: root.currentNav = index
                         }
@@ -250,6 +258,9 @@ ApplicationWindow {
                         Repeater {
                             model: [["bms","BMS"],["mppt","MPPT"],["dcdc","DCDC"],["backup","备用电源"]]
                             Rectangle {
+                                // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                scale: ma_2.pressed ? 0.96 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                 id: devLamp
                                 property string devKey: modelData[0]
                                 Layout.preferredHeight: 26; radius: 8
@@ -272,6 +283,9 @@ ApplicationWindow {
                                     }
                                 }
                                 MouseArea {
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    id: ma_2
                                     anchors.fill: parent
                                     onClicked: {
                                         if (devPop.opened && root.activeDevPop === modelData[0]) {
@@ -286,16 +300,36 @@ ApplicationWindow {
                         }
                         // 密度 / 主题 切换（原型顶栏按钮）
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_1
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: root.dense ? "字体：小" : "字体：大"
                             Layout.rightMargin: 10
-                            background: Rectangle { radius: 10; color: root.colCard2; border.color: root.colLine }
+                            background: Rectangle {
+                                radius: 10; color: root.colCard2; border.color: (hover_1.hovered ? root.colPrimary : root.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.colText2; font.bold: true }
                             onClicked: root.dense = !root.dense
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_2
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: root.dark ? "浅色" : "深色"
                             Layout.rightMargin: 10
-                            background: Rectangle { radius: 10; color: root.colCard2; border.color: root.colLine }
+                            background: Rectangle {
+                                radius: 10; color: root.colCard2; border.color: (hover_2.hovered ? root.colPrimary : root.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.colText2; font.bold: true }
                             onClicked: root.dark = !root.dark
                         }
@@ -312,6 +346,9 @@ ApplicationWindow {
                     Connections {
                         target: bridge
                         function onTelemetryChanged() { root.dataTick++ }
+                        // 串口开关/配置变更（模块可见性等）也要驱动 dataTick，
+                        // 否则 isModuleHidden/serialIsOpen 等依赖 dataTick 的绑定不刷新
+                        function onStateChanged() { root.dataTick++ }
                     }
 
                     // 监控页
@@ -755,9 +792,17 @@ ApplicationWindow {
                     Text { text: "⚠ 紧急操作"; font.bold: true; font.pixelSize: 15; color: root.colErr }
                     Item { Layout.fillWidth: true }
                     Button {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: pressed ? 0.94 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                        HoverHandler {
+                            id: hover_3
+                            cursorShape: Qt.PointingHandCursor
+                        }
                         text: "✕"
                         width: 30; height: 30
                         background: Rectangle {
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
                             radius: 8; color: "transparent"
                             border.color: "transparent"
                         }
@@ -780,6 +825,9 @@ ApplicationWindow {
                 Repeater {
                     model: root.emgActions
                     Rectangle {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: ma_3.pressed ? 0.96 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                         Layout.fillWidth: true; Layout.preferredHeight: 42; radius: 10
                         color: root.emgSelected === index ? root.colErrSoft : root.colCard2
                         border.color: root.emgSelected === index ? root.colErr : root.colLine
@@ -790,6 +838,9 @@ ApplicationWindow {
                             font.bold: root.emgSelected === index
                         }
                         MouseArea {
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            id: ma_3
                             anchors.fill: parent
                             onClicked: root.emgSelected = index
                         }
@@ -819,6 +870,9 @@ ApplicationWindow {
                         visible: root.emgConfirmVisible
                     }
                     Rectangle {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: ma_4.pressed ? 0.96 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                         id: emgSlide
                         width: 42; height: 42; radius: 12
                         color: root.emgConfirmVisible ? root.colOk : root.colErr
@@ -829,6 +883,9 @@ ApplicationWindow {
                             color: "white"; font.bold: true; font.pixelSize: 18
                         }
                         MouseArea {
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            id: ma_4
                             anchors.fill: parent
                             drag.target: emgSlide
                             drag.axis: Drag.XAxis

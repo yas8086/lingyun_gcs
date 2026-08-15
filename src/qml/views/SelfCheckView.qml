@@ -72,6 +72,13 @@ Item {
                     }
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_1
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "重新自检"
                     background: Rectangle { radius: 10; color: root.themeRoot.colPrimarySoft; border.color: root.themeRoot.colPrimary }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.bold: true }

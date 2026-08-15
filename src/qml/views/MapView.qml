@@ -211,6 +211,13 @@ Item {
                 Repeater {
                     model: ["街道", "影像"]
                     Button {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: pressed ? 0.94 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                        HoverHandler {
+                            id: hover_1
+                            cursorShape: Qt.PointingHandCursor
+                        }
                         width: 52; height: 30
                         text: modelData
                         padding: 0
@@ -230,9 +237,19 @@ Item {
             Row {
                 spacing: 6
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_2
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     width: 40; height: 30; text: "＋"
                     padding: 0
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_2.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text {
                         text: parent.text
                         anchors.fill: parent
@@ -243,9 +260,19 @@ Item {
                     onClicked: { root.zoom = Math.min(18, root.zoom + 1); canvas.requestPaint() }
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_3
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     width: 40; height: 30; text: "－"
                     padding: 0
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_3.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text {
                         text: parent.text
                         anchors.fill: parent
@@ -256,9 +283,19 @@ Item {
                     onClicked: { root.zoom = Math.max(3, root.zoom - 1); canvas.requestPaint() }
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_4
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     width: 40; height: 30; text: "回中"
                     padding: 0
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_4.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text {
                         text: parent.text
                         anchors.fill: parent
@@ -269,10 +306,20 @@ Item {
                     onClicked: { root.centerLon = root.homePos.lon; root.centerLat = root.homePos.lat; canvas.requestPaint() }
                 }
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_5
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     width: 46; height: 30; text: "跟随"
                     padding: 0
                     background: Rectangle { radius: 8; color: root.follow ? root.themeRoot.colPrimarySoft : root.themeRoot.colCard2; border.color: root.follow ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                     contentItem: Text {
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                        scale: dragArea.pressed ? 0.96 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                         text: parent.text
                         anchors.fill: parent
                         horizontalAlignment: Text.AlignHCenter
@@ -287,6 +334,8 @@ Item {
 
         // ===== 平移 / 缩放交互 =====
         MouseArea {
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             id: dragArea
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton

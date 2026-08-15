@@ -58,6 +58,8 @@ void TelemetryBridge::setConfigHiddenModule(const QString &key, bool hidden) {
     if (hidden) set.insert(key);
     else set.remove(key);
     config_->setHiddenModules(set);
+    // 通知前端刷新（各模块 visible 依赖 dataTick 重算，否则勾选不生效）
+    emit stateChanged();
 }
 
 // ---- 配置导入导出（决策：跨设备快速配置）----

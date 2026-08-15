@@ -22,11 +22,20 @@ Item {
     property int layout: 1        // 1=单路 2=双路 4=四路
     property bool osdOn: true     // OSD 叠加开关
     property bool recOn: false    // 录像状态
+    property int recStart: 0      // 录像开始时间戳（毫秒），用于停止时计算时长
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0      // 当前比例下标
 
     function toast(msg) { root.showNote(msg) }
+
+    // 时间戳 → 本地 yyyy-MM-dd HH:mm:ss（录像会话记录用）
+    function fmtTs(ts) {
+        var d = new Date(ts)
+        function p(n) { return n < 10 ? "0" + n : "" + n }
+        return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate())
+             + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -85,6 +94,9 @@ Item {
             Repeater {
                 model: root.cams
                 Rectangle {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: ma_1.pressed ? 0.96 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                     property bool isActive: index === root.curCam
                     id: tabItem
                     width: lbl.implicitWidth + 28
@@ -108,6 +120,9 @@ Item {
                         }
                     }
                     MouseArea {
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        id: ma_1
                         anchors.fill: parent
                         onClicked: {
                             root.curCam = index
@@ -144,6 +159,7 @@ Item {
                 columnSpacing: 10
                 rowSpacing: 10
                 Repeater {
+                    id: camRep
                     model: root.cams
                     // 单路/双路时只显示前 N 路，四路全显
                     Item {
@@ -283,19 +299,48 @@ Item {
                 anchors.rightMargin: 12
                 spacing: 8
 
-                // 截图
+                // 截图（grabToImage 抓当前相机画面 → 按天目录保存 PNG）
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_1
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "📷 截图"
                     Layout.preferredHeight: 32
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_1.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold }
-                    onClicked: root.toast("已保存截图 snapshot_" + Date.now() + ".png")
+                    onClicked: {
+                        var it = camRep.itemAt(root.curCam)
+                        if (!it) { root.toast("无可用画面，截图失败"); return }
+                        var dir = bridge.cameraDir()
+                        var name = "snapshot_" + Date.now() + ".png"
+                        it.grabToImage(function(result) {
+                            if (result.saveToFile("file://" + dir + "/" + name))
+                                root.toast("已保存截图 " + name)          // 对齐原型 toast('已保存截图 …')
+                            else
+                                root.toast("截图保存失败")
+                        })
+                    }
                 }
-                // 录像
+                // 录像（开始/停止；停止时在按天目录落盘会话记录文件）
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_2
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: root.recOn ? "⬛ 停止录像" : "⏺ 录像"
                     Layout.preferredHeight: 32
                     background: Rectangle {
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
                         radius: 8
                         color: root.recOn ? root.themeRoot.colErr : root.themeRoot.colCard2
                         border.color: root.recOn ? root.themeRoot.colErr : root.themeRoot.colLine
@@ -305,15 +350,40 @@ Item {
                         font.pixelSize: 12; font.weight: Font.DemiBold
                     }
                     onClicked: {
-                        root.recOn = !root.recOn
-                        root.toast(root.recOn ? "开始录像（保存至本地）" : "录像已停止")
+                        if (!root.recOn) {
+                            root.recOn = true
+                            root.recStart = Date.now()
+                            bridge.cameraDir()               // 确保当天目录已存在
+                            root.toast("开始录像（保存至本地）")
+                        } else {
+                            root.recOn = false
+                            var dur = Math.max(1, Math.round((Date.now() - root.recStart) / 1000))
+                            var dir = bridge.cameraDir()
+                            var name = "rec_" + Date.now() + ".txt"
+                            var content = "灵云01 摄像头录像会话\n"
+                                + "相机：" + root.cams[root.curCam].name + "\n"
+                                + "开始时间：" + root.fmtTs(root.recStart) + "\n"
+                                + "结束时间：" + root.fmtTs(Date.now()) + "\n"
+                                + "时长：" + dur + " 秒\n"
+                                + "说明：当前为会话占位记录，接入网口视频流后替换为真实视频文件"
+                            var ok = bridge.writeTextFile(dir + "/" + name, content)
+                            root.toast(ok ? "录像已保存 " + name : "录像保存失败")
+                        }
                     }
                 }
                 // OSD 叠加
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_3
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: root.osdOn ? "≡ OSD 叠加" : "≡ OSD 叠加"
                     Layout.preferredHeight: 32
                     background: Rectangle {
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
                         radius: 8
                         color: root.osdOn ? root.themeRoot.colPrimary : root.themeRoot.colCard2
                         border.color: root.osdOn ? root.themeRoot.colPrimary : root.themeRoot.colLine
@@ -329,9 +399,19 @@ Item {
                 }
                 // 画面比例切换（对齐原型 camRatio：16:9 / 4:3 / 1:1 / 填充 循环）
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_4
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "比例 " + root.ratios[root.ratioIdx][1]
                     Layout.preferredHeight: 32
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_4.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold }
                     onClicked: {
                         root.ratioIdx = (root.ratioIdx + 1) % root.ratios.length
@@ -342,9 +422,19 @@ Item {
                 Rectangle { width: 1; height: 20; color: root.themeRoot.colLine }
                 // 重连
                 Button {
+                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                    scale: pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    HoverHandler {
+                        id: hover_5
+                        cursorShape: Qt.PointingHandCursor
+                    }
                     text: "↻ 重连"
                     Layout.preferredHeight: 32
-                    background: Rectangle { radius: 8; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                    background: Rectangle {
+                        radius: 8; color: root.themeRoot.colCard2; border.color: (hover_5.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold }
                     onClicked: root.toast("正在重连网口视频流…")
                 }
@@ -361,6 +451,9 @@ Item {
                     Repeater {
                         model: [1, 2, 4]
                         Rectangle {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: ma_2.pressed ? 0.96 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                             property bool isLayActive: root.layout === modelData
                             width: 26; height: 26; radius: 6
                             color: isLayActive ? root.themeRoot.colPrimary : root.themeRoot.colCard2
@@ -381,6 +474,9 @@ Item {
                                 }
                             }
                             MouseArea {
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                id: ma_2
                                 anchors.fill: parent
                                 onClicked: root.layout = modelData
                             }

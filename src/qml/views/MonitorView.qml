@@ -204,6 +204,13 @@ Item {
                             MouseArea { anchors.fill: parent; onClicked: root.themeRoot.openReadPop(stripReadyPill) }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_1
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "紧急操作"
                             Layout.preferredHeight: 43
                             leftPadding: 17; rightPadding: 17; topPadding: 0; bottomPadding: 0
@@ -212,10 +219,20 @@ Item {
                             onClicked: root.themeRoot.openEmergency()
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_2
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: root.stripCollapsed ? "▾ 展开" : "▴ 收起"
                             Layout.preferredHeight: 43
                             leftPadding: 17; rightPadding: 17; topPadding: 0; bottomPadding: 0
-                            background: Rectangle { radius: 10; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 10; color: root.themeRoot.colCard2; border.color: (hover_2.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.bold: true; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             onClicked: root.stripCollapsed = !root.stripCollapsed
                         }
@@ -283,6 +300,9 @@ Item {
 
                 // ---- BMS 电池管理 ----
                 Rectangle {
+                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
+                    transform: Translate { y: devHover1.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover1 }
                     Layout.fillWidth: true; Layout.preferredHeight: 260
                     radius: 14
                     color: root.themeRoot.colCard
@@ -390,6 +410,9 @@ Item {
 
                 // ---- MPPT 光伏 ----
                 Rectangle {
+                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
+                    transform: Translate { y: devHover2.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover2 }
                     Layout.fillWidth: true; Layout.preferredHeight: 260
                     radius: 14
                     color: root.themeRoot.colCard
@@ -451,6 +474,9 @@ Item {
 
                 // ---- DCDC 电源模块 ----
                 Rectangle {
+                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
+                    transform: Translate { y: devHover3.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover3 }
                     Layout.fillWidth: true; Layout.preferredHeight: 260
                     radius: 14
                     color: root.themeRoot.colCard
@@ -512,6 +538,9 @@ Item {
 
                 // ---- 备用电源（12S 备用 BMS）----
                 Rectangle {
+                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
+                    transform: Translate { y: devHover4.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover4 }
                     Layout.fillWidth: true; Layout.preferredHeight: 260
                     radius: 14
                     color: root.themeRoot.colCard
@@ -660,6 +689,9 @@ Item {
                         Repeater {
                             model: [["all","全部"],["alarm","仅告警"]]
                             Rectangle {
+                                // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                scale: ma_1.pressed ? 0.96 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                 radius: 7; implicitWidth: 50; implicitHeight: 26
                                 color: root.logFilter === modelData[0] ? root.themeRoot.colPrimary : root.themeRoot.colCard2
                                 Text {
@@ -668,14 +700,27 @@ Item {
                                     color: root.logFilter === modelData[0] ? "white" : root.themeRoot.colText2
                                 }
                                 MouseArea {
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    id: ma_1
                                     anchors.fill: parent
                                     onClicked: root.logFilter = modelData[0]
                                 }
                             }
                         }
                         Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_3
+                                cursorShape: Qt.PointingHandCursor
+                            }
                             text: "清空"
-                            background: Rectangle { radius: 7; color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine }
+                            background: Rectangle {
+                                radius: 7; color: root.themeRoot.colCard2; border.color: (hover_3.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
                             onClicked: { root.logStream = []; root.clearAlarms() }
                         }
@@ -700,6 +745,9 @@ Item {
                             Text { text: modelData.msg; elide: Text.ElideRight; Layout.fillWidth: true; color: root.themeRoot.colText; font.pixelSize: 12 }
                             // 告警确认按钮
                             Rectangle {
+                                // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                                scale: ma_2.pressed ? 0.96 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                 visible: modelData.type === "alarm"
                                 width: 52; height: 20; radius: 6
                                 color: root.themeRoot.colCard2
@@ -709,6 +757,9 @@ Item {
                                     color: root.themeRoot.colErr
                                 }
                                 MouseArea {
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    id: ma_2
                                     anchors.fill: parent
                                     onClicked: root.confirmLogAlarm(modelData)
                                 }
