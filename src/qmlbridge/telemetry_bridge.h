@@ -104,6 +104,13 @@ public:
     Q_INVOKABLE QString configMapKey() const;
     Q_INVOKABLE void setConfigMapKey(const QString &key);
 
+    // 相机拉流配置（RTSP）：QVariantList<QVariantMap{id,name,enable,ip,port,path,user,pass,stream,transport,fps}>
+    Q_INVOKABLE QVariantList cameraConfigs() const;
+    Q_INVOKABLE void saveCameraConfigs(const QVariant &list);
+    // 摄像头布局档位：1/2/4/a（全部），JSON 持久化
+    Q_INVOKABLE QString cameraLay() const;
+    Q_INVOKABLE void setCameraLay(const QString &lay);
+
     // 告警列表与确认（决策 #20）
     void addAlarm(const QString &msg, const QString &level, const QString &source);
     Q_INVOKABLE QVariant alarms() const;          // 返回 QVariantList<QVariantMap>

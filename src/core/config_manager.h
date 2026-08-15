@@ -4,6 +4,7 @@
 #include <QVector>
 #include <QSet>
 #include <QJsonObject>
+#include <QJsonArray>
 #include "core/alarm_engine.h"
 
 namespace lgs {
@@ -72,6 +73,12 @@ public:
     void setMapSource(int source);
     QString mapKey() const;
     void setMapKey(const QString &key);
+
+    // 相机拉流配置（RTSP 相机列表，JSON 数组）+ 布局档位（1/2/4/a）
+    QJsonArray cameraConfigs() const;
+    void setCameraConfigs(const QJsonArray &arr);
+    QString cameraLay() const;
+    void setCameraLay(const QString &lay);
 
     QString filePath() const;
     // 重载：重新从磁盘读取配置到内存缓存（导入配置后调用，避免前端读到旧值）

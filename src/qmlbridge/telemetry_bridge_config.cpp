@@ -62,6 +62,60 @@ void TelemetryBridge::setConfigHiddenModule(const QString &key, bool hidden) {
     emit stateChanged();
 }
 
+// ---- 相机拉流配置（RTSP 相机列表 + 布局档位，经 ConfigManager JSON 持久化）----
+QVariantList TelemetryBridge::cameraConfigs() const {
+    QVariantList list;
+    if (!config_) return list;
+    const QJsonArray arr = config_->cameraConfigs();
+    for (const auto &v : arr) {
+        const QJsonObject o = v.toObject();
+        QVariantMap m;
+        m["id"] = o.value("id").toString();
+        m["name"] = o.value("name").toString();
+        m["enable"] = o.value("enable").toBool(false);
+        m["ip"] = o.value("ip").toString();
+        m["port"] = o.value("port").toInt(554);
+        m["path"] = o.value("path").toString();
+        m["user"] = o.value("user").toString();
+        m["pass"] = o.value("pass").toString();
+        m["stream"] = o.value("stream").toString();
+        m["transport"] = o.value("transport").toString();
+        m["fps"] = o.value("fps").toInt(25);
+        list.append(m);
+    }
+    return list;
+}
+void TelemetryBridge::saveCameraConfigs(const QVariant &list) {
+    if (!config_) return;
+    QJsonArray arr;
+    const QVariantList ls = list.toList();
+    for (const auto &v : ls) {
+        const QVariantMap m = v.toMap();
+        QJsonObject o;
+        o["id"] = m.value("id").toString();
+        o["name"] = m.value("name").toString();
+        o["enable"] = m.value("enable").toBool();
+        o["ip"] = m.value("ip").toString();
+        o["port"] = m.contains("port") ? m.value("port").toInt() : 554;
+        o["path"] = m.value("path").toString();
+        o["user"] = m.value("user").toString();
+        o["pass"] = m.value("pass").toString();
+        o["stream"] = m.value("stream").toString();
+        o["transport"] = m.value("transport").toString();
+        o["fps"] = m.contains("fps") ? m.value("fps").toInt() : 25;
+        arr.append(o);
+    }
+    config_->setCameraConfigs(arr);
+    // 通知前端刷新（摄像头页 tab/网格等依赖 stateChanged 重算）
+    emit stateChanged();
+}
+QString TelemetryBridge::cameraLay() const {
+    return config_ ? config_->cameraLay() : QStringLiteral("1");
+}
+void TelemetryBridge::setCameraLay(const QString &lay) {
+    if (config_) config_->setCameraLay(lay);
+}
+
 // ---- 配置导入导出（决策：跨设备快速配置）----
 QString TelemetryBridge::configFilePath() const {
     return config_ ? config_->filePath() : QString();

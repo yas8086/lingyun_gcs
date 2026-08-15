@@ -212,6 +212,17 @@ void ConfigManager::setMapSource(int source) { set("map_source", source); }
 QString ConfigManager::mapKey() const { return value("map_key").toString(); }
 void ConfigManager::setMapKey(const QString &key) { set("map_key", key); }
 
+// ---- 相机拉流配置（RTSP 相机列表 + 布局档位）----
+QJsonArray ConfigManager::cameraConfigs() const {
+    return value("camera_configs").toArray();
+}
+void ConfigManager::setCameraConfigs(const QJsonArray &arr) { set("camera_configs", arr); }
+QString ConfigManager::cameraLay() const {
+    const QString v = value("camera_lay").toString();
+    return (v == "1" || v == "2" || v == "4" || v == "a") ? v : "1";
+}
+void ConfigManager::setCameraLay(const QString &lay) { set("camera_lay", lay); }
+
 // 保留 alarmSoundEnabled 访问（header 有声明）
 bool ConfigManager::alarmSoundEnabled() const {
     return value("alarm_sound", false).toBool(false);
