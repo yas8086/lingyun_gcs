@@ -29,19 +29,22 @@ Item {
     property var cfgDraft: []
     property string cfgDraftSel: ""  // 草稿当前编辑相机 id
     property var cfgSelIds: []       // 打开弹窗时记选中相机 id（保存后按 id 重建 selected）
+    // 云台控制焦点相机索引（对齐原型 focusIdx：点击画面格/tab 切换，控制盘跟随）
+    property int focusIdx: 0
+    property bool ptzFolded: false   // 云台控制盘折叠状态
     // 思翼云台（A2 mini）：持有其相机 id，SDK 会话随页面启动（特征：RTSP 端口 8554）
     property string gimbalCamId: ""
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0
 
-    // ===== 默认相机配置（对齐原型 CAM_CFG_DEFAULT）=====
+    // ===== 默认相机配置（对齐原型 CAM_CFG_DEFAULT，ptz=云台相机标记）=====
     // 前视相机 cam_0 为当前真实接入摄像头：rtsp://192.168.144.25:8554/main.264（无认证）
     property var camDefault: [
-        {id:"cam_0", name:"前视相机", enable:true,  ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
-        {id:"cam_1", name:"后视相机", enable:true,  ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
-        {id:"cam_2", name:"吊舱相机", enable:false, ip:"192.168.1.103", port:554, path:"/live/stream2", user:"admin", pass:"12345", stream:"主码流", transport:"UDP", fps:25},
-        {id:"cam_3", name:"地面相机", enable:true,  ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
+        {id:"cam_0", name:"前视相机", enable:true,  ptz:true,  ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_1", name:"后视相机", enable:true,  ptz:false, ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_2", name:"吊舱相机", enable:false, ptz:true,  ip:"192.168.1.103", port:554, path:"/live/stream2", user:"admin", pass:"12345", stream:"主码流", transport:"UDP", fps:25},
+        {id:"cam_3", name:"地面相机", enable:true,  ptz:false, ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
     ]
 
     function toast(msg, type) { root.showNote(msg, type || "ok") }
@@ -180,7 +183,13 @@ Item {
             root.camCfg = root.camDefault.map(function(c){ return Object.assign({}, c) })
             bridge.saveCameraConfigs(root.camCfg)
         } else {
-            root.camCfg = cfg
+            // 旧配置迁移：无 ptz 字段的项按默认配置对应索引补齐（对齐原型迁移逻辑）
+            root.camCfg = cfg.map(function(c, i) {
+                var o = Object.assign({}, c)
+                if (o.ptz === undefined)
+                    o.ptz = (root.camDefault[i] && i < root.camDefault.length) ? !!root.camDefault[i].ptz : false
+                return o
+            })
         }
         // 相机 id 序号（不复用）
         var mx = 0
@@ -476,6 +485,8 @@ Item {
                         id: tabMa
                         anchors.fill: parent
                         onClicked: {
+                            // 点击 tab 同时设为云台控制焦点（对齐原型 focusIdx）
+                            root.focusIdx = index
                             // tab 多选 toggle：点已选=取消；未选=选中，满上限顶掉最早选中（FIFO）
                             var arr = root.selected.slice()
                             var pos = arr.indexOf(index)
@@ -548,6 +559,8 @@ Item {
                         property bool viewOn: root.selected.indexOf(index) >= 0
                         property bool live: modelData.enable
                         property bool viewActive: viewOn && root.layMode === "1" ? true : viewOn && root.selected.length === 1
+                        // 云台焦点格（对齐原型 .cam-view.focus）：选中+启用+云台相机+当前焦点
+                        property bool ptzFocus: viewOn && live && modelData.ptz && root.focusIdx === index
                         visible: viewOn
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -559,15 +572,23 @@ Item {
                             radius: 12
                             clip: true
                             color: "black"
-                            border.width: viewOn && root.selected.length === 1 ? 2 : 1
-                            border.color: viewOn && root.selected.length === 1 ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                            border.width: viewItem.ptzFocus ? 2 : (viewOn && root.selected.length === 1 ? 2 : 1)
+                            border.color: viewItem.ptzFocus ? "#ffffff"
+                                        : (viewOn && root.selected.length === 1 ? root.themeRoot.colPrimary : root.themeRoot.colLine)
 
-                            // 全画面 hover 检测（.cam-view:hover 显示 cam-ov），z 最低不拦截其它交互
+                            // 点击画面格设为云台控制焦点（z 低，不拦截悬浮控制/控制盘点击）
+                            MouseArea {
+                                anchors.fill: parent
+                                z: 0
+                                onClicked: if (root.focusIdx !== index) root.focusIdx = index
+                            }
+
+                            // 全画面 hover 检测（.cam-view:hover 显示 cam-ov），z 低于焦点点击层，仅探测 hover
                             MouseArea {
                                 id: viewHover
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                z: 0
+                                z: -1
                             }
 
                             // 视频画面占位（深蓝径向渐变模拟），radius 与外层一致
@@ -671,6 +692,159 @@ Item {
                                     Text {
                                         text: "REC " + root.fmtDur(root.recElapsed)
                                         font.pixelSize: 11; font.weight: Font.Bold; font.family: "monospace"; color: "#ffffff"
+                                    }
+                                }
+                            }
+
+                            // ===== 云台控制盘（.ptz-panel：焦点格左下角悬浮，可折叠）=====
+                            // 对齐原型：头部"云台 · 相机名"+折叠钮；3×3 方向键（8向+红色停止）+ 变倍列；
+                            // 按住连续控制（260ms 重复）；真实指令走思翼 SDK（A2 mini 仅俯仰轴生效）
+                            Rectangle {
+                                id: ptzPanel
+                                visible: viewItem.ptzFocus
+                                anchors.left: parent.left
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 10
+                                radius: 10
+                                color: Qt.rgba(8/255, 14/255, 26/255, 0.74)
+                                border.color: Qt.rgba(1, 1, 1, 0.14)
+                                border.width: 1
+                                implicitWidth: 172
+                                implicitHeight: root.ptzFolded ? 26 : ptzBodyCol.implicitHeight + 26
+                                // 方向按钮发出指令（yaw,pitch）：A2 mini 仅 pitch 生效；速度 40 中速
+                                function move(yaw, pitch) {
+                                    if (root.gimbalCamId === modelData.id && bridge.gimbalConnected)
+                                        bridge.gimbalCtrlMove(yaw, pitch)
+                                }
+                                Column {
+                                    id: ptzBodyCol
+                                    anchors.top: parent.top
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    spacing: 0
+
+                                    // 头部（.ptz-head）：标题 + 折叠按钮
+                                    Item {
+                                        width: parent.width
+                                        height: 26
+                                        Text {
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - 36
+                                            text: "云台 · " + modelData.name
+                                            font.pixelSize: 11; font.weight: Font.Bold; color: "#cfe0ff"
+                                            elide: Text.ElideRight
+                                        }
+                                        // 折叠按钮（— / ＋）
+                                        Rectangle {
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 4
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 20; height: 20; radius: 4
+                                            color: foldMa.pressed ? Qt.rgba(255,255,255,0.15) : "transparent"
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: root.ptzFolded ? "＋" : "—"
+                                                color: "#8aa0bf"; font.pixelSize: 12
+                                            }
+                                            MouseArea {
+                                                id: foldMa
+                                                anchors.fill: parent
+                                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.ptzFolded = !root.ptzFolded
+                                            }
+                                        }
+                                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1,1,1,0.08) }
+                                    }
+
+                                    // 主体（.ptz-body）：方向九宫格 + 变倍列
+                                    Row {
+                                        visible: !root.ptzFolded
+                                        leftPadding: 8; rightPadding: 8
+                                        topPadding: 8; bottomPadding: 8
+                                        spacing: 8
+
+                                        // 3×3 方向键（.ptz-dir：28×28 格，gap 3）
+                                        Grid {
+                                            columns: 3
+                                            spacing: 3
+                                            // 按钮组件：按住连续触发（260ms），松手停止
+                                            component PtzBtn: Rectangle {
+                                                id: pb
+                                                property string glyph: ""
+                                                property bool isStop: false
+                                                property int mvYaw: 0
+                                                property int mvPitch: 0
+                                                property bool isMove: true     // false=停止按钮（发 0,0）
+                                                width: 28; height: 28; radius: 6
+                                                color: ma.pressed
+                                                       ? (isStop ? "#dc2626" : root.themeRoot.colPrimary)
+                                                       : (isStop ? Qt.rgba(220/255,38/255,38/255,0.25) : Qt.rgba(1,1,1,0.07))
+                                                border.width: 1
+                                                border.color: ma.pressed
+                                                       ? (isStop ? "#dc2626" : root.themeRoot.colPrimary)
+                                                       : (isStop ? Qt.rgba(220/255,38/255,38/255,0.5) : Qt.rgba(1,1,1,0.16))
+                                                Behavior on color { ColorAnimation { duration: 100 } }
+                                                Text { anchors.centerIn: parent; text: pb.glyph; color: "#dbe6ff"; font.pixelSize: isStop ? 10 : 12 }
+                                                MouseArea {
+                                                    id: ma
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onPressed: {
+                                                        ptzPanel.move(pb.mvYaw, pb.mvPitch)
+                                                        repeatT.restart()
+                                                    }
+                                                    onReleased: { repeatT.stop(); ptzPanel.move(0, 0) }
+                                                    onCanceled: { repeatT.stop(); ptzPanel.move(0, 0) }
+                                                    // 按住连续（对齐原型 260ms 间隔）
+                                                    Timer {
+                                                        id: repeatT
+                                                        interval: 260; repeat: true
+                                                        onTriggered: ptzPanel.move(pb.mvYaw, pb.mvPitch)
+                                                    }
+                                                }
+                                            }
+                                            PtzBtn { glyph: "◤"; mvYaw: -40; mvPitch: 40 }    // 左上
+                                            PtzBtn { glyph: "▲"; mvYaw: 0;   mvPitch: 40 }    // 上（俯仰+）
+                                            PtzBtn { glyph: "◥"; mvYaw: 40;  mvPitch: 40 }    // 右上
+                                            PtzBtn { glyph: "◀"; mvYaw: -40; mvPitch: 0 }     // 左
+                                            PtzBtn { glyph: "●"; isStop: true; mvYaw: 0; mvPitch: 0 }  // 停止
+                                            PtzBtn { glyph: "▶"; mvYaw: 40;  mvPitch: 0 }     // 右
+                                            PtzBtn { glyph: "◣"; mvYaw: -40; mvPitch: -40 }   // 左下
+                                            PtzBtn { glyph: "▼"; mvYaw: 0;   mvPitch: -40 }   // 下（俯仰-）
+                                            PtzBtn { glyph: "◢"; mvYaw: 40;  mvPitch: -40 }   // 右下
+                                        }
+
+                                        // 变倍列（.ptz-zoom）：A2 mini 不支持变倍，点击提示
+                                        Column {
+                                            spacing: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Rectangle {
+                                                width: 28; height: 28; radius: 6
+                                                color: zinMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
+                                                border.width: 1; border.color: Qt.rgba(1,1,1,0.16)
+                                                Text { anchors.centerIn: parent; text: "＋"; color: "#dbe6ff"; font.pixelSize: 14; font.weight: Font.Bold }
+                                                MouseArea {
+                                                    id: zinMa
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                }
+                                            }
+                                            Rectangle {
+                                                width: 28; height: 28; radius: 6
+                                                color: zoutMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
+                                                border.width: 1; border.color: Qt.rgba(1,1,1,0.16)
+                                                Text { anchors.centerIn: parent; text: "－"; color: "#dbe6ff"; font.pixelSize: 14; font.weight: Font.Bold }
+                                                MouseArea {
+                                                    id: zoutMa
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -898,62 +1072,7 @@ Item {
                         root.toast("画面比例：" + root.ratios[root.ratioIdx][1])
                     }
                 }
-                // 思翼云台俯仰控制（A2 mini 单轴：按住上仰/下俯，松手停；回中按钮）
-                // 速度指令 0x07 按下发、松手发 0 停止；状态点显示 SDK 连接
-                Row {
-                    visible: root.gimbalCamId !== ""
-                    spacing: 5
-                    Layout.alignment: Qt.AlignVCenter
-                    // 上仰（按住）
-                    Rectangle {
-                        width: 34; height: 32; radius: 8
-                        color: gmUpMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
-                        border.color: gmUpMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text { anchors.centerIn: parent; text: "▲"; color: root.themeRoot.colText; font.pixelSize: 12 }
-                        MouseArea {
-                            id: gmUpMa
-                            anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onPressed: if (bridge.gimbalConnected) bridge.gimbalPitchCtrl(40)
-                            onReleased: bridge.gimbalPitchCtrl(0)
-                            onCanceled: bridge.gimbalPitchCtrl(0)
-                        }
-                    }
-                    // 回中
-                    Rectangle {
-                        width: 48; height: 32; radius: 8
-                        color: gmCtrMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
-                        border.color: root.themeRoot.colLine
-                        Text { anchors.centerIn: parent; text: "回中"; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold }
-                        MouseArea {
-                            id: gmCtrMa
-                            anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (!bridge.gimbalConnected) { root.toast("云台未连接", "err"); return }
-                                bridge.gimbalCenter()
-                                root.toast("云台回中")
-                            }
-                        }
-                    }
-                    // 下俯（按住）
-                    Rectangle {
-                        width: 34; height: 32; radius: 8
-                        color: gmDnMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
-                        border.color: gmDnMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text { anchors.centerIn: parent; text: "▼"; color: root.themeRoot.colText; font.pixelSize: 12 }
-                        MouseArea {
-                            id: gmDnMa
-                            anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onPressed: if (bridge.gimbalConnected) bridge.gimbalPitchCtrl(-40)
-                            onReleased: bridge.gimbalPitchCtrl(0)
-                            onCanceled: bridge.gimbalPitchCtrl(0)
-                        }
-                    }
-                }
+                // 云台控制已迁移为悬浮控制盘（对齐原型 .ptz-panel，跟随焦点相机显示在画面格左下角）
                 // 分隔线
                 Rectangle { width: 1; height: 20; color: root.themeRoot.colLine }
                 // 重连（.cam-btn #camConn：对所有启用且选中的流执行真实 reconnect）
@@ -1144,6 +1263,23 @@ Item {
                                         color: modelData.enable ? root.themeRoot.colOk : root.themeRoot.colOff
                                     }
                                     Text { text: modelData.name; font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText }
+                                    // 云台徽章（.cl-ptz：10px 绿边绿字圆角4）
+                                    Rectangle {
+                                        visible: modelData.ptz === true
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: ptzBadgeText.implicitWidth + 8; height: 16
+                                        radius: 4
+                                        border.width: 1
+                                        border.color: root.themeRoot.colOk
+                                        color: "transparent"
+                                        Text {
+                                            id: ptzBadgeText
+                                            anchors.centerIn: parent
+                                            text: "云台"
+                                            font.pixelSize: 10; font.weight: Font.Bold
+                                            color: root.themeRoot.colOk
+                                        }
+                                    }
                                     Text {
                                         Layout.fillWidth: true
                                         elide: Text.ElideMiddle
@@ -1278,6 +1414,57 @@ Item {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: cfgEnableBox.checked = !cfgEnableBox.checked
+                            }
+                        }
+                        // 云台控制（对齐原型 cfgPtz：该相机支持 PTZ 转动/变倍）
+                        Item {
+                            id: cfgPtzBox
+                            property bool checked: false
+                            implicitHeight: 20
+                            implicitWidth: ptzEnableRow.implicitWidth
+                            Row {
+                                id: ptzEnableRow
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 13; height: 13; radius: 3
+                                    border.width: 1
+                                    border.color: cfgPtzBox.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                                    color: cfgPtzBox.checked ? root.themeRoot.colPrimary : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Canvas {
+                                        anchors.fill: parent
+                                        anchors.margins: 2
+                                        visible: cfgPtzBox.checked
+                                        onVisibleChanged: if (visible) requestPaint()
+                                        onPaint: {
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+                                            ctx.strokeStyle = "white"
+                                            ctx.lineWidth = 1.6
+                                            ctx.lineCap = "round"
+                                            ctx.lineJoin = "round"
+                                            ctx.beginPath()
+                                            ctx.moveTo(width * 0.12, height * 0.55)
+                                            ctx.lineTo(width * 0.38, height * 0.82)
+                                            ctx.lineTo(width * 0.88, height * 0.18)
+                                            ctx.stroke()
+                                        }
+                                    }
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "云台控制（该相机支持 PTZ 转动 / 变倍）"
+                                    font.pixelSize: 12; font.weight: Font.DemiBold
+                                    color: root.themeRoot.colText
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: cfgPtzBox.checked = !cfgPtzBox.checked
                             }
                         }
                         // IP / 端口（.cf-row 各自独立一行，对齐原型竖排）
@@ -1484,6 +1671,7 @@ Item {
         cfgCamCombo.currentIndex = i
         cfgNameInput.text = c.name
         cfgEnableBox.checked = c.enable
+        cfgPtzBox.checked = c.ptz === true
         cfgIpInput.text = c.ip
         cfgPortInput.text = "" + c.port
         cfgPathInput.text = c.path
@@ -1513,6 +1701,7 @@ Item {
         var c = root.cfgDraft[i]
         c.name = cfgNameInput.text.trim() || c.name
         c.enable = cfgEnableBox.checked
+        c.ptz = cfgPtzBox.checked
         c.ip = cfgIpInput.text.trim()
         c.port = parseInt(cfgPortInput.text) || 554
         c.path = cfgPathInput.text.trim()
@@ -1525,7 +1714,7 @@ Item {
     // 添加相机（操作草稿：自动命名，默认停用；保存设置后才真正生效）
     function addCam() {
         var n = root.cfgDraft.length + 1
-        var nc = {id: "cam_" + (root.camSeq++), name: "新相机" + n, enable: false, ip: "", port: 554,
+        var nc = {id: "cam_" + (root.camSeq++), name: "新相机" + n, enable: false, ptz: false, ip: "", port: 554,
                   path: "", user: "", pass: "", stream: "主码流", transport: "TCP", fps: 25}
         root.cfgDraft = root.cfgDraft.concat([nc])
         root.cfgDraftSel = nc.id
@@ -1595,6 +1784,8 @@ Item {
         for (var k = 0; k < root.camCfg.length; k++)
             if (root.cfgSelIds.indexOf(root.camCfg[k].id) >= 0) ns.push(k)
         root.selected = ns.length ? ns : root.defaultSelected(root.layMode)
+        // 云台焦点索引越界修正（删除相机后）
+        if (root.focusIdx >= root.camCfg.length) root.focusIdx = Math.max(0, root.camCfg.length - 1)
         root.saveAll()
         camCfgDlg.close()
         root.toast("拉流设置已保存")

@@ -33,8 +33,8 @@ public:
     double roll() const { return roll_; }
 
 public slots:
-    // 云台转向：speed -100~100（A2 mini 仅俯仰生效），松手发 0 停止
-    void ctrlPitch(int speed);
+    // 云台转向（0x07）：yaw/pitch 各 -100~100（A2 mini 仅俯仰轴生效），松手发 0 停止
+    void ctrlMove(int yaw, int pitch);
     // 一键回中
     void center();
 

@@ -94,13 +94,14 @@ void SiyiSdkClient::pollAttitude()
     send(0x0D, QByteArray());
 }
 
-void SiyiSdkClient::ctrlPitch(int speed)
+void SiyiSdkClient::ctrlMove(int yaw, int pitch)
 {
-    const int s = qBound(-100, speed, 100);
+    const int y = qBound(-100, yaw, 100);
+    const int p = qBound(-100, pitch, 100);
     // 0x07：turn_yaw(int8) + turn_pitch(int8) + reserved(uint8)
     QByteArray d;
-    d.append(char(0));
-    d.append(char(qint8(s)));
+    d.append(char(qint8(y)));
+    d.append(char(qint8(p)));
     d.append(char(0));
     send(0x07, d);
 }

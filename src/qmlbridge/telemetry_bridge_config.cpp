@@ -166,9 +166,9 @@ void TelemetryBridge::stopGimbal() {
         gimbal_->stop();
 }
 
-void TelemetryBridge::gimbalPitchCtrl(int speed) {
+void TelemetryBridge::gimbalCtrlMove(int yaw, int pitch) {
     if (gimbal_)
-        gimbal_->ctrlPitch(speed);
+        gimbal_->ctrlMove(yaw, pitch);
 }
 
 void TelemetryBridge::gimbalCenter() {

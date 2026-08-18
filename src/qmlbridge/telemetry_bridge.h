@@ -125,10 +125,11 @@ public:
     Q_INVOKABLE QString startCameraRecord(const QString &camId);
     Q_INVOKABLE bool stopCameraRecord();
     // 思翼云台控制（A2 mini，UDP 37260）：startGimbal(ip) 启动会话并 200ms 轮询姿态；
-    // gimbalPitchCtrl(speed) 速度控制 -100~100（松手发 0）；gimbalCenter 一键回中
+    // gimbalCtrlMove(yaw,pitch) 组合速度控制 -100~100（A2 mini 仅俯仰轴生效，松手发 0,0）；
+    // gimbalCenter 一键回中
     Q_INVOKABLE void startGimbal(const QString &ip);
     Q_INVOKABLE void stopGimbal();
-    Q_INVOKABLE void gimbalPitchCtrl(int speed);
+    Q_INVOKABLE void gimbalCtrlMove(int yaw, int pitch);
     Q_INVOKABLE void gimbalCenter();
     bool gimbalConnected() const;
     double gimbalPitch() const;
