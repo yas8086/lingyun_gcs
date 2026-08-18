@@ -24,5 +24,5 @@ file(MAKE_DIRECTORY "${_test_home}")
 set_tests_properties(test_config_manager PROPERTIES ENVIRONMENT "HOME=${_test_home}")
 unset(_test_home)
 # 集成测试：模拟器帧 → 解码 → 桥接层暴露（需 QApplication）
-add_qt_test(test_bridge_integration tests/test_bridge_integration.cpp src/comms/frame_parser.cpp src/comms/json_decoder.cpp src/comms/serial_manager.cpp src/model/telemetry_data.cpp src/core/config_manager.cpp src/core/alarm_engine.cpp src/qmlbridge/telemetry_bridge.cpp src/qmlbridge/telemetry_bridge_config.cpp src/qmlbridge/telemetry_bridge_rules.cpp src/qmlbridge/telemetry_bridge_record.cpp src/video/rtsp_stream.cpp src/video/rtsp_recorder.cpp)
+add_qt_test(test_bridge_integration tests/test_bridge_integration.cpp src/comms/frame_parser.cpp src/comms/json_decoder.cpp src/comms/serial_manager.cpp src/model/telemetry_data.cpp src/core/config_manager.cpp src/core/alarm_engine.cpp src/qmlbridge/telemetry_bridge.cpp src/qmlbridge/telemetry_bridge_config.cpp src/qmlbridge/telemetry_bridge_rules.cpp src/qmlbridge/telemetry_bridge_record.cpp src/video/rtsp_stream.cpp src/video/rtsp_recorder.cpp src/video/siyi_sdk_client.cpp)
 target_link_libraries(test_bridge_integration PRIVATE Qt6::Widgets Qt6::SerialPort Qt6::Network PkgConfig::GST)

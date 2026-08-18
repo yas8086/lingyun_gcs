@@ -22,7 +22,15 @@ Item {
     property bool osdOn: true        // OSD 叠加开关
     property bool recOn: false       // 录像状态
     property real recStart: 0        // 录像开始时间戳（ms；须用 real，int 是 32 位会溢出 Date.now()）
+    property int recElapsed: 0       // 已录制秒数（streamWatch 每秒刷新，供 REC 计时显示）
+    property var recCamIds: []       // 实际在录的相机 id 集（仅选中且在线出帧的相机）
     property bool connBusy: false    // 重连中
+    // 拉流设置草稿：弹窗内一切修改只改草稿，点「保存设置」才写回生效，点 ✕ 关闭即丢弃
+    property var cfgDraft: []
+    property string cfgDraftSel: ""  // 草稿当前编辑相机 id
+    property var cfgSelIds: []       // 打开弹窗时记选中相机 id（保存后按 id 重建 selected）
+    // 思翼云台（A2 mini）：持有其相机 id，SDK 会话随页面启动（特征：RTSP 端口 8554）
+    property string gimbalCamId: ""
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0
@@ -48,6 +56,12 @@ Item {
     function fmt2(v) { return isNaN(v) ? "--" : Number(v).toFixed(2) }
     function fmt1(v) { return isNaN(v) ? "--" : Number(v).toFixed(1) }
     function fmt0(v) { return isNaN(v) ? "--" : Math.round(v) }
+    function fmtDur(s) { // 秒 → mm:ss（超过1小时 → h:mm:ss）
+        var t = Math.max(0, Math.floor(s))
+        var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60
+        function p(n) { return n < 10 ? "0" + n : "" + n }
+        return (h > 0 ? h + ":" : "") + p(m) + ":" + p(sec)
+    }
     // OSD 本地时钟（由定时器每秒刷新）
     property string osdClock: root.fmtTs(Date.now())
     // 网口连接状态：有线网口物理链路（网线是否插入）决定"网口已连接/未连接"
@@ -87,6 +101,17 @@ Item {
             s.url = c.ip ? root.camRtspUrl(i) : ""
             if (!c.ip) s.stop()
         }
+        // 思翼云台 IP 变更时重启 SDK 会话
+        var gb = ""
+        for (var j = 0; j < root.camCfg.length; j++) {
+            var gj = root.camCfg[j]
+            if (gj && gj.ip && gj.port === 8554) { gb = gj.id; break }
+        }
+        if (gb !== root.gimbalCamId) {
+            root.gimbalCamId = gb
+            if (gb) bridge.startGimbal(root.camCfg[j].ip)
+            else bridge.stopGimbal()
+        }
         root.manageStreams()
     }
 
@@ -113,6 +138,12 @@ Item {
         var cred = c.user ? c.user + ":*****@" : ""
         return "rtsp://" + cred + c.ip + ":" + c.port + c.path
     }
+    function rtspUrlMaskedIn(arr, i) {   // 草稿版（拉流设置弹窗列表用）
+        var c = arr ? arr[i] : null
+        if (!c) return ""
+        var cred = c.user ? c.user + ":*****@" : ""
+        return "rtsp://" + cred + c.ip + ":" + c.port + c.path
+    }
     // 解析完整 RTSP 地址 → 参数字段（用户名/密码/端口/路径均可省略）
     function parseRtspUrl(str) {
         var m = String(str).match(/^rtsp:\/\/(?:([^:\/@]+)(?::([^@\/]*))?@)?([^:\/\s]+)(?::(\d+))?([^\s]*)?/)
@@ -120,8 +151,11 @@ Item {
         return {user:m[1]||"", pass:m[2]||"", ip:m[3]||"", port:m[4]?parseInt(m[4]):554, path:m[5]||"/"}
     }
     function camIdxOf(id) {
-        for (var i = 0; i < root.camCfg.length; i++)
-            if (root.camCfg[i].id === id) return i
+        return root.camIdxIn(root.camCfg, id)
+    }
+    function camIdxIn(arr, id) {   // 通用：在指定数组中找相机 id 索引
+        for (var i = 0; i < (arr ? arr.length : 0); i++)
+            if (arr[i].id === id) return i
         return -1
     }
     // 布局档位对应的网格列数（对齐原型 applyLayout）
@@ -158,8 +192,16 @@ Item {
         root.layMode = bridge.cameraLay()
         root.camCfgSel = root.camCfg.length ? root.camCfg[0].id : ""
         root.selected = root.defaultSelected(root.layMode)
-        root.renderCfgForm()
         root.syncStreams()   // 首次拉流（仅选中启用的相机）
+        // 识别思翼云台相机（A2 mini，RTSP 端口 8554）并启动 UDP SDK 会话（姿态轮询）
+        for (var g = 0; g < root.camCfg.length; g++) {
+            var gc = root.camCfg[g]
+            if (gc && gc.ip && gc.port === 8554) {
+                root.gimbalCamId = gc.id
+                bridge.startGimbal(gc.ip)
+                break
+            }
+        }
         // 周期刷新：OSD 时钟 / 网口状态 / 断流后按需补拉
         streamWatch.start()
     }
@@ -171,6 +213,7 @@ Item {
         onTriggered: {
             root.osdClock = root.fmtTs(Date.now())
             root.netOk = root.netLinkUp()
+            root.recElapsed = root.recOn ? Math.floor((Date.now() - root.recStart) / 1000) : 0
             root.manageStreams()   // 断流后重连尝试由 RtspStream 自身退避处理，这里保持启停正确
         }
     }
@@ -379,7 +422,15 @@ Item {
                     }
                     HoverHandler { id: hoverCfg; cursorShape: Qt.PointingHandCursor }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.fill: parent; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                    onClicked: { root.renderCfgForm(); camCfgDlg.open() }
+                    onClicked: {
+                        // 生成编辑草稿（深拷贝）：弹窗内所有修改只落在草稿上
+                        root.cfgDraft = root.camCfg.map(function(c){ return Object.assign({}, c) })
+                        root.cfgDraftSel = root.camCfgSel || (root.camCfg.length ? root.camCfg[0].id : "")
+                        root.cfgSelIds = root.selected.filter(function(i){ return root.camCfg[i] })
+                                                  .map(function(i){ return root.camCfg[i].id })
+                        root.renderCfgForm()
+                        camCfgDlg.open()
+                    }
                 }
             }
         }
@@ -570,6 +621,7 @@ Item {
 
                             // 单路标签（.cam-tag 左上角，黑45%底 + 模糊 + 呼吸状态点，绑定真实流状态）
                             Rectangle {
+                                id: camTag
                                 anchors.top: parent.top
                                 anchors.left: parent.left
                                 anchors.margins: 10
@@ -591,6 +643,37 @@ Item {
                                     }
                                 }
                             }
+                            // REC 录制标记（录制中：红点闪烁 + mm:ss 计时，cam-tag 正下方；仅实际在录的相机显示）
+                            Rectangle {
+                                visible: root.recOn && viewItem.viewOn && root.recCamIds.indexOf(modelData.id) >= 0
+                                anchors.top: camTag.bottom
+                                anchors.left: camTag.left
+                                anchors.topMargin: 6
+                                height: 22
+                                implicitWidth: recRow2.implicitWidth + 16
+                                radius: 6
+                                color: Qt.rgba(0,0,0,0.55)
+                                Row {
+                                    id: recRow2
+                                    anchors.centerIn: parent
+                                    spacing: 5
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 8; height: 8; radius: 4
+                                        color: "#ef4444"
+                                        // 红点 1s 循环闪烁（录制指示惯例）
+                                        SequentialAnimation on opacity {
+                                            loops: Animation.Infinite
+                                            NumberAnimation { from: 1; to: 0.15; duration: 500 }
+                                            NumberAnimation { from: 0.15; to: 1; duration: 500 }
+                                        }
+                                    }
+                                    Text {
+                                        text: "REC " + root.fmtDur(root.recElapsed)
+                                        font.pixelSize: 11; font.weight: Font.Bold; font.family: "monospace"; color: "#ffffff"
+                                    }
+                                }
+                            }
 
                             // OSD 参数叠加（.cam-osd 右下角，绑定实时遥测与本地时钟）
                             Rectangle {
@@ -609,6 +692,12 @@ Item {
                                     Text { text: root.osdClock; font.pixelSize: 11; font.family: "monospace"; color: "#ffffff"; font.weight: Font.Bold }
                                     Text { text: root.fmt2(bridge.value("fc","lat")) + "°N    " + root.fmt2(bridge.value("fc","lon")) + "°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
                                     Text { text: "ALT " + root.fmt0(bridge.value("fc","alt")) + "m    SPD " + root.fmt1(bridge.value("fc","vx")) + "m/s    HDG " + root.fmt0(bridge.value("fc","yaw")) + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
+                                    // 云台俯仰（思翼 SDK 实时回读，A2 mini 仅俯仰轴有效）
+                                    Text {
+                                        visible: root.gimbalCamId === modelData.id && bridge.gimbalConnected
+                                        text: "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
+                                        font.pixelSize: 11; font.family: "monospace"; color: "#ffd166"
+                                    }
                                 }
                             }
 
@@ -640,6 +729,7 @@ Item {
                                         id: ovShotMa
                                         anchors.fill: parent
                                         onClicked: {
+                                            if (!(vidSurf.stream && vidSurf.stream.online)) { root.toast("该相机无画面，截图失败", "err"); return }
                                             var dir = bridge.cameraDir()
                                             var name = "snapshot_" + modelData.name + "_" + Date.now() + ".png"
                                             viewItem.grabToImage(function(result) {
@@ -681,12 +771,14 @@ Item {
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.fill: parent; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     onClicked: {
                         if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
-                        // 对所有选中相机逐路截图（文件名带相机名防覆盖；IIFE 捕获每轮变量防闭包共享）
+                        // 仅对"选中且在线出帧"的相机逐路截图（文件名带相机名防覆盖；IIFE 捕获每轮变量防闭包共享）
                         var dir = bridge.cameraDir()
                         var ts = Date.now()
                         var total = 0
                         for (var k = 0; k < root.selected.length; k++) {
                             (function(idx) {
+                                var st = bridge.videoStream(root.camCfg[idx].id)
+                                if (!st.online) return   // 无画面不截
                                 var it = camRep.itemAt(idx)
                                 if (!it) return
                                 total++
@@ -697,14 +789,15 @@ Item {
                                 })
                             })(root.selected[k])
                         }
-                        if (!total) { root.toast("无可用画面，截图失败", "err"); return }
+                        if (!total) { root.toast("选中相机均无画面，无法截图", "err"); return }
                         root.toast("已保存截图（" + total + " 张，见 data/摄像头 目录）")
                     }
                 }
                 // 录像（.cam-btn rec，红色脉冲；图标：未录=圆圈+中心点，录制中=白色方块）
+                // 仅对选中且在线出帧的相机录制；录制中按钮显示实时计时
                 Button {
                     id: recBtn
-                    text: root.recOn ? "停止录像" : "录像"
+                    text: root.recOn ? ("停止 " + root.fmtDur(root.recElapsed)) : "录像"
                     Layout.preferredHeight: 32
                     background: Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -746,18 +839,25 @@ Item {
                     onClicked: {
                         if (!root.recOn) {
                             if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
-                            // 对所有选中的已配置相机并行开录（零转码独立管道，与预览流并行）
+                            // 仅对"选中且在线出帧"的相机并行开录（离线/未出帧的跳过）
                             var okCnt = 0
+                            var ids = []
                             for (var k = 0; k < root.selected.length; k++) {
                                 var ci = root.camCfg[root.selected[k]]
-                                if (ci && ci.ip && bridge.startCameraRecord(ci.id)) okCnt++
+                                if (!ci || !ci.ip) continue
+                                var st = bridge.videoStream(ci.id)
+                                if (!st.online) continue   // 无画面不录
+                                if (bridge.startCameraRecord(ci.id)) { okCnt++; ids.push(ci.id) }
                             }
-                            if (!okCnt) { root.toast("录像启动失败（相机未配置或不可达）", "err"); return }
+                            if (!okCnt) { root.toast("选中相机均无画面，无法录像", "err"); return }
+                            root.recCamIds = ids
                             root.recOn = true
                             root.recStart = Date.now()
+                            root.recElapsed = 0
                             root.toast("开始录像（" + okCnt + " 路）")
                         } else {
                             root.recOn = false
+                            root.recCamIds = []
                             var dur = Math.max(1, Math.round((Date.now() - root.recStart) / 1000))
                             var ok = bridge.stopCameraRecord()
                             root.toast(ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败", ok ? "ok" : "err")
@@ -796,6 +896,62 @@ Item {
                     onClicked: {
                         root.ratioIdx = (root.ratioIdx + 1) % root.ratios.length
                         root.toast("画面比例：" + root.ratios[root.ratioIdx][1])
+                    }
+                }
+                // 思翼云台俯仰控制（A2 mini 单轴：按住上仰/下俯，松手停；回中按钮）
+                // 速度指令 0x07 按下发、松手发 0 停止；状态点显示 SDK 连接
+                Row {
+                    visible: root.gimbalCamId !== ""
+                    spacing: 5
+                    Layout.alignment: Qt.AlignVCenter
+                    // 上仰（按住）
+                    Rectangle {
+                        width: 34; height: 32; radius: 8
+                        color: gmUpMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
+                        border.color: gmUpMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Text { anchors.centerIn: parent; text: "▲"; color: root.themeRoot.colText; font.pixelSize: 12 }
+                        MouseArea {
+                            id: gmUpMa
+                            anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onPressed: if (bridge.gimbalConnected) bridge.gimbalPitchCtrl(40)
+                            onReleased: bridge.gimbalPitchCtrl(0)
+                            onCanceled: bridge.gimbalPitchCtrl(0)
+                        }
+                    }
+                    // 回中
+                    Rectangle {
+                        width: 48; height: 32; radius: 8
+                        color: gmCtrMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
+                        border.color: root.themeRoot.colLine
+                        Text { anchors.centerIn: parent; text: "回中"; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold }
+                        MouseArea {
+                            id: gmCtrMa
+                            anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (!bridge.gimbalConnected) { root.toast("云台未连接", "err"); return }
+                                bridge.gimbalCenter()
+                                root.toast("云台回中")
+                            }
+                        }
+                    }
+                    // 下俯（按住）
+                    Rectangle {
+                        width: 34; height: 32; radius: 8
+                        color: gmDnMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colCard2
+                        border.color: gmDnMa.pressed ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Text { anchors.centerIn: parent; text: "▼"; color: root.themeRoot.colText; font.pixelSize: 12 }
+                        MouseArea {
+                            id: gmDnMa
+                            anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onPressed: if (bridge.gimbalConnected) bridge.gimbalPitchCtrl(-40)
+                            onReleased: bridge.gimbalPitchCtrl(0)
+                            onCanceled: bridge.gimbalPitchCtrl(0)
+                        }
                     }
                 }
                 // 分隔线
@@ -972,7 +1128,7 @@ Item {
                         Layout.fillWidth: true
                         spacing: 4
                         Repeater {
-                            model: root.camCfg
+                            model: root.cfgDraft
                             Rectangle {
                                 Layout.fillWidth: true
                                 height: 34
@@ -991,7 +1147,7 @@ Item {
                                     Text {
                                         Layout.fillWidth: true
                                         elide: Text.ElideMiddle
-                                        text: modelData.ip ? root.camRtspUrlMasked(index) : "未配置地址"
+                                        text: modelData.ip ? root.rtspUrlMaskedIn(root.cfgDraft, index) : "未配置地址"
                                         font.pixelSize: 11; font.family: "monospace"; color: root.themeRoot.colText2
                                     }
                                     Text {
@@ -1012,7 +1168,7 @@ Item {
                             }
                         }
                         Text {
-                            visible: root.camCfg.length === 0
+                            visible: root.cfgDraft.length === 0
                             text: "尚未配置相机，点击下方「添加相机」新建"
                             font.pixelSize: 12; color: root.themeRoot.colText2
                         }
@@ -1027,9 +1183,15 @@ Item {
                             CFSelect {
                                 id: cfgCamCombo
                                 Layout.fillWidth: true
-                                model: root.camCfg.map(function(c){ return c.name })
-                                currentIndex: root.camIdxOf(root.camCfgSel)
-                                onActivated: { root.camCfgSel = root.camCfg[currentIndex].id; root.renderCfgForm() }
+                                model: root.cfgDraft.map(function(c){ return c.name })
+                                // 切换编辑对象：先回写前一相机表单（防编辑丢失），再渲染新对象
+                                onActivated: {
+                                    var prevSel = root.cfgDraftSel
+                                    var prevValid = root.camIdxIn(root.cfgDraft, prevSel) >= 0 && root.cfgDraft[currentIndex].id !== prevSel
+                                    if (prevValid) root.readCfgForm()
+                                    root.cfgDraftSel = root.cfgDraft[currentIndex].id
+                                    root.renderCfgForm()
+                                }
                             }
                         }
                         // 相机名称
@@ -1063,25 +1225,59 @@ Item {
                                 }
                             }
                         }
-                        // 启用该相机（对齐原型：13px 原生方形复选框 + 12px 文字）
-                        CheckBox {
-                            id: cfgEnableInput
-                            text: "启用该相机"
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            spacing: 6
-                            indicator: Rectangle {
-                                implicitWidth: 13; implicitHeight: 13
-                                radius: 3
-                                border.color: cfgEnableInput.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                                border.width: 1
-                                color: cfgEnableInput.checked ? root.themeRoot.colPrimary : "transparent"
-                                // 白色对勾（简单近似原生 checkbox）
+                        // 启用该相机（对齐原型：13px 方形复选框 + 白色对勾 + 12px 文字，完全自绘保证水平对齐）
+                        Item {
+                            id: cfgEnableBox
+                            property bool checked: false
+                            implicitHeight: 20
+                            implicitWidth: enableRow.implicitWidth
+                            Row {
+                                id: enableRow
+                                anchors.verticalCenter: parent.verticalCenter
+                                leftPadding: 0
+                                spacing: 6
+                                // 复选框（13px，圆角3，选中蓝底白勾）
                                 Rectangle {
-                                    anchors.centerIn: parent
-                                    visible: cfgEnableInput.checked
-                                    width: 7; height: 7; radius: 1.5; color: "white"
+                                    id: enableBoxRect
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 13; height: 13; radius: 3
+                                    border.width: 1
+                                    border.color: cfgEnableBox.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                                    color: cfgEnableBox.checked ? root.themeRoot.colPrimary : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    // 白色对勾（Canvas 绘制真实 ✓ 形状）
+                                    Canvas {
+                                        anchors.fill: parent
+                                        anchors.margins: 2
+                                        visible: cfgEnableBox.checked
+                                        onVisibleChanged: if (visible) requestPaint()
+                                        onPaint: {
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+                                            ctx.strokeStyle = "white"
+                                            ctx.lineWidth = 1.6
+                                            ctx.lineCap = "round"
+                                            ctx.lineJoin = "round"
+                                            ctx.beginPath()
+                                            ctx.moveTo(width * 0.12, height * 0.55)
+                                            ctx.lineTo(width * 0.38, height * 0.82)
+                                            ctx.lineTo(width * 0.88, height * 0.18)
+                                            ctx.stroke()
+                                        }
+                                    }
                                 }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "启用该相机"
+                                    font.pixelSize: 12; font.weight: Font.DemiBold
+                                    color: root.themeRoot.colText
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: cfgEnableBox.checked = !cfgEnableBox.checked
                             }
                         }
                         // IP / 端口（.cf-row 各自独立一行，对齐原型竖排）
@@ -1279,13 +1475,15 @@ Item {
     // ===== 拉流设置弹窗逻辑 =====
     property bool cfgSyncing: false
 
-    // 渲染当前编辑相机的表单
+    // 渲染当前编辑相机的表单（操作草稿 cfgDraft/cfgDraftSel）
     function renderCfgForm() {
-        var i = root.camIdxOf(root.camCfgSel)
+        var i = root.camIdxIn(root.cfgDraft, root.cfgDraftSel)
         if (i < 0) return
-        var c = root.camCfg[i]
+        var c = root.cfgDraft[i]
+        // 显式同步编辑下拉选中项（绑定在手选后可能失效，命令式保证一致）
+        cfgCamCombo.currentIndex = i
         cfgNameInput.text = c.name
-        cfgEnableInput.checked = c.enable
+        cfgEnableBox.checked = c.enable
         cfgIpInput.text = c.ip
         cfgPortInput.text = "" + c.port
         cfgPathInput.text = c.path
@@ -1308,13 +1506,13 @@ Item {
         var cred = u ? u + ":" + p + "@" : ""
         cfgUrlInput.text = "rtsp://" + cred + ip + ":" + po + pa
     }
-    // 读取当前编辑相机表单
+    // 读取当前编辑相机表单（表单 → 草稿）
     function readCfgForm() {
-        var i = root.camIdxOf(root.camCfgSel)
+        var i = root.camIdxIn(root.cfgDraft, root.cfgDraftSel)
         if (i < 0) return
-        var c = root.camCfg[i]
+        var c = root.cfgDraft[i]
         c.name = cfgNameInput.text.trim() || c.name
-        c.enable = cfgEnableInput.checked
+        c.enable = cfgEnableBox.checked
         c.ip = cfgIpInput.text.trim()
         c.port = parseInt(cfgPortInput.text) || 554
         c.path = cfgPathInput.text.trim()
@@ -1324,22 +1522,21 @@ Item {
         c.transport = cfgTransportCombo.currentText
         c.fps = parseInt(cfgFpsCombo.currentText) || 25
     }
-    // 添加相机（自动命名，默认停用）
+    // 添加相机（操作草稿：自动命名，默认停用；保存设置后才真正生效）
     function addCam() {
-        var n = root.camCfg.length + 1
+        var n = root.cfgDraft.length + 1
         var nc = {id: "cam_" + (root.camSeq++), name: "新相机" + n, enable: false, ip: "", port: 554,
                   path: "", user: "", pass: "", stream: "主码流", transport: "TCP", fps: 25}
-        root.camCfg = root.camCfg.concat([nc])
-        root.camCfgSel = nc.id
-        root.saveAll()
+        root.cfgDraft = root.cfgDraft.concat([nc])
+        root.cfgDraftSel = nc.id
         root.renderCfgForm()
-        root.toast("已添加相机：新相机" + n)
+        root.toast("已添加新相机" + n + "（保存设置后生效）", "info")
     }
-    // 删除相机（确认框）
+    // 删除相机（确认框；操作草稿）
     function openDelCam(id) {
-        var i = root.camIdxOf(id)
+        var i = root.camIdxIn(root.cfgDraft, id)
         if (i < 0) return
-        var nm = root.camCfg[i].name
+        var nm = root.cfgDraft[i].name
         confirmDlg.title = "删除相机"
         confirmDlg.bodyText = "确定要删除 <b style=\"color:#dc2626\">" + nm + "</b> 吗？<br><span style=\"color:#94a3b8;font-size:12px\">删除后该相机的拉流配置将被移除，且此操作不可撤销。</span>"
         confirmDlg.confirmText = "删除"
@@ -1347,49 +1544,57 @@ Item {
         confirmDlg.open()
     }
     function removeCam(id) {
-        var i = root.camIdxOf(id)
+        var i = root.camIdxIn(root.cfgDraft, id)
         if (i < 0) return
-        var rm = root.camCfg[i]
-        // 修正选中集索引（删除项之后前移）
-        var ns = []
-        for (var k = 0; k < root.selected.length; k++) {
-            var idx = root.selected[k]
-            if (idx < i) ns.push(idx)
-            else if (idx > i) ns.push(idx - 1)
-        }
-        root.selected = ns
-        root.camCfg = root.camCfg.filter(function(c){ return c.id !== id })
-        if (root.camCfgSel === id) {
+        var rm = root.cfgDraft[i]
+        // 从选中 id 集合移除（保存后该相机自动退出选中）
+        root.cfgSelIds = root.cfgSelIds.filter(function(x){ return x !== id })
+        root.cfgDraft = root.cfgDraft.filter(function(c){ return c.id !== id })
+        if (root.cfgDraftSel === id) {
             var j = i
-            if (j >= root.camCfg.length) j = root.camCfg.length - 1
-            root.camCfgSel = j >= 0 ? root.camCfg[j].id : ""
+            if (j >= root.cfgDraft.length) j = root.cfgDraft.length - 1
+            root.cfgDraftSel = j >= 0 ? root.cfgDraft[j].id : ""
         }
-        root.saveAll()
         root.renderCfgForm()
-        root.toast("已删除" + rm.name)
+        root.toast("已删除" + rm.name + "（保存设置后生效）", "info")
     }
-    // 清空当前相机配置（保留 id/name，确认框）
+    // 清空当前相机配置（保留 id/name，确认框；操作草稿）
     function openClearCam() {
-        var i = root.camIdxOf(root.camCfgSel)
+        var i = root.camIdxIn(root.cfgDraft, root.cfgDraftSel)
         if (i < 0) return
-        var c = root.camCfg[i]
+        var c = root.cfgDraft[i]
         confirmDlg.title = "清空相机配置"
         confirmDlg.bodyText = "确定要清空 <b style=\"color:#dc2626\">" + c.name + "</b> 的拉流配置吗？<br><span style=\"color:#94a3b8;font-size:12px\">清空后该相机将停用，地址参数为空，且此操作不可撤销。</span>"
         confirmDlg.confirmText = "清空配置"
         confirmDlg.onOk = function() {
-            var c2 = root.camCfg[root.camIdxOf(root.camCfgSel)]
+            var c2 = root.cfgDraft[root.camIdxIn(root.cfgDraft, root.cfgDraftSel)]
             if (!c2) return
             c2.enable = false; c2.ip = ""; c2.port = 554; c2.path = ""; c2.user = ""; c2.pass = ""
             c2.stream = "主码流"; c2.transport = "TCP"; c2.fps = 25
-            root.saveAll()
             root.renderCfgForm()
-            root.toast("已清空" + c2.name + "的配置")
+            root.toast("已清空" + c2.name + "的配置（保存设置后生效）", "info")
         }
         confirmDlg.open()
     }
-    // 保存设置
+    // 保存设置：草稿写回生效（配置持久化 + 拉流同步 + 选中集重建）
     function saveCfgDlg() {
-        root.readCfgForm()
+        root.readCfgForm()   // 表单 → 草稿
+        // 先停掉已被删除相机的流（不在新配置中的）
+        for (var d = 0; d < root.camCfg.length; d++) {
+            var oldId = root.camCfg[d].id
+            if (root.camIdxIn(root.cfgDraft, oldId) < 0) {
+                var ds = bridge.videoStream(oldId)
+                if (ds) ds.stop()
+            }
+        }
+        // 草稿 → 正式配置
+        root.camCfg = root.cfgDraft.map(function(c){ return Object.assign({}, c) })
+        root.camCfgSel = root.cfgDraftSel
+        // 按 id 重建选中集（删除的相机自动退出）
+        var ns = []
+        for (var k = 0; k < root.camCfg.length; k++)
+            if (root.cfgSelIds.indexOf(root.camCfg[k].id) >= 0) ns.push(k)
+        root.selected = ns.length ? ns : root.defaultSelected(root.layMode)
         root.saveAll()
         camCfgDlg.close()
         root.toast("拉流设置已保存")

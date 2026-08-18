@@ -23,11 +23,15 @@ class ConfigManager;
 class AlarmEngine;
 class RtspStream;
 class RtspRecorder;
+class SiyiSdkClient;
 
 // 桥接层：把 C++ 后端（遥测/链路/就绪度/告警/串口/配置）暴露给 QML 前端。
 // 采用 context 属性注入，QML 通过 Q_INVOKABLE 方法与信号交互。
 class TelemetryBridge : public QObject {
     Q_OBJECT
+    // 思翼云台（A2 mini UDP SDK）：连接状态与俯仰角（度）实时暴露给 QML
+    Q_PROPERTY(bool gimbalConnected READ gimbalConnected NOTIFY gimbalConnectedChanged)
+    Q_PROPERTY(double gimbalPitch READ gimbalPitch NOTIFY gimbalAttitudeChanged)
 public:
     explicit TelemetryBridge(QObject *parent = nullptr);
 
@@ -120,6 +124,14 @@ public:
     // 该相机已在录则返回当前文件名）；stopCameraRecord 停止全部在录并返回是否有路停止
     Q_INVOKABLE QString startCameraRecord(const QString &camId);
     Q_INVOKABLE bool stopCameraRecord();
+    // 思翼云台控制（A2 mini，UDP 37260）：startGimbal(ip) 启动会话并 200ms 轮询姿态；
+    // gimbalPitchCtrl(speed) 速度控制 -100~100（松手发 0）；gimbalCenter 一键回中
+    Q_INVOKABLE void startGimbal(const QString &ip);
+    Q_INVOKABLE void stopGimbal();
+    Q_INVOKABLE void gimbalPitchCtrl(int speed);
+    Q_INVOKABLE void gimbalCenter();
+    bool gimbalConnected() const;
+    double gimbalPitch() const;
     // 网络接口状态（网口链路检测）：QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>
     // linkUp 为物理链路状态（Linux 读 /sys/class/net/*/carrier，即网线是否连接）
     Q_INVOKABLE QVariant netInterfaces() const;
@@ -161,6 +173,8 @@ signals:
     void alarmsChanged();                    // 告警列表/计数变化
     void rulesChanged();                     // 告警规则变化
     void configImported();                   // 配置导入成功，前端需刷新各设置控件
+    void gimbalConnectedChanged();
+    void gimbalAttitudeChanged();
 
 private:
     lgs::TelemetryData last_;
@@ -172,6 +186,7 @@ private:
     AlarmEngine *engine_ = nullptr;
     QHash<QString, RtspStream *> streams_;   // 相机 id → RTSP 流（懒创建，随桥接层销毁）
     QHash<QString, RtspRecorder *> recorders_;  // 相机 id → 录制器（多路并行，随桥接层销毁）
+    SiyiSdkClient *gimbal_ = nullptr;        // 思翼云台 SDK 客户端（随桥接层销毁）
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;

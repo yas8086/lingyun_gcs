@@ -465,6 +465,22 @@
   .cam-ov button:hover{background:var(--primary)}
   /* 全不选时的占位提示 */
   .cam-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-2);font-size:13px;border:1px dashed var(--line);border-radius:12px;background:var(--card-2)}
+  /* ===== 云台控制浮动盘（PTZ，跟随焦点相机） ===== */
+  .cam-view.focus{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+  .ptz-panel{position:absolute;left:10px;bottom:10px;z-index:4;background:rgba(8,14,26,.74);border:1px solid rgba(255,255,255,.14);border-radius:10px;backdrop-filter:blur(4px);color:#dbe6ff;user-select:none}
+  .ptz-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 10px;font-size:11px;font-weight:700;color:#cfe0ff;border-bottom:1px solid rgba(255,255,255,.08)}
+  .ptz-fold{border:none;background:transparent;color:#8aa0bf;cursor:pointer;font-size:12px;line-height:1;padding:0 2px}
+  .ptz-fold:hover{color:#fff}
+  .ptz-body{display:flex;gap:8px;padding:8px}
+  .ptz-dir{display:grid;grid-template-columns:repeat(3,28px);grid-template-rows:repeat(3,28px);gap:3px}
+  .ptz-dir .ptz-btn,.ptz-zoom .ptz-btn{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#dbe6ff;border-radius:6px;font-size:12px;cursor:pointer;line-height:1;transition:background .12s}
+  .ptz-dir .ptz-btn:hover,.ptz-zoom .ptz-btn:hover{background:var(--primary);border-color:var(--primary);color:#fff}
+  .ptz-dir .ptz-stop{background:rgba(220,38,38,.25);border-color:rgba(220,38,38,.5)}
+  .ptz-dir .ptz-stop:hover{background:var(--err);border-color:var(--err)}
+  .ptz-zoom{display:flex;flex-direction:column;gap:3px;justify-content:center}
+  .ptz-zoom .ptz-btn{width:28px;height:28px;font-size:14px;font-weight:700}
+  .ptz-panel.collapsed .ptz-body{display:none}
+  .ptz-panel.collapsed .ptz-head{border-bottom:none}
   /* 底部控制条 */
   .cam-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap}
   .cam-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:8px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:600;transition:all .15s}
@@ -498,6 +514,7 @@
   .camcfg-list .cl-item .cl-status{font-size:11px;color:var(--text-2);flex-shrink:0}
   .camcfg-list .cl-item .cl-del{border:none;background:transparent;color:var(--text-2);font-size:13px;cursor:pointer;padding:2px 5px;border-radius:6px;line-height:1;flex-shrink:0;transition:all .15s}
   .camcfg-list .cl-item .cl-del:hover{color:var(--err);background:rgba(220,38,38,.12)}
+  .camcfg-list .cl-item .cl-ptz{font-size:10px;font-weight:700;color:var(--ok);border:1px solid var(--ok);border-radius:4px;padding:0 4px;line-height:1.6;flex-shrink:0}
   .cam-bar .cam-sep{width:1px;height:20px;background:var(--line)}
   /* 布局切换（1/2/4 路） */
   .cam-lay{display:flex;gap:3px;margin-left:auto}
@@ -2345,23 +2362,25 @@ const CAM_CFG_STORE='gcs_cam_cfg';
 const CAM_CFG_DEFAULT=[
   {id:'cam_0',name:'前视相机',enable:true,ip:'192.168.1.101',port:554,path:'/live/stream1',user:'admin',pass:'12345',stream:'主码流',transport:'TCP',fps:25},
   {id:'cam_1',name:'后视相机',enable:true,ip:'192.168.1.102',port:554,path:'/live/stream1',user:'admin',pass:'12345',stream:'主码流',transport:'TCP',fps:25},
-  {id:'cam_2',name:'吊舱相机',enable:false,ip:'192.168.1.103',port:554,path:'/live/stream2',user:'admin',pass:'12345',stream:'主码流',transport:'UDP',fps:25},
+  {id:'cam_2',name:'吊舱相机',enable:false,ip:'192.168.1.103',port:554,path:'/live/stream2',user:'admin',pass:'12345',stream:'主码流',transport:'UDP',fps:25,ptz:true},
   {id:'cam_3',name:'地面相机',enable:true,ip:'192.168.1.104',port:554,path:'/live/stream1',user:'admin',pass:'12345',stream:'主码流',transport:'TCP',fps:25}
 ];
 function loadCamCfg(){
   let arr=null;
   try{arr=JSON.parse(localStorage.getItem(CAM_CFG_STORE));}catch(e){arr=null;}
   if(!Array.isArray(arr))return CAM_CFG_DEFAULT.map(c=>Object.assign({},c));
-  // 迁移旧数据：无 id/name 的项自动补齐（按索引对应默认名），不再校验长度
+  // 迁移旧数据：无 id/name/ptz 的项自动补齐（id 生成、名称/云台标记按索引对应默认），不再校验长度
   return arr.map((c,i)=>Object.assign({},CAM_CFG_DEFAULT[i]||{},c,{
     id:c.id||('cam_'+i),
-    name:c.name||(CAM_CFG_DEFAULT[i]?CAM_CFG_DEFAULT[i].name:'相机'+(i+1))
+    name:c.name||(CAM_CFG_DEFAULT[i]?CAM_CFG_DEFAULT[i].name:'相机'+(i+1)),
+    ptz:c.ptz===undefined?(CAM_CFG_DEFAULT[i]?!!CAM_CFG_DEFAULT[i].ptz:false):!!c.ptz
   }));
 }
 function saveCamCfg(){try{localStorage.setItem(CAM_CFG_STORE,JSON.stringify(camCfg));}catch(e){}}
 let camCfg=loadCamCfg();
 let camCfgSel=(camCfg[0]||{}).id||''; // 拉流设置当前编辑相机（id 主键）
 let selected=new Set(); // 摄像头页当前选中（显示）的相机索引集合
+let focusIdx=0; // 云台控制焦点相机索引（点击画面格/tab 切换，控制盘跟随）
 let layMode=localStorage.getItem('gcs_cam_lay')||'1'; // 布局档位：1/2/4/a(全部)
 // 布局档位对应的最大可选中数量
 function limitOf(m){return m==='1'?1:m==='2'?2:m==='4'?4:Math.max(1,camCfg.length);}
@@ -2422,17 +2441,53 @@ function syncUrlInput(){
     grid.innerHTML=camCfg.map((c,i)=>{
       const on=selected.has(i);
       const live=c.enable;
+      const isFocus=i===focusIdx&&on&&live&&c.ptz; // 焦点格：已选中、启用且为云台相机时显示云台控制盘
       const osd=live?`<div class="cam-osd${osdOn?'':' hidden'}"><div class="o-row"><b>2026-08-14 10:23:45</b></div><div class="o-row">LAT <b>30.26715°N</b>&nbsp;&nbsp;LON <b>120.15342°E</b></div><div class="o-row">ALT <b>150.2m</b>&nbsp;&nbsp;SPD <b>12.5m/s</b>&nbsp;&nbsp;HDG <b>087°</b></div></div>`:'';
       const no=live?'画面占位<br>接入网口视频流后实时显示':'未启用 · 等待拉流设置';
-      return `<div class="cam-view${on?' active':''}" data-cam="${i}"${on?'':' style="display:none"'}>
+      return `<div class="cam-view${on?' active':''}${isFocus?' focus':''}" data-cam="${i}"${on?'':' style="display:none"'}>
         <div class="cam-frame"><svg class="cam-pic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="4" y1="8" x2="7" y2="11"/><line x1="20" y1="8" x2="17" y2="11"/></svg><div class="cam-no">${c.name} · ${no}</div></div>
         <span class="cam-tag"><span class="dot${live?' ok':''}"></span>${c.name} · ${live?'LIVE':'OFFLINE'}</span>
         ${osd}
         <div class="cam-ov"><button title="放大">⛶</button><button title="截图">📷</button></div>
+        ${isFocus?ptzHtml(c):''}
       </div>`;
     }).join('');
     applyLayout();
   }
+  /* 云台控制盘：8 方向 + 停止 + 变倍 +/-，悬浮于焦点格左下角，可折叠 */
+  function ptzHtml(c){
+    return `<div class="ptz-panel">
+      <div class="ptz-head"><span>云台 · ${c.name}</span><button class="ptz-fold" title="收起/展开">—</button></div>
+      <div class="ptz-body">
+        <div class="ptz-dir">
+          <button class="ptz-btn" data-ptz="tl" title="左上">◤</button>
+          <button class="ptz-btn" data-ptz="up" title="上">▲</button>
+          <button class="ptz-btn" data-ptz="tr" title="右上">◥</button>
+          <button class="ptz-btn" data-ptz="left" title="左">◀</button>
+          <button class="ptz-btn ptz-stop" data-ptz="stop" title="停止">●</button>
+          <button class="ptz-btn" data-ptz="right" title="右">▶</button>
+          <button class="ptz-btn" data-ptz="bl" title="左下">◣</button>
+          <button class="ptz-btn" data-ptz="down" title="下">▼</button>
+          <button class="ptz-btn" data-ptz="br" title="右下">◢</button>
+        </div>
+        <div class="ptz-zoom">
+          <button class="ptz-btn" data-ptz="zin" title="变倍 +">＋</button>
+          <button class="ptz-btn" data-ptz="zout" title="变倍 -">－</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  const PTZ_DIRS={tl:'左上',up:'上',tr:'右上',left:'左',right:'右',bl:'左下',down:'下',br:'右下'};
+  function handlePtz(d){
+    const c=camCfg[focusIdx];if(!c)return;
+    if(d==='stop'){toast('云台-'+c.name+' 停止');return;}
+    if(d==='zin'){toast('云台-'+c.name+' 变倍 +');return;}
+    if(d==='zout'){toast('云台-'+c.name+' 变倍 -');return;}
+    toast('云台-'+c.name+' '+PTZ_DIRS[d]);
+  }
+  let ptzTimer=null;
+  function ptzPress(b){handlePtz(b.dataset.ptz);ptzTimer=setInterval(()=>handlePtz(b.dataset.ptz),260);} // 按住连续
+  function ptzRelease(){if(ptzTimer){clearInterval(ptzTimer);ptzTimer=null;}}
   // 应用布局档位：单路(1) 1格 / 双路(2) 2列1行 / 四路(4) 2×2 / 全部(a) 按选中数量 sqrt 自动均分
   function applyLayout(){
     const cnt=selected.size||1;
@@ -2452,10 +2507,11 @@ function syncUrlInput(){
   // 初始化选中集（按当前布局档位默认填充）与布局按钮高亮
   if(selected.size===0)selected=defaultSelected(layMode);
   [...laysBox.children].forEach(x=>x.classList.toggle('active',x.dataset.lay===layMode));
-  // 相机 tab 点击：toggle 选中；达到档位上限时顶掉最早选中的（事件委托）
+  // 相机 tab 点击：toggle 选中；达到档位上限时顶掉最早选中的；点击同时设为云台焦点（事件委托）
   tabsBox.addEventListener('click',e=>{
     const t=e.target.closest('.cam-tab');if(!t)return;
     const i=+t.dataset.cam;
+    focusIdx=i;
     if(selected.has(i)){
       selected.delete(i);
     }else{
@@ -2482,6 +2538,21 @@ function syncUrlInput(){
       for(let k=0;k<camCfg.length&&selected.size<lim;k++){if(!selected.has(k))selected.add(k);} // 补足到上限（按序补）
     }
     renderAll();
+  });
+  // 画面格/云台控制（事件委托）：点击画面格切换焦点；控制盘方向/变倍按住连续控制
+  grid.addEventListener('mousedown',e=>{
+    const b=e.target.closest('.ptz-btn');if(!b)return;
+    e.preventDefault();
+    ptzPress(b);
+  });
+  window.addEventListener('mouseup',ptzRelease);
+  grid.addEventListener('click',e=>{
+    if(e.target.closest('.ptz-btn'))return; // 方向/变倍已由 mousedown 处理
+    const fold=e.target.closest('.ptz-fold');
+    if(fold){fold.closest('.ptz-panel').classList.toggle('collapsed');return;}
+    const view=e.target.closest('.cam-view');if(!view)return;
+    const i=+view.dataset.cam;
+    if(focusIdx!==i){focusIdx=i;renderGrid();}
   });
   // OSD 叠加开关
   $('camOsdToggle').onclick=()=>{
@@ -2522,13 +2593,14 @@ function applyCamCfg(){
 function camListHtml(){
   return camCfg.map((c,i)=>{
     const st=c.enable?'<span class="cl-status" style="color:var(--ok)">已启用</span>':(c.ip?'<span class="cl-status" style="color:var(--off)">已停用</span>':'<span class="cl-status" style="color:var(--off)">未配置</span>');
-    return `<div class="cl-item"><span class="cl-dot" style="background:${c.enable?'var(--ok)':'var(--off)'}"></span><span class="cl-name">${c.name}</span><span class="cl-url">${c.ip?camRtspUrlMasked(i):'未配置地址'}</span>${st}<button class="cl-del" data-del="${c.id}" title="删除该相机">✕</button></div>`;
+    return `<div class="cl-item"><span class="cl-dot" style="background:${c.enable?'var(--ok)':'var(--off)'}"></span><span class="cl-name">${c.name}</span>${c.ptz?'<span class="cl-ptz">云台</span>':''}<span class="cl-url">${c.ip?camRtspUrlMasked(i):'未配置地址'}</span>${st}<button class="cl-del" data-del="${c.id}" title="删除该相机">✕</button></div>`;
   }).join('')||'<div style="font-size:12px;color:var(--text-2);padding:6px 2px">尚未配置相机，点击下方「添加相机」新建</div>';
 }
 function renderCamCfgForm(){
   const c=camCfg[selIdx()];if(!c)return;
   $('cfgName').value=c.name;
   $('cfgEnable').checked=c.enable;
+  $('cfgPtz').checked=!!c.ptz;
   $('cfgIp').value=c.ip;$('cfgPort').value=c.port;$('cfgPath').value=c.path;
   $('cfgUser').value=c.user;$('cfgPass').value=c.pass;
   $('cfgStream').value=c.stream;$('cfgTransport').value=c.transport;
@@ -2538,7 +2610,7 @@ function renderCamCfgForm(){
 function readCamCfgForm(){
   const c=camCfg[selIdx()];if(!c)return;
   c.name=$('cfgName').value.trim()||c.name;
-  c.enable=$('cfgEnable').checked;c.ip=$('cfgIp').value.trim();c.port=+($('cfgPort').value)||554;c.path=$('cfgPath').value.trim();
+  c.enable=$('cfgEnable').checked;c.ptz=$('cfgPtz').checked;c.ip=$('cfgIp').value.trim();c.port=+($('cfgPort').value)||554;c.path=$('cfgPath').value.trim();
   c.user=$('cfgUser').value.trim();c.pass=$('cfgPass').value;c.stream=$('cfgStream').value;c.transport=$('cfgTransport').value;c.fps=+($('cfgFps').value)||25;
 }
 // 弹窗内增量刷新：列表 + 编辑下拉 + 表单，并同步摄像头主页面（不重建整个弹窗）
@@ -2551,7 +2623,7 @@ function refreshCfgDialog(){
 }
 function addCam(){
   const n=camCfg.length+1;
-  camCfg.push({id:nextCamId(),name:'新相机'+n,enable:false,ip:'',port:554,path:'',user:'',pass:'',stream:'主码流',transport:'TCP',fps:25});
+  camCfg.push({id:nextCamId(),name:'新相机'+n,enable:false,ptz:false,ip:'',port:554,path:'',user:'',pass:'',stream:'主码流',transport:'TCP',fps:25});
   camCfgSel=camCfg[camCfg.length-1].id;
   saveCamCfg();refreshCfgDialog();
   toast('已添加相机：新相机'+n);
@@ -2564,6 +2636,9 @@ function removeCam(id){
   const ns=new Set();
   [...selected].forEach(idx=>{if(idx<i)ns.add(idx);else if(idx>i)ns.add(idx-1);});
   selected=ns;
+  // 修正云台焦点索引
+  if(focusIdx===i)focusIdx=Math.min(i,camCfg.length-1);
+  else if(focusIdx>i)focusIdx--;
   if(camCfgSel===id)camCfgSel=(camCfg[i]||camCfg[i-1]||camCfg[0]||{id:''}).id;
   saveCamCfg();refreshCfgDialog();
   toast('已删除'+rm.name);
@@ -2578,6 +2653,7 @@ function openCamCfg(){
         <input id="cfgUrlInput" placeholder="rtsp://用户名:密码@192.168.1.101:554/live/stream1">
       </div>
       <div class="cf-row"><label><input type="checkbox" id="cfgEnable" style="width:auto;margin-right:6px">启用该相机</label></div>
+      <div class="cf-row"><label><input type="checkbox" id="cfgPtz" style="width:auto;margin-right:6px">云台控制（该相机支持 PTZ 转动 / 变倍）</label></div>
       <div class="cf-row"><label>IP 地址</label><input id="cfgIp" placeholder="192.168.1.101"></div>
       <div class="cf-row"><label>端口（可空，默认 554）</label><input id="cfgPort" type="number" placeholder="554"></div>
       <div class="cf-row"><label>RTSP 路径（可空）</label><input id="cfgPath" placeholder="/live/stream1"></div>

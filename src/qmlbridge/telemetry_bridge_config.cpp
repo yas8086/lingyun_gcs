@@ -2,6 +2,7 @@
 // 保留 `bridge` 前缀与 QML 调用不变，仅按源码组织拆分。
 #include "qmlbridge/telemetry_bridge.h"
 #include "core/config_manager.h"
+#include "video/siyi_sdk_client.h"
 #include "video/rtsp_stream.h"
 #include <QSet>
 #include <QFile>
@@ -143,6 +144,44 @@ QObject *TelemetryBridge::videoStream(const QString &camId) {
     }
     streams_.insert(camId, s);
     return s;
+}
+
+// ---- 思翼云台 SDK（A2 mini）----
+void TelemetryBridge::startGimbal(const QString &ip) {
+    if (ip.isEmpty())
+        return;
+    if (!gimbal_) {
+        gimbal_ = new SiyiSdkClient(this);
+        // 转发客户端信号到桥接层 NOTIFY（Q_PROPERTY 绑定刷新）
+        connect(gimbal_, &SiyiSdkClient::connectedChanged,
+                this, &TelemetryBridge::gimbalConnectedChanged);
+        connect(gimbal_, &SiyiSdkClient::attitudeChanged,
+                this, &TelemetryBridge::gimbalAttitudeChanged);
+    }
+    gimbal_->start(ip, 37260);
+}
+
+void TelemetryBridge::stopGimbal() {
+    if (gimbal_)
+        gimbal_->stop();
+}
+
+void TelemetryBridge::gimbalPitchCtrl(int speed) {
+    if (gimbal_)
+        gimbal_->ctrlPitch(speed);
+}
+
+void TelemetryBridge::gimbalCenter() {
+    if (gimbal_)
+        gimbal_->center();
+}
+
+bool TelemetryBridge::gimbalConnected() const {
+    return gimbal_ && gimbal_->connected();
+}
+
+double TelemetryBridge::gimbalPitch() const {
+    return gimbal_ ? gimbal_->pitch() : 0.0;
 }
 
 // ---- 配置导入导出（决策：跨设备快速配置）----

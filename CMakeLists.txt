@@ -38,6 +38,7 @@ add_executable(lingyun_gcs_qml
     src/qmlbridge/telemetry_bridge_record.cpp
     src/video/rtsp_stream.cpp
     src/video/rtsp_recorder.cpp
+    src/video/siyi_sdk_client.cpp
     src/video/video_surface.cpp
 )
 
