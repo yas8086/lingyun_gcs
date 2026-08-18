@@ -442,6 +442,15 @@ Item {
                 Canvas {
                     id: topoCanvas
                     anchors.fill: parent
+                    // 虚线流动偏移（对齐原型 @keyframes flow 1s：dash 周期 8+6=14px，每秒移动一个周期）
+                    property real flowOff: 0
+                    Timer {
+                        interval: 50; repeat: true; running: topoCanvas.visible
+                        onTriggered: {
+                            topoCanvas.flowOff = (topoCanvas.flowOff + 0.7) % 14
+                            topoCanvas.requestPaint()
+                        }
+                    }
                     onPaint: {
                         const ctx = getContext("2d")
                         ctx.reset()
@@ -453,15 +462,37 @@ Item {
                         const ys = h/2
                         const xs = []
                         for (let i=0;i<5;i++) xs.push(gap + nodeW*i + nodeW/2)
-                        // 连线（流动虚线）
-                        ctx.strokeStyle = root.themeRoot.colPrimary
-                        ctx.lineWidth = 2.5
-                        ctx.setLineDash([8,6])
-                        const links = [[xs[0],xs[1]],[xs[1],xs[2]],[xs[2],xs[3]],[xs[3],xs[4]]]
+                        // 连线（对齐原型 .topo-link：主色虚线 + 箭头 + 流动动画 + 线上标注；DCDC 离线时 l3/l4 变灰停动画）
+                        const links = [
+                            {from: xs[0], to: xs[1], v: root.tPv() + " W",  off: false},
+                            {from: xs[1], to: xs[2], v: root.tCi().toFixed(1) + " A", off: false},
+                            {from: xs[2], to: xs[3], v: root.tOut() + " W", off: root.off("dcdc")},
+                            {from: xs[3], to: xs[4], v: root.tOut() + " W", off: root.off("dcdc")}
+                        ]
                         for (const l of links) {
-                            ctx.beginPath(); ctx.moveTo(l[0], ys); ctx.lineTo(l[1], ys); ctx.stroke()
+                            const lc = l.off ? root.themeRoot.colOff : root.themeRoot.colPrimary
+                            // 虚线
+                            ctx.strokeStyle = lc
+                            ctx.lineWidth = 2.5
+                            ctx.lineCap = "round"
+                            ctx.setLineDash([8,6])
+                            if (!l.off) ctx.lineDashOffset = -topoCanvas.flowOff
+                            ctx.beginPath(); ctx.moveTo(l.from, ys); ctx.lineTo(l.to, ys); ctx.stroke()
+                            ctx.setLineDash([])
+                            ctx.lineDashOffset = 0
+                            // 箭头（右端三角，对齐 marker-end）
+                            ctx.fillStyle = lc
+                            ctx.beginPath()
+                            ctx.moveTo(l.to, ys)
+                            ctx.lineTo(l.to - 10, ys - 5)
+                            ctx.lineTo(l.to - 10, ys + 5)
+                            ctx.closePath(); ctx.fill()
+                            // 线上标注（功率/电流）
+                            ctx.fillStyle = l.off ? root.themeRoot.colOff : root.themeRoot.colText2
+                            ctx.font = "600 12px monospace"
+                            ctx.textAlign = "center"
+                            ctx.fillText(l.v, (l.from + l.to) / 2, ys - 9)
                         }
-                        ctx.setLineDash([])
                         // 节点
                         const nodes = [
                             {x:xs[0], t:"光伏面板", v: root.tPv()+" W", s: root.tPvV().toFixed(1)+" V", off: root.off("mppt")},
@@ -984,33 +1015,63 @@ Item {
             // 增量同步。顶层数据在 TopoView 被 Loader 销毁重建时仍保留，
             // 因此切出图示页再回来，曲线历史不丢、且全程持续采样。
 
-            // 将 themeRoot.rtcData 的缺失点增量追加到 series，并同步 X 轴范围。
+            // 时间窗档位（对齐原型 chartWin：最近 20s/10s/5s，500ms 采样 → 40/20/10 点）
+            property var winOpts: [["20s",40],["10s",20],["5s",10]]
+            property int winIdx: 0
+            // 阈值参考线（对齐原型 bandVal/bandOn）
+            property real bandVal: 45
+            property bool bandOn: false
+
+            // 将 themeRoot.rtcData 的缺失点增量追加到 series，并同步 X 轴范围与阈值线。
             // onCompleted 时 count=0，一次性补齐全部历史；此后每次 rtcTick 补一个新点。
             function syncSeries() {
                 const R = root.themeRoot
                 if (!R) return   // themeRoot 尚未注入（TopoView onLoaded 之前），跳过
                 const n = R.rtcData.v.length
-                // 顶层已 shift（超窗口上限）时，先移除 series 最前点保持对齐
-                while (sVolt.count > n) {
+                const keep = Math.min(n, R.rtcWindowPoints)
+                const startIdx = n - keep   // 顶层数据中"最近窗口"的起始下标
+                // 顶层已 shift 或窗口变小 → 先移除 series 最前点保持对齐
+                while (sVolt.count > keep) {
                     sVolt.remove(0); sPv.remove(0); sOutp.remove(0); sI.remove(0)
                 }
                 const start = sVolt.count
-                for (let k = start; k < n; k++) {
+                for (let k = startIdx + start; k < n; k++) {
                     const x = R.rtcIdx - (n - 1 - k)
                     sVolt.append(x, R.rtcData.v[k])
                     sPv.append(x, R.rtcData.pv[k])
                     sOutp.append(x, R.rtcData.outp[k])
                     sI.append(x, R.rtcData.i[k])
                 }
-                cx2.min = Math.max(0, R.rtcIdx - R.rtcMax)
+                cx2.min = Math.max(0, R.rtcIdx - R.rtcWindowPoints)
                 cx2.max = R.rtcIdx
+                // 阈值参考线（水平线，随轴范围更新两个端点）
+                if (sBand.count < 2) { sBand.append(cx2.min, chartRoot.bandVal); sBand.append(cx2.max, chartRoot.bandVal) }
+                else {
+                    sBand.replace(0, cx2.min, chartRoot.bandVal)
+                    sBand.replace(1, cx2.max, chartRoot.bandVal)
+                }
+            }
+            // 切换时间窗档位：清空 series 后从顶层数据按新窗口重建
+            function applyWindow(idx) {
+                chartRoot.winIdx = idx
+                const R = root.themeRoot
+                if (!R) return
+                R.rtcWindowPoints = chartRoot.winOpts[idx][1]
+                sVolt.clear(); sPv.clear(); sOutp.clear(); sI.clear()
+                chartRoot.syncSeries()
+            }
+            // 图例点击开关对应曲线（对齐原型"点击图例可开关参数"）
+            function legendToggle(idx, on) {
+                const arr = [sVolt, sPv, sOutp, sI]
+                if (idx >= 0 && idx < arr.length) arr[idx].visible = on
             }
             function clearCharts() {
                 sVolt.clear(); sPv.clear(); sOutp.clear(); sI.clear()
                 const R = root.themeRoot
                 R.rtcData = ({"v":[], "pv":[], "outp":[], "i":[]})
                 R.rtcIdx = 0
-                cx2.min = 0; cx2.max = R.rtcMax
+                cx2.min = 0; cx2.max = R.rtcWindowPoints
+                chartRoot.syncSeries()
             }
             // 生成时间戳文件名后缀 YYYYMMDD_HHMMSS
             function ts() {
@@ -1042,6 +1103,81 @@ Item {
                         Text { text: "实时曲线"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
                         Text { text: "点击图例可开关参数"; font.pixelSize: 11; color: root.themeRoot.colText2 }
                         Item { Layout.fillWidth: true }
+                        // 时间窗三档（对齐原型 chartWin：最近 20s/10s/5s）
+                        Row {
+                            spacing: 3
+                            Repeater {
+                                model: chartRoot.winOpts
+                                Rectangle {
+                                    property bool winActive: chartRoot.winIdx === index
+                                    width: 34; height: 26; radius: 6
+                                    scale: winMa.pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                    color: winActive ? root.themeRoot.colPrimary : root.themeRoot.colCard2
+                                    border.color: winActive ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData[0]
+                                        font.pixelSize: 11; font.weight: Font.Bold
+                                        color: winActive ? "#ffffff" : root.themeRoot.colText2
+                                    }
+                                    MouseArea {
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        id: winMa
+                                        anchors.fill: parent
+                                        onClicked: chartRoot.applyWindow(index)
+                                    }
+                                }
+                            }
+                        }
+                        // 阈值参考线：数值输入 + 开关（对齐原型 bandVal/bandOn）
+                        Rectangle {
+                            Layout.preferredHeight: 26
+                            implicitWidth: bandRow.implicitWidth + 12
+                            radius: 6
+                            color: root.themeRoot.colCard2
+                            border.color: root.themeRoot.colLine
+                            Row {
+                                id: bandRow
+                                anchors.centerIn: parent
+                                spacing: 4
+                                TextField {
+                                    width: 44; height: 20
+                                    horizontalAlignment: TextInput.AlignHCenter
+                                    font.pixelSize: 11; font.family: "monospace"
+                                    color: root.themeRoot.colText
+                                    text: "" + chartRoot.bandVal
+                                    inputMethodHints: Qt.ImhDigitsOnly
+                                    background: Rectangle { radius: 4; color: root.themeRoot.colCard; border.color: root.themeRoot.colLine }
+                                    onEditingFinished: {
+                                        const v = parseInt(text)
+                                        if (!isNaN(v)) chartRoot.bandVal = v
+                                        chartRoot.syncSeries()
+                                    }
+                                }
+                                Text {
+                                    text: "阈值线"
+                                    font.pixelSize: 11; font.weight: Font.DemiBold; color: root.themeRoot.colText2
+                                }
+                                Button {
+                                    text: chartRoot.bandOn ? "开" : "关"
+                                    width: 24; height: 20
+                                    scale: pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: chartRoot.bandOn ? root.themeRoot.colPrimary : root.themeRoot.colCard
+                                        border.color: chartRoot.bandOn ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                                    }
+                                    contentItem: Text { text: parent.text; color: chartRoot.bandOn ? "#ffffff" : root.themeRoot.colText2; font.pixelSize: 11; font.weight: Font.DemiBold }
+                                    onClicked: {
+                                        chartRoot.bandOn = !chartRoot.bandOn
+                                        sBand.visible = chartRoot.bandOn
+                                    }
+                                }
+                            }
+                        }
                         Button {
                             // 按压缩放反馈（对齐原型 :active{scale(.94)}）
                             scale: pressed ? 0.94 : 1.0
@@ -1110,10 +1246,23 @@ Item {
                             spacing: 16
                             Repeater {
                                 model: [["BMS总压","#2563eb"],["光伏功率","#16a34a"],["输出功率","#f59e0b"],["总电流","#06b6d4"]]
+                                // 图例项：点击开关对应曲线（对齐原型"点击图例可开关参数"）
                                 Row {
+                                    id: legRow
+                                    property bool legOn: true
                                     spacing: 6
+                                    opacity: legOn ? 1.0 : 0.35
                                     Rectangle { width: 14; height: 3; radius: 2; anchors.verticalCenter: parent.verticalCenter; color: modelData[1] }
                                     Text { text: modelData[0]; font.pixelSize: 12; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            legRow.legOn = !legRow.legOn
+                                            chartRoot.legendToggle(index, legRow.legOn)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1130,6 +1279,8 @@ Item {
                             LineSeries { id: sPv; name: "光伏功率"; axisX: cx2; axisY: cy2; color: "#16a34a"; width: 2 }
                             LineSeries { id: sOutp; name: "输出功率"; axisX: cx2; axisY: cy2; color: "#f59e0b"; width: 2 }
                             LineSeries { id: sI; name: "总电流"; axisX: cx2; axisY: cy2; color: "#06b6d4"; width: 2 }
+                            // 阈值参考线（水平虚线，默认隐藏，打开后随轴范围更新）
+                            LineSeries { id: sBand; axisX: cx2; axisY: cy2; color: root.themeRoot.colWarn; width: 2; opacity: 0.75; visible: false }
                         }
                     }
                 }
@@ -1250,11 +1401,17 @@ Item {
         running: root.treeNode !== 0
         repeat: true
         onTriggered: {
-            // 温度探头：在基准附近小幅波动，并维护历史（环形 180）
+            // 温度探头：优先使用真实 LoRa 探头数据（bridge.loraNodes），按 pid/编号匹配；
+            // 无对应真实节点时回退基准温度（不再随机模拟），并维护历史（环形 180）
+            const lora = bridge.loraNodes()
+            const loraMap = new Object()
+            for (const n of lora) { loraMap["" + n.id] = n; loraMap[n.id] = n }
             for (const p of root.probes) {
                 const k = p.pid
+                const node = loraMap[String(k).replace(/^T/i, "")] || loraMap[k]
+                const real = node && node.isTemp ? node.temp : NaN
                 const base = root.pvVals[k] != null ? root.pvVals[k] : p.base
-                const next = base + (Math.random()-0.5)*0.7
+                const next = !isNaN(real) && real > 0 ? real : base
                 root.pvVals[k] = next
                 const h = root.pvHist[k] || []
                 h.push(next)
