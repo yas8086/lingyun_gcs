@@ -416,9 +416,9 @@ Item {
                     font.pixelSize: 11; color: root.themeRoot.colText2
                 }
                 Item { Layout.fillWidth: true }
-                // 配置提醒（RTSP 拉流前提：摄像头与地面站网口同子网 + 固定 IP），置于拉流设置左侧
+                // 配置提醒（RTSP 拉流前提：地面站网口与摄像头同子网 + 静态 IP），置于拉流设置左侧
                 Text {
-                    text: "⚠ 需将摄像头配置为与地面站同网段的静态 IP"
+                    text: "⚠ 需为地面站网口增加配置与摄像头同网段的静态 IP"
                     font.pixelSize: 11; color: root.themeRoot.colWarn
                 }
                 // 拉流设置按钮（.cam-btn #camCfgBtn，齿轮图标）
@@ -604,11 +604,37 @@ Item {
                             // RTSP 实时视频（B 方案：GStreamer + QSG 纹理 GPU 上屏）。
                             // 流由 bridge.videoStream(camId) 懒创建，启用的相机按选中状态自动拉流；
                             // 无帧/离线时保持底层渐变占位可见。
-                            VideoSurface {
-                                id: vidSurf
+                            // 外层 vidClip 启用 layer + 圆角 mask：Rectangle 的 clip 仅按外框矩形
+                            // 裁剪、不裁圆角，视频帧直角会在圆角处出界，经 mask 按格子圆角裁剪。
+                            Item {
+                                id: vidClip
                                 anchors.fill: parent
-                                stream: viewItem.live ? bridge.videoStream(modelData.id) : null
-                                visible: viewItem.live && stream && stream.online
+                                visible: viewItem.live && vidSurf.stream && vidSurf.stream.online
+                                // 流在线才开 layer（离屏纹理 + mask 采样），离线时零开销
+                                layer.enabled: visible
+                                layer.effect: MultiEffect {
+                                    autoPaddingEnabled: false
+                                    maskEnabled: true
+                                    maskSource: vidMask
+                                }
+                                VideoSurface {
+                                    id: vidSurf
+                                    anchors.fill: parent
+                                    stream: viewItem.live ? bridge.videoStream(modelData.id) : null
+                                }
+                                // 圆角遮罩源：maskSource 必须是 layer.enabled 的纹理源，
+                                // visible:false 不参与场景渲染（Qt 官方 MultiEffect 掩码结构）
+                                Item {
+                                    id: vidMask
+                                    width: vidClip.width; height: vidClip.height
+                                    layer.enabled: true
+                                    visible: false
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 12   // 与画面格外框 radius 一致
+                                        color: "white"
+                                    }
+                                }
                             }
                             // 相机轮廓 SVG（.cam-pic，白色描边 120px opacity .12；流在线时隐藏避免叠在视频上）
                             Rectangle {
@@ -1319,6 +1345,7 @@ Item {
                             CFSelect {
                                 id: cfgCamCombo
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 35   // 防止被 ColumnLayout 压扁（fillWidth 时 implicitHeight 不生效）
                                 model: root.cfgDraft.map(function(c){ return c.name })
                                 // 切换编辑对象：先回写前一相机表单（防编辑丢失），再渲染新对象
                                 onActivated: {
@@ -1493,9 +1520,9 @@ Item {
                         ColumnLayout { Layout.fillWidth: true; spacing: 4
                             Text { text: "码流 / 传输 / 帧率"; font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText2 }
                             RowLayout { Layout.fillWidth: true; spacing: 8
-                                CFSelect { id: cfgStreamCombo; Layout.fillWidth: true; model: ["主码流","子码流"] }
-                                CFSelect { id: cfgTransportCombo; Layout.fillWidth: true; model: ["TCP","UDP"] }
-                                CFSelect { id: cfgFpsCombo; Layout.fillWidth: true; model: ["15","20","25","30"] }
+                                CFSelect { id: cfgStreamCombo; Layout.fillWidth: true; Layout.preferredHeight: 35; model: ["主码流","子码流"] }
+                                CFSelect { id: cfgTransportCombo; Layout.fillWidth: true; Layout.preferredHeight: 35; model: ["TCP","UDP"] }
+                                CFSelect { id: cfgFpsCombo; Layout.fillWidth: true; Layout.preferredHeight: 35; model: ["15","20","25","30"] }
                             }
                         }
                     }
