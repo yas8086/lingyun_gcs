@@ -691,9 +691,12 @@ ApplicationWindow {
     // ===== Toast 通知（对齐原型 .toast-wrap/.toast：右上角堆叠，三色卡片 + 滑入滑出）=====
     // 原型：fixed top:64px right:20px；ok 绿 / err 红 / info 蓝（soft 底 + 主色边框文字）；
     // 入场 250ms 弹性滑入，3s 后 200ms 滑出销毁，多条自动纵向堆叠（Column spacing 8px）
+    // parent 挂 Overlay 层（弹窗所在层）+ 高 z：保证拉流设置/确认框等 Popup 打开时仍显示在最顶层
+    // （Popup 永远高于 contentItem 内普通 Item；卡片无 MouseArea，不拦截弹窗内点击）
     Column {
         id: toastWrap
-        z: 1000
+        parent: Overlay.overlay
+        z: 9999
         anchors.top: parent.top
         anchors.topMargin: 64
         anchors.right: parent.right
