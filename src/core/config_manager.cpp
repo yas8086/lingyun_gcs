@@ -152,8 +152,8 @@ int ConfigManager::temperatureUnit() const {
 void ConfigManager::setTemperatureUnit(int unit) { set("temp_unit", unit); }
 
 int ConfigManager::pressureUnit() const {
-    const int v = value("pressure_unit", 0).toInt(0);
-    return (v >= 0 && v <= 3) ? v : 0; // 0=kPa 1=Pa 2=bar 3=psi，非法回退 kPa
+    const int v = value("pressure_unit", 1).toInt(1);
+    return (v >= 0 && v <= 3) ? v : 1; // 0=kPa 1=Pa 2=bar 3=psi，默认 Pa，非法回退 Pa
 }
 void ConfigManager::setPressureUnit(int unit) { set("pressure_unit", unit); }
 

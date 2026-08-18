@@ -23,6 +23,31 @@ Item {
         if (isNaN(c)) return "--"
         return bridge.configTempUnit() === 1 ? (c * 9 / 5 + 32).toFixed(1) : c.toFixed(1)
     }
+    // 压力单位换算（决策：协议值为 Pa，按设置换算显示）：0=kPa 1=Pa 2=bar 3=psi
+    // 带 dataTick 依赖，设置页修改单位后自动跟随换算
+    function presStr(pa) {
+        void root.themeRoot.dataTick
+        if (isNaN(pa)) return "--"
+        switch (bridge.configPressureUnit()) {
+            case 1: return Math.round(pa) + " Pa"
+            case 2: return (pa / 100000).toFixed(3) + " bar"
+            case 3: return (pa / 6894.7573).toFixed(1) + " psi"
+            default: return (pa / 1000).toFixed(1) + " kPa"
+        }
+    }
+    // 温度/压力采集模块高度：按节点数与卡片自适应尺寸显式计算，
+    // 节点多换行时模块随之增高（ScrollView 滚动兜底），最小 150。
+    // 依赖 dataTick + root.width，节点数/窗口宽度变化时自动重算。
+    function loraPanelHCalc() {
+        void root.themeRoot.dataTick
+        const n = root.loraNodes().length
+        if (n === 0) return 150
+        const cardW = 92, cardH = 70, gap = 6
+        const flowW = Math.max(1, root.width - 28)          // 模块内可用宽（margin 14*2）
+        const perRow = Math.max(1, Math.floor((flowW + gap) / (cardW + gap)))
+        const rows = Math.ceil(n / perRow)
+        return Math.max(150, 30 + 8 + rows * cardH + (rows - 1) * gap + 28)
+    }
     // 功率单位：W / kW
     function powerUnit() { return "W" }
     function toPower(w) {
@@ -607,14 +632,15 @@ Item {
             Rectangle {
                 visible: !root.themeRoot.isModuleHidden("lora")
                 Layout.fillWidth: true
-                Layout.preferredHeight: 150
+                // 模块高度按节点数显式计算（loraPanelHCalc），节点多换行时自动撑起，最小 150
+                Layout.preferredHeight: root.loraPanelHCalc()
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 8
                     RowLayout {
-                        Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                        Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
                         Item { Layout.fillWidth: true }
                         Rectangle {
                             radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -627,19 +653,23 @@ Item {
                             }
                         }
                     }
-                    // LoRa 节点网格（宽屏横排）
+                    // LoRa 节点网格（宽屏横排；节点同时上报温度+压力时一并显示）
                     Flow {
+                        id: loraFlow
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
                         spacing: 6
                         Repeater {
                             model: root.loraNodes()
                             Rectangle {
-                                width: Math.max(120, (parent.width - 30) / 6)
-                                height: 56; radius: 8
+                                // 宽度随内容自适应，高度统一固定（压力/温度卡片等高，视觉一致）
+                                implicitWidth: col.implicitWidth + 16
+                                width: implicitWidth
+                                height: 60
+                                radius: 8
                                 color: modelData.alarm !== 0 ? root.themeRoot.colErrSoft : root.themeRoot.colCard2
                                 border.color: modelData.alarm !== 0 ? root.themeRoot.colErr : root.themeRoot.colLine
                                 Column {
+                                    id: col
                                     anchors.centerIn: parent
                                     spacing: 3
                                     Row {
@@ -647,24 +677,42 @@ Item {
                                         spacing: 5
                                         Text { text: "#" + modelData.id; font.pixelSize: 10; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
                                         Text {
-                                            text: modelData.isTemp ? "温度" : "压力"
+                                            text: modelData.pressure !== 0 ? "压力" : "温度"
                                             font.pixelSize: 10; font.weight: Font.DemiBold
-                                            color: modelData.isTemp ? root.themeRoot.colPrimary : root.themeRoot.colOk
+                                            color: modelData.pressure !== 0 ? root.themeRoot.colOk : root.themeRoot.colPrimary
+                                        }
+                                    }
+                                    // 主值行：压力节点压力+温度同行（温度小字），温度节点仅温度
+                                    Row {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        spacing: 8
+                                        Text {
+                                            id: mainVal
+                                            text: modelData.pressure !== 0
+                                                  ? root.presStr(modelData.pressure)
+                                                  : root.toTemp(modelData.temp) + " " + root.tempUnit()
+                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                        }
+                                        // 压力传感器自带温度检测：同行小字显示（间隔由 Row spacing 控制）
+                                        Text {
+                                            visible: modelData.pressure !== 0 && modelData.temp !== 0
+                                            text: "温度 " + root.toTemp(modelData.temp) + root.tempUnit()
+                                            font.pixelSize: 11; color: root.themeRoot.colText2
+                                            anchors.baseline: mainVal.baseline
                                         }
                                     }
                                     Text {
-                                        text: modelData.isTemp ? root.toTemp(modelData.temp) + " " + root.tempUnit()
-                                                               : modelData.pressure.toFixed(0) + " Pa"
-                                        font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
-                                    }
-                                    Text {
-                                        text: modelData.alarm > 0 ? "超上限" : (modelData.alarm < 0 ? "超下限" : "")
+                                        visible: modelData.alarm !== 0
+                                        text: modelData.alarm > 0 ? "超上限" : "超下限"
                                         font.pixelSize: 10; font.bold: true; color: root.themeRoot.colErr
                                     }
                                 }
                             }
                         }
                     }
+                    // 底部占位项：吸收剩余高度，把标题/内容顶到左上角
+                    // （无数据时内容少，若无此项 ColumnLayout 会把内容垂直居中，标题显得居中）
+                    Item { Layout.fillHeight: true }
                 }
             }
 
