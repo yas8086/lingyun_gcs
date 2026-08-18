@@ -103,6 +103,7 @@ ApplicationWindow {
     property int rtcIdx: 0
     property int rtcTick: 0
     property int rtcMax: 100
+    property int rtcWindowPoints: 40   // 曲线时间窗显示点数（500ms 采样：20s=40/10s=20/5s=10），图示页可切换
     property bool rtcPlaying: true
 
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
@@ -517,21 +518,7 @@ ApplicationWindow {
                         }
                     }
 
-                    // 提示条 Toast
-                    Rectangle {
-                        id: toast
-                        visible: false
-                        radius: 8
-                        color: "#000000cc"
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top
-                        anchors.topMargin: 8
-                        implicitWidth: toastText.implicitWidth + 16
-                        implicitHeight: toastText.implicitHeight + 12
-                        Text {
-                            id: toastText; anchors.centerIn: parent; color: "white"; font.pixelSize: 13; text: ""
-                        }
-                    }
+                    // Toast 通知容器与卡片组件见文件末尾（对齐原型 .toast-wrap：右上角堆叠）
                 }
 
                 // ----- 底部状态栏 -----
@@ -701,12 +688,84 @@ ApplicationWindow {
         if (root.active) root.rtcTick++
     }
 
-    function showToast(msg) {
-        toastText.text = msg
-        toast.visible = true
-        toastTimer.restart()
+    // ===== Toast 通知（对齐原型 .toast-wrap/.toast：右上角堆叠，三色卡片 + 滑入滑出）=====
+    // 原型：fixed top:64px right:20px；ok 绿 / err 红 / info 蓝（soft 底 + 主色边框文字）；
+    // 入场 250ms 弹性滑入，3s 后 200ms 滑出销毁，多条自动纵向堆叠（Column spacing 8px）
+    Column {
+        id: toastWrap
+        z: 1000
+        anchors.top: parent.top
+        anchors.topMargin: 64
+        anchors.right: parent.right
+        anchors.rightMargin: 20
+        spacing: 8
     }
-    Timer { id: toastTimer; interval: 2000; onTriggered: toast.visible = false }
+    Component {
+        id: toastComp
+        Item {
+            id: toastItem
+            property string tMsg: ""
+            property string tType: "ok"   // ok | err | info
+            readonly property color cMain: tType === "err" ? root.colErr
+                                         : tType === "info" ? root.colPrimary : root.colOk
+            readonly property color cSoft: tType === "err" ? root.colErrSoft
+                                         : tType === "info" ? root.accentSoft : root.colOkSoft
+            width: Math.max(220, Math.min(340, toastText.implicitWidth + 28))
+            height: toastText.implicitHeight + 20
+            opacity: 0
+            x: 24
+            // 阴影（原型 shadow-3：0 8px 24px rgba(15,23,42,.18)）
+            MultiEffect {
+                anchors.fill: card
+                source: card
+                shadowEnabled: true
+                shadowColor: "#0f172a"
+                shadowOpacity: 0.18
+                shadowBlur: 0.3
+                shadowVerticalOffset: 8
+            }
+            Rectangle {
+                id: card
+                anchors.fill: parent
+                radius: 10
+                color: toastItem.cSoft
+                border.color: toastItem.cMain
+                border.width: 1
+                Text {
+                    id: toastText
+                    anchors.centerIn: parent
+                    width: Math.min(340 - 28, implicitWidth)   // 超长文本在 340px 卡内换行
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                    text: toastItem.tMsg
+                    color: toastItem.cMain
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                }
+            }
+            // 入场：右滑入 + 淡入（250ms，cubic-bezier(.2,.9,.3,1.2) 弹性 ≈ OutBack）
+            ParallelAnimation {
+                id: animIn
+                NumberAnimation { target: toastItem; property: "opacity"; to: 1; duration: 250; easing.type: Easing.OutCubic }
+                NumberAnimation { target: toastItem; property: "x"; to: 0; duration: 250; easing.type: Easing.OutBack }
+            }
+            // 出场：右滑出 + 淡出（200ms）后销毁
+            SequentialAnimation {
+                id: animOut
+                ParallelAnimation {
+                    NumberAnimation { target: toastItem; property: "opacity"; to: 0; duration: 200; easing.type: Easing.InQuad }
+                    NumberAnimation { target: toastItem; property: "x"; to: 24; duration: 200; easing.type: Easing.InQuad }
+                }
+                ScriptAction { script: toastItem.destroy() }
+            }
+            Timer { interval: 3000; running: true; onTriggered: animOut.start() }
+            Component.onCompleted: animIn.start()
+        }
+    }
+
+    function showToast(msg, type) {
+        toastComp.createObject(toastWrap, { tMsg: String(msg), tType: type || "ok" })
+    }
     Timer { interval: 1000; running: true; repeat: true;
         onTriggered: {
             clockText.text = new Date().toTimeString().slice(0,8)
