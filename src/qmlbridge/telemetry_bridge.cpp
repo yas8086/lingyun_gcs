@@ -5,6 +5,9 @@
 #include <QMetaObject>
 #include <QSerialPortInfo>
 #include <QDir>
+#include <QFile>
+#include <QNetworkInterface>
+#include <QAbstractSocket>
 #include <limits>
 
 namespace lgs {
@@ -308,6 +311,45 @@ QVariant TelemetryBridge::loraNodes() const {
 // ---- 运行时长 ----
 int TelemetryBridge::uptimeSeconds() const {
     return uptimeStarted_ ? static_cast<int>(uptime_.elapsed() / 1000) : 0;
+}
+
+// ---- 网络接口状态（网口链路检测）----
+// 返回 QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>。
+// linkUp 为物理链路状态（Linux 读 /sys/class/net/<iface>/carrier，即网线是否插入）；
+// 无法读取（如回环/虚拟网卡无 carrier 文件）时为 null。
+QVariant TelemetryBridge::netInterfaces() const {
+    QVariantList list;
+    const auto ifaces = QNetworkInterface::allInterfaces();
+    for (const auto &iface : ifaces) {
+        if (iface.flags() & QNetworkInterface::IsLoopBack)
+            continue; // 跳过回环接口
+        QVariantMap m;
+        m["name"] = iface.name();
+        m["mac"] = iface.hardwareAddress();
+        m["isUp"] = bool(iface.flags() & QNetworkInterface::IsUp);
+        // 取首个 IPv4 地址（IP 与链路状态无关，仅信息展示用）
+        QString ip;
+        const auto entries = iface.addressEntries();
+        for (const auto &e : entries) {
+            if (e.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                ip = e.ip().toString();
+                break;
+            }
+        }
+        m["ip"] = ip;
+        // 物理链路状态：Linux 下读 carrier 文件（1=网线已插，0=未插/断开）
+        bool readable = false;
+        bool linkUp = false;
+        QFile f(QStringLiteral("/sys/class/net/%1/carrier").arg(iface.name()));
+        if (f.open(QIODevice::ReadOnly)) {
+            readable = true;
+            linkUp = (f.readAll().trimmed() == "1");
+            f.close();
+        }
+        m["linkUp"] = readable ? QVariant(linkUp) : QVariant();
+        list.append(m);
+    }
+    return list;
 }
 
 } // namespace lgs

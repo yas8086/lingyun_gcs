@@ -12,6 +12,8 @@
 #include "core/config_manager.h"
 #include "map/tile_provider.h"
 #include "qmlbridge/telemetry_bridge.h"
+#include "video/rtsp_stream.h"
+#include "video/video_surface.h"
 
 // QML 版地面站入口：保留 C++ 后端（串口/总线/告警），QML 复刻原型视觉。
 // 用 QApplication（而非 QGuiApplication）：QtCharts 内部依赖 QWidgetTextControl。
@@ -23,6 +25,9 @@ int main(int argc, char *argv[]) {
     // 2. 默认禁用 alpha 缓冲区，确保窗口背景始终不透明。
     qputenv("QSG_RENDER_LOOP", "basic");
     QQuickWindow::setDefaultAlphaBuffer(false);
+
+    // GStreamer 初始化（RTSP 拉流，B 方案）；仅需一次
+    gst_init(nullptr, nullptr);
 
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("LingYun");
@@ -76,6 +81,10 @@ int main(int argc, char *argv[]) {
     });
 
     QQmlApplicationEngine engine;
+    // 摄像头 RTSP 视频渲染（B 方案）：注册自定义 QML 类型
+    qmlRegisterType<lgs::VideoSurface>("LingYun.Video", 1, 0, "VideoSurface");
+    qmlRegisterUncreatableType<lgs::RtspStream>("LingYun.Video", 1, 0, "RtspStream",
+        QStringLiteral("RtspStream 通过 bridge.videoStream(camId) 获取"));
     engine.rootContext()->setContextProperty("bridge", &bridge);
     engine.rootContext()->setContextProperty("tileProvider", &tileProvider);
     engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));

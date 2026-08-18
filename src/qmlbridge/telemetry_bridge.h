@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QList>
 #include <QVector>
+#include <QHash>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QFile>
@@ -20,6 +21,8 @@ namespace lgs {
 class SerialManager;
 class ConfigManager;
 class AlarmEngine;
+class RtspStream;
+class RtspRecorder;
 
 // 桥接层：把 C++ 后端（遥测/链路/就绪度/告警/串口/配置）暴露给 QML 前端。
 // 采用 context 属性注入，QML 通过 Q_INVOKABLE 方法与信号交互。
@@ -110,6 +113,16 @@ public:
     // 摄像头布局档位：1/2/4/a（全部），JSON 持久化
     Q_INVOKABLE QString cameraLay() const;
     Q_INVOKABLE void setCameraLay(const QString &lay);
+    // RTSP 视频流（B 方案：GStreamer）：按相机 id 获取（不存在则创建），url 取自相机配置
+    Q_INVOKABLE QObject *videoStream(const QString &camId);
+    // 摄像头录像：真实录制（rtspsrc→parsebin→matroskamux 零转码存 .mkv，按天归档）
+    // 多路并行：按相机 id 各建录制器。返回文件名（空=失败，如相机未配置地址；
+    // 该相机已在录则返回当前文件名）；stopCameraRecord 停止全部在录并返回是否有路停止
+    Q_INVOKABLE QString startCameraRecord(const QString &camId);
+    Q_INVOKABLE bool stopCameraRecord();
+    // 网络接口状态（网口链路检测）：QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>
+    // linkUp 为物理链路状态（Linux 读 /sys/class/net/*/carrier，即网线是否连接）
+    Q_INVOKABLE QVariant netInterfaces() const;
 
     // 告警列表与确认（决策 #20）
     void addAlarm(const QString &msg, const QString &level, const QString &source);
@@ -157,6 +170,8 @@ private:
     SerialManager *serial_ = nullptr;
     ConfigManager *config_ = nullptr;
     AlarmEngine *engine_ = nullptr;
+    QHash<QString, RtspStream *> streams_;   // 相机 id → RTSP 流（懒创建，随桥接层销毁）
+    QHash<QString, RtspRecorder *> recorders_;  // 相机 id → 录制器（多路并行，随桥接层销毁）
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;

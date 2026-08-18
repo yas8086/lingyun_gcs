@@ -2,6 +2,7 @@
 // 保留 `bridge` 前缀与 QML 调用不变，仅按源码组织拆分。
 #include "qmlbridge/telemetry_bridge.h"
 #include "core/config_manager.h"
+#include "video/rtsp_stream.h"
 #include <QSet>
 #include <QFile>
 #include <QTextStream>
@@ -114,6 +115,34 @@ QString TelemetryBridge::cameraLay() const {
 }
 void TelemetryBridge::setCameraLay(const QString &lay) {
     if (config_) config_->setCameraLay(lay);
+}
+QObject *TelemetryBridge::videoStream(const QString &camId) {
+    // 懒创建：同 id 复用同一流实例，随桥接层销毁
+    auto it = streams_.find(camId);
+    if (it != streams_.end())
+        return it.value();
+    auto *s = new RtspStream(this);
+    // 从相机配置取 RTSP url
+    if (config_) {
+        const QJsonArray arr = config_->cameraConfigs();
+        for (const auto &v : arr) {
+            const QJsonObject o = v.toObject();
+            if (o.value("id").toString() == camId) {
+                const QString ip = o.value("ip").toString();
+                const int port = o.value("port").toInt(554);
+                const QString path = o.value("path").toString();
+                const QString user = o.value("user").toString();
+                const QString pass = o.value("pass").toString();
+                if (!ip.isEmpty()) {
+                    const QString cred = user.isEmpty() ? QString() : (user + ":" + pass + "@");
+                    s->setUrl(QStringLiteral("rtsp://%1%2:%3%4").arg(cred, ip).arg(port).arg(path));
+                }
+                break;
+            }
+        }
+    }
+    streams_.insert(camId, s);
+    return s;
 }
 
 // ---- 配置导入导出（决策：跨设备快速配置）----

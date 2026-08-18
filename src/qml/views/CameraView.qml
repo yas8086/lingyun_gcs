@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import LingYun.Video 1.0
 
 // 摄像头监控（1:1 复刻原型 #view-camera + 设计文档《摄像头页面落地设计》）：
 // 动态相机配置（RTSP 拉流设置，JSON 持久化）· tab 多选（FIFO 顶掉）· 四档布局（1/2/4/全）·
@@ -10,7 +11,7 @@ Item {
     id: root
 
     property QtObject themeRoot: null
-    signal showNote(string msg)
+    signal showNote(string msg, string type)
 
     // ===== 相机配置（对齐原型 CamConfig，id 主键稳定）=====
     property var camCfg: []          // [{id,name,enable,ip,port,path,user,pass,stream,transport,fps}]
@@ -20,27 +21,73 @@ Item {
     property int camSeq: 0           // 相机 id 自增序号（删除后不复用）
     property bool osdOn: true        // OSD 叠加开关
     property bool recOn: false       // 录像状态
-    property int recStart: 0         // 录像开始时间戳
+    property real recStart: 0        // 录像开始时间戳（ms；须用 real，int 是 32 位会溢出 Date.now()）
     property bool connBusy: false    // 重连中
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0
 
     // ===== 默认相机配置（对齐原型 CAM_CFG_DEFAULT）=====
+    // 前视相机 cam_0 为当前真实接入摄像头：rtsp://192.168.144.25:8554/main.264（无认证）
     property var camDefault: [
-        {id:"cam_0", name:"前视相机", enable:true,  ip:"192.168.1.101", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_0", name:"前视相机", enable:true,  ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
         {id:"cam_1", name:"后视相机", enable:true,  ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
         {id:"cam_2", name:"吊舱相机", enable:false, ip:"192.168.1.103", port:554, path:"/live/stream2", user:"admin", pass:"12345", stream:"主码流", transport:"UDP", fps:25},
         {id:"cam_3", name:"地面相机", enable:true,  ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
     ]
 
-    function toast(msg) { root.showNote(msg) }
+    function toast(msg, type) { root.showNote(msg, type || "ok") }
 
     function fmtTs(ts) {
         var d = new Date(ts)
         function p(n) { return n < 10 ? "0" + n : "" + n }
         return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate())
              + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+    }
+    // 数值格式化（OSD 叠加用）
+    function fmt2(v) { return isNaN(v) ? "--" : Number(v).toFixed(2) }
+    function fmt1(v) { return isNaN(v) ? "--" : Number(v).toFixed(1) }
+    function fmt0(v) { return isNaN(v) ? "--" : Math.round(v) }
+    // OSD 本地时钟（由定时器每秒刷新）
+    property string osdClock: root.fmtTs(Date.now())
+    // 网口连接状态：有线网口物理链路（网线是否插入）决定"网口已连接/未连接"
+    property bool netOk: false
+    // 任一有线网口（非回环/无线/虚拟网桥）carrier=1 即视为网口已连接
+    function netLinkUp() {
+        var ifaces = bridge.netInterfaces()
+        for (var i = 0; i < ifaces.length; i++) {
+            var n = String(ifaces[i].name || "")
+            if (n === "lo" || n.indexOf("wl") === 0) continue        // 回环 / 无线网卡
+            if (n.indexOf("docker") === 0 || n.indexOf("veth") === 0) continue
+            if (n.indexOf("br-") === 0 || n.indexOf("virbr") === 0) continue
+            if (ifaces[i].linkUp === true) return true              // 有线网口已插网线
+        }
+        return false
+    }
+    // RTSP 流启停管理：仅对"启用且被选中"的相机拉流，未选中/停用即停止（省资源）
+    // 注意：用 started 而非 online 判断是否已发起拉流，避免首帧延迟期间每秒重复 teardown 重建
+    function manageStreams() {
+        if (!root.camCfg || !root.camCfg.length) return
+        for (var i = 0; i < root.camCfg.length; i++) {
+            var c = root.camCfg[i]
+            if (!c) continue
+            var s = bridge.videoStream(c.id)
+            var active = c.enable && root.selected.indexOf(i) >= 0 && c.ip
+            if (active && !s.started && !s.busy) s.start()
+            else if (!active && s.started) s.stop()
+        }
+        root.netOk = root.netLinkUp()
+    }
+    // 相机数据变更后：同步流 URL（增删改配置后拉流目标可能变化）并刷新启停
+    function syncStreams() {
+        for (var i = 0; i < root.camCfg.length; i++) {
+            var c = root.camCfg[i]
+            if (!c) continue
+            var s = bridge.videoStream(c.id)
+            s.url = c.ip ? root.camRtspUrl(i) : ""
+            if (!c.ip) s.stop()
+        }
+        root.manageStreams()
     }
 
     // ===== 相机配置工具（对齐原型 JS）=====
@@ -89,6 +136,7 @@ Item {
     function saveAll() {
         bridge.saveCameraConfigs(root.camCfg)
         bridge.setCameraLay(root.layMode)
+        root.syncStreams()   // 配置变更后同步拉流目标
     }
 
     // ===== 初始化：加载配置 / 布局档位，填充默认选中 =====
@@ -111,6 +159,20 @@ Item {
         root.camCfgSel = root.camCfg.length ? root.camCfg[0].id : ""
         root.selected = root.defaultSelected(root.layMode)
         root.renderCfgForm()
+        root.syncStreams()   // 首次拉流（仅选中启用的相机）
+        // 周期刷新：OSD 时钟 / 网口状态 / 断流后按需补拉
+        streamWatch.start()
+    }
+
+    Timer {
+        id: streamWatch
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            root.osdClock = root.fmtTs(Date.now())
+            root.netOk = root.netLinkUp()
+            root.manageStreams()   // 断流后重连尝试由 RtspStream 自身退避处理，这里保持启停正确
+        }
     }
 
     // 状态点呼吸动画（对齐原型 .cam-tag .dot 的 pulse 动画，1.6s 循环）
@@ -278,19 +340,21 @@ Item {
                     Text { text: "🎥"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
                     Text { text: "摄像头监控"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
                 }
-                // 网口状态胶囊（.cam-stat）
+                // 网口状态胶囊（.cam-stat，绑定真实流连接状态）
                 Rectangle {
                     Layout.preferredHeight: 24
                     implicitWidth: statLbl.implicitWidth + 26
                     radius: 999
-                    color: root.themeRoot.colOkSoft
+                    color: root.netOk ? root.themeRoot.colOkSoft : root.themeRoot.colErrSoft
                     Row {
                         anchors.centerIn: parent
                         spacing: 5
-                        Rectangle { width: 7; height: 7; radius: 3.5; color: root.themeRoot.colOk; anchors.verticalCenter: parent.verticalCenter }
+                        Rectangle { width: 7; height: 7; radius: 3.5; color: root.netOk ? root.themeRoot.colOk : root.themeRoot.colErr; anchors.verticalCenter: parent.verticalCenter }
                         Text {
                             id: statLbl
-                            text: "网口已连接"; font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colOk
+                            text: root.netOk ? "网口已连接" : "网口未连接"
+                            font.pixelSize: 12; font.weight: Font.DemiBold
+                            color: root.netOk ? root.themeRoot.colOk : root.themeRoot.colErr
                         }
                     }
                 }
@@ -375,6 +439,7 @@ Item {
                                 root.selected = arr
                                 root.toast("已选择 " + modelData.name)
                             }
+                            root.manageStreams()   // 选中集变化 → 拉流启停同步
                         }
                     }
                 }
@@ -464,11 +529,21 @@ Item {
                                     GradientStop { position: 1.0; color: "#060a12" }
                                 }
                             }
-                            // 相机轮廓 SVG（.cam-pic，白色描边 120px opacity .12）
+                            // RTSP 实时视频（B 方案：GStreamer + QSG 纹理 GPU 上屏）。
+                            // 流由 bridge.videoStream(camId) 懒创建，启用的相机按选中状态自动拉流；
+                            // 无帧/离线时保持底层渐变占位可见。
+                            VideoSurface {
+                                id: vidSurf
+                                anchors.fill: parent
+                                stream: viewItem.live ? bridge.videoStream(modelData.id) : null
+                                visible: viewItem.live && stream && stream.online
+                            }
+                            // 相机轮廓 SVG（.cam-pic，白色描边 120px opacity .12；流在线时隐藏避免叠在视频上）
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: 120; height: 120
                                 color: "transparent"
+                                visible: !(vidSurf.stream && vidSurf.stream.online)
                                 Image {
                                     anchors.fill: parent
                                     source: "qrc:/qml/img/camera.svg"
@@ -476,23 +551,24 @@ Item {
                                     opacity: 0.14
                                 }
                             }
-                            // 占位文字（.cam-no）：启用=画面占位，停用=未启用
+                            // 占位文字（.cam-no）：启用=正在接入，停用=未启用（流在线出帧后被视频覆盖，隐藏之）
                             Column {
                                 anchors.centerIn: parent
                                 spacing: 6
+                                visible: !(vidSurf.stream && vidSurf.stream.online)
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: modelData.name + " · " + (viewItem.live ? "画面占位" : "未启用")
+                                    text: modelData.name + " · " + (viewItem.live ? "连接中" : "未启用")
                                     font.pixelSize: 13; font.weight: Font.DemiBold; color: "#8ba3c2"
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: viewItem.live ? "接入网口视频流后实时显示" : "等待拉流设置"
+                                    text: viewItem.live ? "正在接入网口视频流…" : "等待拉流设置"
                                     font.pixelSize: 11; color: "#5f718d"
                                 }
                             }
 
-                            // 单路标签（.cam-tag 左上角，黑45%底 + 模糊 + 呼吸状态点）
+                            // 单路标签（.cam-tag 左上角，黑45%底 + 模糊 + 呼吸状态点，绑定真实流状态）
                             Rectangle {
                                 anchors.top: parent.top
                                 anchors.left: parent.left
@@ -507,16 +583,16 @@ Item {
                                     spacing: 5
                                     PulseDot {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        dotColor: viewItem.live ? "#16a34a" : "#dc2626"
+                                        dotColor: (viewItem.live && vidSurf.stream && vidSurf.stream.online) ? "#16a34a" : "#dc2626"
                                     }
                                     Text {
-                                        text: modelData.name + " · " + (viewItem.live ? "LIVE" : "OFFLINE")
+                                        text: modelData.name + " · " + ((viewItem.live && vidSurf.stream && vidSurf.stream.online) ? "LIVE" : "OFFLINE")
                                         font.pixelSize: 11; font.weight: Font.Bold; color: "#ffffff"
                                     }
                                 }
                             }
 
-                            // OSD 参数叠加（.cam-osd 右下角，仅启用相机显示）
+                            // OSD 参数叠加（.cam-osd 右下角，绑定实时遥测与本地时钟）
                             Rectangle {
                                 visible: root.osdOn && viewItem.live
                                 anchors.right: parent.right
@@ -530,9 +606,9 @@ Item {
                                     id: osdCol
                                     anchors.centerIn: parent
                                     spacing: 2
-                                    Text { text: "2026-08-14 10:23:45"; font.pixelSize: 11; font.family: "monospace"; color: "#ffffff"; font.weight: Font.Bold }
-                                    Text { text: "LAT 30.26715°N    LON 120.15342°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
-                                    Text { text: "ALT 150.2m    SPD 12.5m/s    HDG 087°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
+                                    Text { text: root.osdClock; font.pixelSize: 11; font.family: "monospace"; color: "#ffffff"; font.weight: Font.Bold }
+                                    Text { text: root.fmt2(bridge.value("fc","lat")) + "°N    " + root.fmt2(bridge.value("fc","lon")) + "°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
+                                    Text { text: "ALT " + root.fmt0(bridge.value("fc","alt")) + "m    SPD " + root.fmt1(bridge.value("fc","vx")) + "m/s    HDG " + root.fmt0(bridge.value("fc","yaw")) + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
                                 }
                             }
 
@@ -565,7 +641,7 @@ Item {
                                         anchors.fill: parent
                                         onClicked: {
                                             var dir = bridge.cameraDir()
-                                            var name = "snapshot_" + Date.now() + ".png"
+                                            var name = "snapshot_" + modelData.name + "_" + Date.now() + ".png"
                                             viewItem.grabToImage(function(result) {
                                                 if (result.saveToFile("file://" + dir + "/" + name))
                                                     root.toast("已保存截图 " + name)
@@ -604,18 +680,25 @@ Item {
                     HoverHandler { id: hoverShot; cursorShape: Qt.PointingHandCursor }
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.fill: parent; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     onClicked: {
-                        if (!root.selected.length) { root.toast("请先选择相机"); return }
-                        var idx = root.selected[0]
-                        var it = camRep.itemAt(idx)
-                        if (!it) { root.toast("无可用画面，截图失败"); return }
+                        if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
+                        // 对所有选中相机逐路截图（文件名带相机名防覆盖；IIFE 捕获每轮变量防闭包共享）
                         var dir = bridge.cameraDir()
-                        var name = "snapshot_" + Date.now() + ".png"
-                        it.grabToImage(function(result) {
-                            if (result.saveToFile("file://" + dir + "/" + name))
-                                root.toast("已保存截图 " + name)
-                            else
-                                root.toast("截图保存失败")
-                        })
+                        var ts = Date.now()
+                        var total = 0
+                        for (var k = 0; k < root.selected.length; k++) {
+                            (function(idx) {
+                                var it = camRep.itemAt(idx)
+                                if (!it) return
+                                total++
+                                var camNm = (root.camCfg[idx] && root.camCfg[idx].name) ? root.camCfg[idx].name : ("cam" + idx)
+                                var name = "snapshot_" + camNm + "_" + ts + ".png"
+                                it.grabToImage(function(result) {
+                                    result.saveToFile("file://" + dir + "/" + name)
+                                })
+                            })(root.selected[k])
+                        }
+                        if (!total) { root.toast("无可用画面，截图失败", "err"); return }
+                        root.toast("已保存截图（" + total + " 张，见 data/摄像头 目录）")
                     }
                 }
                 // 录像（.cam-btn rec，红色脉冲；图标：未录=圆圈+中心点，录制中=白色方块）
@@ -662,24 +745,22 @@ Item {
                     }
                     onClicked: {
                         if (!root.recOn) {
+                            if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
+                            // 对所有选中的已配置相机并行开录（零转码独立管道，与预览流并行）
+                            var okCnt = 0
+                            for (var k = 0; k < root.selected.length; k++) {
+                                var ci = root.camCfg[root.selected[k]]
+                                if (ci && ci.ip && bridge.startCameraRecord(ci.id)) okCnt++
+                            }
+                            if (!okCnt) { root.toast("录像启动失败（相机未配置或不可达）", "err"); return }
                             root.recOn = true
                             root.recStart = Date.now()
-                            bridge.cameraDir()
-                            root.toast("开始录像（保存至本地）")
+                            root.toast("开始录像（" + okCnt + " 路）")
                         } else {
                             root.recOn = false
                             var dur = Math.max(1, Math.round((Date.now() - root.recStart) / 1000))
-                            var dir = bridge.cameraDir()
-                            var name = "rec_" + Date.now() + ".txt"
-                            var camName = root.selected.length ? root.camCfg[root.selected[0]].name : "未选择"
-                            var content = "灵云01 摄像头录像会话\n"
-                                + "相机：" + camName + "\n"
-                                + "开始时间：" + root.fmtTs(root.recStart) + "\n"
-                                + "结束时间：" + root.fmtTs(Date.now()) + "\n"
-                                + "时长：" + dur + " 秒\n"
-                                + "说明：当前为会话占位记录，接入网口视频流后替换为真实视频文件"
-                            var ok = bridge.writeTextFile(dir + "/" + name, content)
-                            root.toast(ok ? "录像已保存 " + name : "录像保存失败")
+                            var ok = bridge.stopCameraRecord()
+                            root.toast(ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败", ok ? "ok" : "err")
                         }
                     }
                 }
@@ -719,7 +800,7 @@ Item {
                 }
                 // 分隔线
                 Rectangle { width: 1; height: 20; color: root.themeRoot.colLine }
-                // 重连（.cam-btn #camConn，点击后 1.2s 恢复提示）
+                // 重连（.cam-btn #camConn：对所有启用且选中的流执行真实 reconnect）
                 Button {
                     text: "↻ 重连"
                     Layout.preferredHeight: 32
@@ -738,6 +819,12 @@ Item {
                     onClicked: {
                         root.connBusy = true
                         root.toast("正在重连网口视频流…")
+                        // 对选中且启用的流逐一真实重连
+                        for (var i = 0; i < root.camCfg.length; i++) {
+                            var c = root.camCfg[i]
+                            if (c.enable && c.ip && root.selected.indexOf(i) >= 0)
+                                bridge.videoStream(c.id).reconnect()
+                        }
                         connTimer.restart()
                     }
                     Timer {
@@ -816,6 +903,7 @@ Item {
             root.selected = arr
         }
         root.saveAll()
+        root.manageStreams()   // 选中集变化 → 拉流启停同步
     }
 
     // ===== 相机拉流设置弹窗（对齐原型 modal 结构：head + body 滚动 + 表单 + cf-actions）=====

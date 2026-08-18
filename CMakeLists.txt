@@ -10,6 +10,11 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort Test
              Quick Qml QuickControls2 Charts Network)
 
+# GStreamer（摄像头 RTSP 拉流，B 方案）
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GST REQUIRED IMPORTED_TARGET
+    gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+
 include(CTest)
 
 if(BUILD_TESTING)
@@ -31,6 +36,9 @@ add_executable(lingyun_gcs_qml
     src/qmlbridge/telemetry_bridge_config.cpp
     src/qmlbridge/telemetry_bridge_rules.cpp
     src/qmlbridge/telemetry_bridge_record.cpp
+    src/video/rtsp_stream.cpp
+    src/video/rtsp_recorder.cpp
+    src/video/video_surface.cpp
 )
 
 qt_add_resources(lingyun_gcs_qml "qml_res"
@@ -53,6 +61,7 @@ qt_add_resources(lingyun_gcs_qml "qml_res"
 
 target_link_libraries(lingyun_gcs_qml PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Charts Qt6::SerialPort Qt6::Network
+    PkgConfig::GST
 )
 
 target_include_directories(lingyun_gcs_qml PRIVATE

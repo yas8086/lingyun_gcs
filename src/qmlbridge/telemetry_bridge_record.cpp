@@ -3,10 +3,13 @@
 #include "qmlbridge/telemetry_bridge.h"
 #include "core/config_manager.h"
 #include "comms/serial_manager.h"
+#include "video/rtsp_recorder.h"
 #include <QDir>
 #include <QDateTime>
 #include <QCoreApplication>
 #include <QMetaObject>
+#include <QJsonArray>
+#include <QJsonObject>
 
 namespace lgs {
 
@@ -28,6 +31,59 @@ QString TelemetryBridge::cameraDir() const {
         + QDateTime::currentDateTime().toString("/yyyy-MM-dd");
     QDir().mkpath(dir);
     return dir;
+}
+
+QString TelemetryBridge::startCameraRecord(const QString &camId) {
+    // 该相机已在录：幂等返回当前文件名
+    if (recorders_.contains(camId) && recorders_.value(camId)->recording())
+        return recorders_.value(camId)->fileName();
+
+    // 从相机配置拼 RTSP url（与 videoStream 相同规则）
+    if (!config_)
+        return QString();
+    const QJsonArray arr = config_->cameraConfigs();
+    QString ip, path, user, pass;
+    int port = 554;
+    bool found = false;
+    for (const auto &v : arr) {
+        const QJsonObject o = v.toObject();
+        if (o.value("id").toString() == camId) {
+            ip = o.value("ip").toString();
+            port = o.contains("port") ? o.value("port").toInt() : 554;
+            path = o.value("path").toString();
+            user = o.value("user").toString();
+            pass = o.value("pass").toString();
+            found = true;
+            break;
+        }
+    }
+    if (!found || ip.isEmpty())
+        return QString();
+    const QString cred = user.isEmpty() ? QString() : (user + ":" + pass + "@");
+    const QString url = QStringLiteral("rtsp://%1%2:%3%4")
+                            .arg(cred, ip).arg(port).arg(path);
+
+    RtspRecorder *rec = recorders_.value(camId, nullptr);
+    if (!rec) {
+        rec = new RtspRecorder(this);
+        recorders_.insert(camId, rec);
+    }
+    const QString name = QStringLiteral("rec_%1_%2.mkv")
+                             .arg(camId).arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
+    if (!rec->start(url, cameraDir() + "/" + name))
+        return QString();
+    return name;
+}
+
+bool TelemetryBridge::stopCameraRecord() {
+    bool any = false;
+    for (auto it = recorders_.begin(); it != recorders_.end(); ++it) {
+        if (it.value()->recording()) {
+            it.value()->stop();
+            any = true;
+        }
+    }
+    return any;
 }
 
 bool TelemetryBridge::recordEnabled() const {
