@@ -33,6 +33,116 @@ Item {
         function onRulesChanged() { root.rules = bridge.alarmRules() }
     }
 
+    // ===== 表单控件样式（对齐 HTML 设置页：1px 线框 + 8px 圆角 + 卡片底色 + 等宽 + 主色 focus）=====
+    // 下拉选择框（对齐 .set-row select）
+    component CSetCombo: ComboBox {
+        id: ctrl
+        font.pixelSize: 13
+        font.family: "monospace"
+        implicitWidth: 110
+        implicitHeight: 34
+        leftPadding: 10
+        rightPadding: 28
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        background: Rectangle {
+            radius: 8
+            color: root.themeRoot.colCard
+            border.width: 1
+            border.color: ctrl.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine
+        }
+        contentItem: Text {
+            text: ctrl.displayText
+            color: root.themeRoot.colText
+            font: ctrl.font
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        indicator: Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: "▾"
+            color: root.themeRoot.colText2
+            font.pixelSize: 11
+        }
+        popup: Popup {
+            y: ctrl.height + 2
+            width: ctrl.width
+            padding: 4
+            implicitHeight: contentItem.implicitHeight + 8
+            background: Rectangle {
+                radius: 8
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+            }
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: ctrl.popup.visible ? ctrl.delegateModel : null
+                currentIndex: ctrl.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator { }
+            }
+        }
+        delegate: ItemDelegate {
+            width: ctrl.popup.width - 8
+            height: 30
+            highlighted: ctrl.highlightedIndex === index
+            contentItem: Text {
+                text: modelData !== undefined ? String(modelData) : ""
+                color: highlighted ? root.themeRoot.colPrimary : root.themeRoot.colText
+                font: ctrl.font
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 10
+            }
+            background: Rectangle {
+                radius: 6
+                color: highlighted ? root.themeRoot.colPrimarySoft : "transparent"
+            }
+        }
+    }
+    // 输入框（对齐 .set-row input）
+    component CSetField: TextField {
+        id: ctrl
+        font.pixelSize: 13
+        font.family: "monospace"
+        implicitHeight: 34
+        leftPadding: 10
+        rightPadding: 10
+        color: root.themeRoot.colText
+        placeholderTextColor: root.themeRoot.colText2
+        selectByMouse: true
+        background: Rectangle {
+            radius: 8
+            color: root.themeRoot.colCard
+            border.width: 1
+            border.color: ctrl.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine
+        }
+    }
+    // 勾选按钮（对齐 checkbox：16×16 方框 + 主色对号）
+    component CSetCheck: CheckBox {
+        id: ctrl
+        implicitWidth: 20
+        implicitHeight: 20
+        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+        scale: pressed ? 0.9 : 1.0
+        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        indicator: Rectangle {
+            width: 18; height: 18
+            radius: 5
+            border.width: 1
+            border.color: ctrl.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
+            color: ctrl.checked ? root.themeRoot.colPrimary : "transparent"
+            Text {
+                anchors.centerIn: parent
+                text: "✓"
+                visible: ctrl.checked
+                color: "white"
+                font.pixelSize: 12; font.bold: true
+            }
+        }
+    }
+
     Flickable {
         anchors.fill: parent
         contentWidth: width
@@ -60,18 +170,39 @@ Item {
                     RowLayout {
                         spacing: 8
                         Text { text: "串口设备"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        // 串口设备：editable 下拉，自定义闭合框样式（对齐 .set-row select）
                         ComboBox {
-                            HoverHandler {
-                                id: hover_1
-                                cursorShape: Qt.PointingHandCursor
-                            }
                             id: portCombo
                             editable: true
                             Layout.preferredWidth: 220
                             model: root.serialPorts
                             // 可编辑：既可从下拉选标准串口，也可手动输入虚拟串口路径
                             // （如 /tmp/gcs_pty2），便于本地模拟联调。
-                            font.pixelSize: 12
+                            font.pixelSize: 13
+                            font.family: "monospace"
+                            implicitHeight: 34
+                            leftPadding: 10
+                            rightPadding: 28
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            background: Rectangle {
+                                radius: 8
+                                color: root.themeRoot.colCard
+                                border.width: 1
+                                border.color: portCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                            }
+                            indicator: Text {
+                                anchors.right: parent.right
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "▾"
+                                color: root.themeRoot.colText2
+                                font.pixelSize: 11
+                            }
+                            Component.onCompleted: Qt.callLater(function() {
+                                // editable 下 contentItem 为 TextField，统一配色与字体
+                                // （callLater：themeRoot 由 Loader.onLoaded 注入，须等注入后再取色）
+                                if (contentItem) { contentItem.color = root.themeRoot.colText; contentItem.font = portCombo.font }
+                            })
                         }
                         Button {
                             // 按压缩放反馈（对齐原型 :active{scale(.94)}）
@@ -95,15 +226,10 @@ Item {
                     RowLayout {
                         spacing: 8
                         Text { text: "波特率"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_2
-                                cursorShape: Qt.PointingHandCursor
-                            }
+                        CSetCombo {
                             id: baudCombo
                             Layout.preferredWidth: 140
                             model: ["115200","57600","38400","9600"]
-                            font.pixelSize: 12
                         }
                         Button {
                             // 按压缩放反馈（对齐原型 :active{scale(.94)}）
@@ -218,11 +344,7 @@ Item {
                     RowLayout {
                         spacing: 8
                         Text { text: "底图源"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_6
-                                cursorShape: Qt.PointingHandCursor
-                            }
+                        CSetCombo {
                             id: mapSourceCombo
                             model: ["天地图", "OpenStreetMap"]
                             currentIndex: bridge.configMapSource()
@@ -230,19 +352,17 @@ Item {
                                 bridge.setConfigMapSource(index)
                                 tileProvider.setMapSource(index)
                             }
-                            font.pixelSize: 12
                         }
                         Item { Layout.fillWidth: true }
                     }
                     RowLayout {
                         spacing: 8
                         Text { text: "天地图Key"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        TextField {
+                        CSetField {
                             id: mapKeyField
                             Layout.fillWidth: true
                             text: bridge.configMapKey()
                             placeholderText: "申请天地图密钥后填写（选OSM可留空）"
-                            font.pixelSize: 12
                             onEditingFinished: {
                                 bridge.setConfigMapKey(text.trim())
                                 tileProvider.setMapKey(text.trim())
@@ -273,31 +393,21 @@ Item {
                     Text { text: "显示单位"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
                     RowLayout {
                         Text { text: "温度单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_7
-                                cursorShape: Qt.PointingHandCursor
-                            }
+                        CSetCombo {
                             id: tempUnitCombo
                             model: ["摄氏度 ℃", "华氏度 ℉"]
                             currentIndex: bridge.configTempUnit()
                             onActivated: bridge.setConfigTempUnit(index)
-                            font.pixelSize: 12
                         }
                         Item { Layout.fillWidth: true }
                     }
                     RowLayout {
                         Text { text: "压力单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_8
-                                cursorShape: Qt.PointingHandCursor
-                            }
+                        CSetCombo {
                             id: pressUnitCombo
                             model: ["kPa", "Pa", "bar", "psi"]
                             currentIndex: bridge.configPressureUnit()
                             onActivated: bridge.setConfigPressureUnit(index)
-                            font.pixelSize: 12
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -319,14 +429,7 @@ Item {
                     Text { text: "打开串口后逐帧自动记录原始报文（断电不丢），重新打开串口记录新文件"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
                     RowLayout {
                         spacing: 8
-                        CheckBox {
-                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
-                            scale: pressed ? 0.94 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-                            HoverHandler {
-                                id: hover_9
-                                cursorShape: Qt.PointingHandCursor
-                            }
+                        CSetCheck {
                             id: recordCb
                             checked: bridge.recordEnabled()
                             // 关闭时需二次确认；开启直接生效
@@ -352,12 +455,11 @@ Item {
                     RowLayout {
                         spacing: 8
                         Text { text: "保存目录"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        TextField {
+                        CSetField {
                             id: recordDirField
                             Layout.fillWidth: true
                             text: bridge.recordDir()
                             placeholderText: "（留空 = 软件目录/data）"
-                            font.pixelSize: 12
                             onEditingFinished: bridge.setRecordDir(text.trim())
                         }
                         Button {
@@ -403,86 +505,71 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 250
+                Layout.minimumHeight: 270
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 8
-                    Text { text: "界面与主题"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    RowLayout {
-                        Text { text: "主题"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_12
-                                cursorShape: Qt.PointingHandCursor
+                // 内容可滚动（模块高度不足时鼠标滚轮滑动查看，避免文字被裁剪）
+                ScrollView {
+                    anchors.fill: parent
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ColumnLayout {
+                        width: parent.width - 32
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 8
+                        Item { height: 16 }   // 顶部留白（对齐原 margins 16）
+                        Text { text: "界面与主题"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                        RowLayout {
+                            Text { text: "主题"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                            CSetCombo {
+                                model: ["浅色", "深色"]
+                                currentIndex: root.themeRoot.dark ? 1 : 0
+                                onActivated: root.themeRoot.dark = (index === 1)
                             }
-                            model: ["浅色", "深色"]
-                            currentIndex: root.themeRoot.dark ? 1 : 0
-                            onActivated: root.themeRoot.dark = (index === 1)
-                            font.pixelSize: 12
+                            Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
-                    }
-                    RowLayout {
-                        Text { text: "字体大小"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_13
-                                cursorShape: Qt.PointingHandCursor
+                        RowLayout {
+                            Text { text: "字体大小"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                            CSetCombo {
+                                model: ["字体大", "字体小"]
+                                currentIndex: root.themeRoot.dense ? 1 : 0
+                                onActivated: root.themeRoot.dense = (index === 1)
                             }
-                            model: ["字体大", "字体小"]
-                            currentIndex: root.themeRoot.dense ? 1 : 0
-                            onActivated: root.themeRoot.dense = (index === 1)
-                            font.pixelSize: 12
+                            Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
-                    }
-                    RowLayout {
-                        Text { text: "告警声音"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_14
-                                cursorShape: Qt.PointingHandCursor
+                        RowLayout {
+                            Text { text: "告警声音"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                            CSetCombo {
+                                id: alarmSoundCombo
+                                model: ["关闭", "开启"]
+                                currentIndex: bridge.configAlarmSound() ? 1 : 0
+                                onActivated: bridge.setConfigAlarmSound(index === 1)
                             }
-                            id: alarmSoundCombo
-                            model: ["关闭", "开启"]
-                            currentIndex: bridge.configAlarmSound() ? 1 : 0
-                            onActivated: bridge.setConfigAlarmSound(index === 1)
-                            font.pixelSize: 12
+                            Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
-                    }
-                    RowLayout {
-                        Text { text: "高对比度"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_15
-                                cursorShape: Qt.PointingHandCursor
+                        RowLayout {
+                            Text { text: "高对比度"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                            CSetCombo {
+                                model: ["关闭", "开启"]
+                                currentIndex: root.themeRoot.contrast ? 1 : 0
+                                onActivated: root.themeRoot.contrast = (index === 1)
                             }
-                            model: ["关闭", "开启"]
-                            currentIndex: root.themeRoot.contrast ? 1 : 0
-                            onActivated: root.themeRoot.contrast = (index === 1)
-                            font.pixelSize: 12
+                            Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
-                    }
-                    RowLayout {
-                        Text { text: "强调色"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
-                        ComboBox {
-                            HoverHandler {
-                                id: hover_16
-                                cursorShape: Qt.PointingHandCursor
+                        RowLayout {
+                            Text { text: "强调色"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                            CSetCombo {
+                                model: ["蓝色", "绿色", "橙色", "紫色", "青色"]
+                                currentIndex: ["blue","green","orange","purple","teal"].indexOf(root.themeRoot.accent)
+                                onActivated: root.themeRoot.accent = ["blue","green","orange","purple","teal"][index]
                             }
-                            model: ["蓝色", "绿色", "橙色", "紫色", "青色"]
-                            currentIndex: ["blue","green","orange","purple","teal"].indexOf(root.themeRoot.accent)
-                            onActivated: root.themeRoot.accent = ["blue","green","orange","purple","teal"][index]
-                            font.pixelSize: 12
+                            Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
+                        Text { text: "快捷键：1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                        Item { height: 16 }   // 底部留白
                     }
-                    Text { text: "快捷键：1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度"; font.pixelSize: 11; color: root.themeRoot.colText2 }
-                    Item { Layout.fillHeight: true }
                 }
             }
 
@@ -506,14 +593,7 @@ Item {
                             model: [["link","链路"],["rate","数据率"],["alarm","告警"],["uptime","运行时长"]]
                             Row {
                                 spacing: 6
-                                CheckBox {
-                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
-                                    scale: pressed ? 0.94 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-                                    HoverHandler {
-                                        id: hover_17
-                                        cursorShape: Qt.PointingHandCursor
-                                    }
+                                CSetCheck {
                                     checked: !root.themeRoot.isModuleHidden(modelData[0])
                                     onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
                                 }
@@ -545,20 +625,15 @@ Item {
                         spacing: 18
                         Repeater {
                             model: [
-                                ["strip","飞艇横幅"],["power","电源总览"],["device","设备卡片"],
-                                ["log","运行日志"],["statusbar","状态栏"],
-                                ["lora","温度/压力采集"]
+                                ["strip","飞艇横幅"],["power","电源总览"],
+                                ["mppt_main","主囊 MPPT"],["mppt_sub","副囊 MPPT"],
+                                ["bms","102S 主电源"],["backup","12S 备用电源"],
+                                ["dcdc","DCDC 电源模块"],["lora","温度/压力采集"],
+                                ["log","运行日志"],["statusbar","状态栏"]
                             ]
                             Row {
                                 spacing: 6
-                                CheckBox {
-                                    // 按压缩放反馈（对齐原型 :active{scale(.94)}）
-                                    scale: pressed ? 0.94 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-                                    HoverHandler {
-                                        id: hover_18
-                                        cursorShape: Qt.PointingHandCursor
-                                    }
+                                CSetCheck {
                                     checked: !root.themeRoot.isModuleHidden(modelData[0])
                                     onToggled: bridge.setConfigHiddenModule(modelData[0], !checked)
                                 }

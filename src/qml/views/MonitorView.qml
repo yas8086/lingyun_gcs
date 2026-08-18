@@ -35,7 +35,7 @@ Item {
             default: return (pa / 1000).toFixed(1) + " kPa"
         }
     }
-    // 温度/压力采集模块高度：按节点数与卡片自适应尺寸显式计算，
+    // 温度/压力采集 + DCDC 并排（各半宽）模块高度：按节点数与卡片自适应尺寸显式计算，
     // 节点多换行时模块随之增高（ScrollView 滚动兜底），最小 150。
     // 依赖 dataTick + root.width，节点数/窗口宽度变化时自动重算。
     function loraPanelHCalc() {
@@ -43,7 +43,7 @@ Item {
         const n = root.loraNodes().length
         if (n === 0) return 150
         const cardW = 92, cardH = 70, gap = 6
-        const flowW = Math.max(1, root.width - 28)          // 模块内可用宽（margin 14*2）
+        const flowW = Math.max(1, root.width/2 - 28)        // 温度/压力采集为半宽（margin 14*2）
         const perRow = Math.max(1, Math.floor((flowW + gap) / (cardW + gap)))
         const rows = Math.ceil(n / perRow)
         return Math.max(150, 30 + 8 + rows * cardH + (rows - 1) * gap + 28)
@@ -73,6 +73,27 @@ Item {
         if (fid==="fault_m") return root.fmtInt(bridge.value("mppt","fault"))
         if (fid==="today") return root.fmt(bridge.value("mppt","today"),2)
         return root.fmt(bridge.value("mppt", fid),1) + u
+    }
+    // 副囊 MPPT（模拟派生，与图示页电源链路副囊一致）：主囊真实 + 副囊按比例模拟
+    function subMppt(fid, u) {
+        void root.themeRoot.dataTick
+        const now = Date.now()
+        const pvM  = root.devOff("mppt") ? 0 : (bridge.value("mppt","pv_p")||0)
+        const pvMv = root.devOff("mppt") ? 0 : (bridge.value("mppt","pv_v")||0)
+        const c1   = root.devOff("mppt") ? 0 : (bridge.value("mppt","charge_i")||0)
+        const pvS  = Math.max(0, Math.round(pvM * (0.8 + 0.2*Math.sin(now/9000))))
+        const pvSv = pvMv * (0.95 + 0.05*Math.sin(now/7000))
+        const c2   = Math.round(c1 * (pvS/(pvM||1)) * 10)/10
+        const today2 = Math.max(0, (bridge.value("mppt","today")||0) * 0.78 + Math.sin(now/60000)*0.05)
+        const total2 = Math.max(0, (bridge.value("mppt","total")||0) * 0.78)
+        if (fid==="pv_p") return Math.round(pvS) + u
+        if (fid==="pv_v") return pvSv.toFixed(1) + u
+        if (fid==="batt_v") return root.fmt((bridge.value("mppt","batt_v")||0) * 0.98,1) + u
+        if (fid==="charge_i") return c2.toFixed(1) + u
+        if (fid==="today") return today2.toFixed(2) + u
+        if (fid==="fault_m") return root.fmtInt(bridge.value("mppt","fault"))
+        if (fid==="total") return total2.toFixed(2) + u
+        return "--"
     }
     function dcdcStr(fid, u) {
         void root.themeRoot.dataTick
@@ -114,6 +135,12 @@ Item {
         return !bridge.online(dev)
     }
     function devBadge(dev) { return root.devOff(dev) ? "离线" : "正常" }
+    // 模块可见性：任一个模块可见即为真（用于设备卡片网格 / DCDC+温度压力采集 聚合容器）
+    function anyModuleShown(keys) {
+        void root.themeRoot.dataTick
+        for (const k of keys) if (!root.themeRoot.isModuleHidden(k)) return true
+        return false
+    }
 
     // 设备卡显示字段可见性（决策：更多字段配置）
     property var fieldVis: {
@@ -316,15 +343,144 @@ Item {
                 }
             }
 
-            // ===== 设备卡片网格（原型 .main）=====
+            // ===== 设备卡片网格（原型 .main；四个设备卡各自独立可见性）=====
             GridLayout {
-                visible: !root.themeRoot.isModuleHidden("device")
+                visible: root.anyModuleShown(["mppt_main","mppt_sub","bms","backup"])
                 columns: root.width > 1440 ? 4 : (root.width > 1200 ? 3 : (root.width > 900 ? 2 : 1))
                 columnSpacing: 12; rowSpacing: 12
                 Layout.fillWidth: true
 
-                // ---- BMS 电池管理 ----
+                // ---- 主囊 MPPT（第一）----
                 Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("mppt_main")
+                    transform: Translate { y: devHover2a.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover2a }
+                    Layout.fillWidth: true; Layout.preferredHeight: 260
+                    radius: 14
+                    color: root.themeRoot.colCard
+                    border.color: root.themeRoot.colLine
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 16; spacing: 8
+                        RowLayout {
+                            Text { text: "主囊 MPPT"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Item { Layout.fillWidth: true }
+                            Rectangle {
+                                radius: 999; implicitWidth: 40; implicitHeight: 20
+                                color: root.devOff("mppt") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: root.devBadge("mppt"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 20
+                            Column {
+                                Text { text: root.toPower(bridge.value("mppt","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                            }
+                            Column {
+                                Text { text: root.valStr("mppt","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                            }
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: [
+                                    {fid:"charge_i", k:"充电电流", u:" A"},
+                                    {fid:"today", k:"日发电量", u:" kWh"},
+                                    {fid:"fault_m", k:"故障码", u:""},
+                                    {fid:"pv_v", k:"光伏电压", u:" V"},
+                                    {fid:"total", k:"总发电量", u:" kWh"}
+                                ]
+                                Rectangle {
+                                    visible: root.fieldShown("mppt", modelData.fid)
+                                    width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
+                                    Column {
+                                        anchors.centerIn: parent
+                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text {
+                                            text: root.mpptStr(modelData.fid, modelData.u)
+                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- 副囊 MPPT（第二）----
+                Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("mppt_sub")
+                    transform: Translate { y: devHover2b.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
+                    HoverHandler { id: devHover2b }
+                    Layout.fillWidth: true; Layout.preferredHeight: 260
+                    radius: 14
+                    color: root.themeRoot.colCard
+                    border.color: root.themeRoot.colLine
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 16; spacing: 8
+                        RowLayout {
+                            Text { text: "副囊 MPPT"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Item { Layout.fillWidth: true }
+                            Rectangle {
+                                radius: 999; implicitWidth: 40; implicitHeight: 20
+                                color: root.devOff("mppt") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: root.devBadge("mppt"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 20
+                            Column {
+                                Text { text: root.subMppt("pv_p",""); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                            }
+                            Column {
+                                Text { text: root.subMppt("batt_v"," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                            }
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: [
+                                    {fid:"charge_i", k:"充电电流", u:" A"},
+                                    {fid:"today", k:"日发电量", u:" kWh"},
+                                    {fid:"fault_m", k:"故障码", u:""},
+                                    {fid:"pv_v", k:"光伏电压", u:" V"},
+                                    {fid:"total", k:"总发电量", u:" kWh"}
+                                ]
+                                Rectangle {
+                                    visible: root.fieldShown("mppt", modelData.fid)
+                                    width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
+                                    Column {
+                                        anchors.centerIn: parent
+                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text {
+                                            text: root.subMppt(modelData.fid, modelData.u)
+                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- BMS 电池管理（102S 主电源）----
+                Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("bms")
                     // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
                     transform: Translate { y: devHover1.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
                     HoverHandler { id: devHover1 }
@@ -336,7 +492,7 @@ Item {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         // 卡头
                         RowLayout {
-                            Text { text: "BMS 电池管理"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "102S 主电源"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -433,136 +589,9 @@ Item {
                     }
                 }
 
-                // ---- MPPT 光伏 ----
+                // ---- 12S 备用电源 ----
                 Rectangle {
-                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
-                    transform: Translate { y: devHover2.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
-                    HoverHandler { id: devHover2 }
-                    Layout.fillWidth: true; Layout.preferredHeight: 260
-                    radius: 14
-                    color: root.themeRoot.colCard
-                    border.color: root.themeRoot.colLine
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 16; spacing: 8
-                        RowLayout {
-                            Text { text: "MPPT 光伏"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
-                            Item { Layout.fillWidth: true }
-                            Rectangle {
-                                radius: 999; implicitWidth: 40; implicitHeight: 20
-                                color: root.devOff("mppt") ? "transparent" : root.themeRoot.colOkSoft
-                                border.color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: root.devBadge("mppt"); font.pixelSize: 11; font.bold: true
-                                    color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
-                                }
-                            }
-                        }
-                        Row {
-                            spacing: 20
-                            Column {
-                                Text { text: root.toPower(bridge.value("mppt","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
-                            }
-                            Column {
-                                Text { text: root.valStr("mppt","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
-                            }
-                        }
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Repeater {
-                                model: [
-                                    {fid:"charge_i", k:"充电电流", u:" A"},
-                                    {fid:"today", k:"日发电量", u:" kWh"},
-                                    {fid:"fault_m", k:"故障码", u:""},
-                                    {fid:"pv_v", k:"光伏电压", u:" V"},
-                                    {fid:"total", k:"总发电量", u:" kWh"}
-                                ]
-                                Rectangle {
-                                    visible: root.fieldShown("mppt", modelData.fid)
-                                    width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
-                                    Column {
-                                        anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
-                                        Text {
-                                            text: root.mpptStr(modelData.fid, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ---- DCDC 电源模块 ----
-                Rectangle {
-                    // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
-                    transform: Translate { y: devHover3.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
-                    HoverHandler { id: devHover3 }
-                    Layout.fillWidth: true; Layout.preferredHeight: 260
-                    radius: 14
-                    color: root.themeRoot.colCard
-                    border.color: root.themeRoot.colLine
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 16; spacing: 8
-                        RowLayout {
-                            Text { text: "DCDC 电源模块"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
-                            Item { Layout.fillWidth: true }
-                            Rectangle {
-                                radius: 999; implicitWidth: 40; implicitHeight: 20
-                                color: root.devOff("dcdc") ? "transparent" : root.themeRoot.colOkSoft
-                                border.color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: root.devBadge("dcdc"); font.pixelSize: 11; font.bold: true
-                                    color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
-                                }
-                            }
-                        }
-                        Row {
-                            spacing: 20
-                            Column {
-                                Text { text: root.valStr("dcdc","out_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "输出电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
-                            }
-                            Column {
-                                Text { text: root.toPower(bridge.value("dcdc","out_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "输出功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
-                            }
-                        }
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Repeater {
-                                model: [
-                                    {fid:"out_i", k:"输出电流", u:" A"},
-                                    {fid:"temp", k:"散热温度", u:" ℃"},
-                                    {fid:"fault_d", k:"故障码", u:""},
-                                    {fid:"in_v", k:"输入电压", u:" V"},
-                                    {fid:"enabled", k:"输出使能", u:""}
-                                ]
-                                Rectangle {
-                                    visible: root.fieldShown("dcdc", modelData.fid)
-                                    width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
-                                    Column {
-                                        anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
-                                        Text {
-                                            text: root.dcdcStr(modelData.fid, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ---- 备用电源（12S 备用 BMS）----
-                Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("backup")
                     // 悬停上浮（对齐原型 .card:hover{translateY(-2px)}）
                     transform: Translate { y: devHover4.hovered ? -2 : 0; Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } } }
                     HoverHandler { id: devHover4 }
@@ -573,7 +602,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         RowLayout {
-                            Text { text: "备用电源（12S）"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "12S 备用电源"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -628,91 +657,164 @@ Item {
                 }
             }
 
-            // ===== 温度/压力采集（宽屏，显示在运行日志上方）=====
-            Rectangle {
-                visible: !root.themeRoot.isModuleHidden("lora")
+            // ===== DCDC 电源模块 + 温度/压力采集 并排（各半宽，显示在运行日志上方）=====
+            RowLayout {
+                visible: root.anyModuleShown(["dcdc","lora"])
                 Layout.fillWidth: true
-                // 模块高度按节点数显式计算（loraPanelHCalc），节点多换行时自动撑起，最小 150
+                // 统一高度：由温度/压力采集主导（loraPanelHCalc 按半宽计算），DCDC 等高
                 Layout.preferredHeight: root.loraPanelHCalc()
-                radius: 14
-                color: root.themeRoot.colCard
-                border.color: root.themeRoot.colLine
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 14; spacing: 8
-                    RowLayout {
-                        Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
-                        Item { Layout.fillWidth: true }
-                        Rectangle {
-                            radius: 999; implicitWidth: 40; implicitHeight: 20
-                            color: root.devOff("lora") ? "transparent" : root.themeRoot.colOkSoft
-                            border.color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.devBadge("lora"); font.pixelSize: 11; font.bold: true
-                                color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
+                spacing: 12
+
+                // ---- DCDC 电源模块（左半宽）----
+                Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("dcdc")
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 14
+                    color: root.themeRoot.colCard
+                    border.color: root.themeRoot.colLine
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        RowLayout {
+                            Text { text: "DCDC 电源模块"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
+                            Item { Layout.fillWidth: true }
+                            Rectangle {
+                                radius: 999; implicitWidth: 40; implicitHeight: 20
+                                color: root.devOff("dcdc") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: root.devBadge("dcdc"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                }
                             }
                         }
-                    }
-                    // LoRa 节点网格（宽屏横排；节点同时上报温度+压力时一并显示）
-                    Flow {
-                        id: loraFlow
-                        Layout.fillWidth: true
-                        spacing: 6
-                        Repeater {
-                            model: root.loraNodes()
-                            Rectangle {
-                                // 宽度随内容自适应，高度统一固定（压力/温度卡片等高，视觉一致）
-                                implicitWidth: col.implicitWidth + 16
-                                width: implicitWidth
-                                height: 60
-                                radius: 8
-                                color: modelData.alarm !== 0 ? root.themeRoot.colErrSoft : root.themeRoot.colCard2
-                                border.color: modelData.alarm !== 0 ? root.themeRoot.colErr : root.themeRoot.colLine
-                                Column {
-                                    id: col
-                                    anchors.centerIn: parent
-                                    spacing: 3
-                                    Row {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        spacing: 5
-                                        Text { text: "#" + modelData.id; font.pixelSize: 10; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
+                        Row {
+                            spacing: 16
+                            Column {
+                                Text { text: root.valStr("dcdc","out_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "输出电压"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                            }
+                            Column {
+                                Text { text: root.toPower(bridge.value("dcdc","out_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: "输出功率"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                            }
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    {fid:"out_i", k:"输出电流", u:" A"},
+                                    {fid:"temp", k:"散热温度", u:" ℃"},
+                                    {fid:"fault_d", k:"故障码", u:""},
+                                    {fid:"in_v", k:"输入电压", u:" V"},
+                                    {fid:"enabled", k:"输出使能", u:""}
+                                ]
+                                Rectangle {
+                                    visible: root.fieldShown("dcdc", modelData.fid)
+                                    width: 100; height: 38; radius: 8; color: root.themeRoot.colCard2
+                                    Column {
+                                        anchors.centerIn: parent
+                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
                                         Text {
-                                            text: modelData.pressure !== 0 ? "压力" : "温度"
-                                            font.pixelSize: 10; font.weight: Font.DemiBold
-                                            color: modelData.pressure !== 0 ? root.themeRoot.colOk : root.themeRoot.colPrimary
+                                            text: root.dcdcStr(modelData.fid, modelData.u)
+                                            font.pixelSize: 14; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
-                                    }
-                                    // 主值行：压力节点压力+温度同行（温度小字），温度节点仅温度
-                                    Row {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        spacing: 8
-                                        Text {
-                                            id: mainVal
-                                            text: modelData.pressure !== 0
-                                                  ? root.presStr(modelData.pressure)
-                                                  : root.toTemp(modelData.temp) + " " + root.tempUnit()
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
-                                        }
-                                        // 压力传感器自带温度检测：同行小字显示（间隔由 Row spacing 控制）
-                                        Text {
-                                            visible: modelData.pressure !== 0 && modelData.temp !== 0
-                                            text: "温度 " + root.toTemp(modelData.temp) + root.tempUnit()
-                                            font.pixelSize: 11; color: root.themeRoot.colText2
-                                            anchors.baseline: mainVal.baseline
-                                        }
-                                    }
-                                    Text {
-                                        visible: modelData.alarm !== 0
-                                        text: modelData.alarm > 0 ? "超上限" : "超下限"
-                                        font.pixelSize: 10; font.bold: true; color: root.themeRoot.colErr
                                     }
                                 }
                             }
                         }
+                        // 底部占位：吸收剩余高度，标题/内容顶到左上角
+                        Item { Layout.fillHeight: true }
                     }
-                    // 底部占位项：吸收剩余高度，把标题/内容顶到左上角
-                    // （无数据时内容少，若无此项 ColumnLayout 会把内容垂直居中，标题显得居中）
-                    Item { Layout.fillHeight: true }
+                }
+
+                // ---- 温度/压力采集（右半宽）----
+                Rectangle {
+                    visible: !root.themeRoot.isModuleHidden("lora")
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 14
+                    color: root.themeRoot.colCard
+                    border.color: root.themeRoot.colLine
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        RowLayout {
+                            Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
+                            Item { Layout.fillWidth: true }
+                            Rectangle {
+                                radius: 999; implicitWidth: 40; implicitHeight: 20
+                                color: root.devOff("lora") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: root.devBadge("lora"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                }
+                            }
+                        }
+                        // LoRa 节点网格（半宽：节点自动换行，高度按 loraPanelHCalc 半宽计算）
+                        Flow {
+                            id: loraFlow
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Repeater {
+                                model: root.loraNodes()
+                                Rectangle {
+                                    // 宽度随内容自适应，高度统一固定（压力/温度卡片等高，视觉一致）
+                                    implicitWidth: col.implicitWidth + 16
+                                    width: implicitWidth
+                                    height: 60
+                                    radius: 8
+                                    color: modelData.alarm !== 0 ? root.themeRoot.colErrSoft : root.themeRoot.colCard2
+                                    border.color: modelData.alarm !== 0 ? root.themeRoot.colErr : root.themeRoot.colLine
+                                    Column {
+                                        id: col
+                                        anchors.centerIn: parent
+                                        spacing: 3
+                                        Row {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            spacing: 5
+                                            Text { text: "#" + modelData.id; font.pixelSize: 10; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
+                                            Text {
+                                                text: modelData.pressure !== 0 ? "压力" : "温度"
+                                                font.pixelSize: 10; font.weight: Font.DemiBold
+                                                color: modelData.pressure !== 0 ? root.themeRoot.colOk : root.themeRoot.colPrimary
+                                            }
+                                        }
+                                        // 主值行：压力节点压力+温度同行（温度小字），温度节点仅温度
+                                        Row {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            spacing: 8
+                                            Text {
+                                                id: mainVal
+                                                text: modelData.pressure !== 0
+                                                      ? root.presStr(modelData.pressure)
+                                                      : root.toTemp(modelData.temp) + " " + root.tempUnit()
+                                                font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            }
+                                            // 压力传感器自带温度检测：同行小字显示（间隔由 Row spacing 控制）
+                                            Text {
+                                                visible: modelData.pressure !== 0 && modelData.temp !== 0
+                                                text: "温度 " + root.toTemp(modelData.temp) + root.tempUnit()
+                                                font.pixelSize: 11; color: root.themeRoot.colText2
+                                                anchors.baseline: mainVal.baseline
+                                            }
+                                        }
+                                        Text {
+                                            visible: modelData.alarm !== 0
+                                            text: modelData.alarm > 0 ? "超上限" : "超下限"
+                                            font.pixelSize: 10; font.bold: true; color: root.themeRoot.colErr
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 底部占位项：吸收剩余高度，把标题/内容顶到左上角
+                        // （无数据时内容少，若无此项 ColumnLayout 会把内容垂直居中，标题显得居中）
+                        Item { Layout.fillHeight: true }
+                    }
                 }
             }
 
