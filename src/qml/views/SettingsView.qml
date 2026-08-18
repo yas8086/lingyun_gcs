@@ -15,6 +15,16 @@ Item {
     // QML 绑定只求值一次，须由 dataTick 触发重算，否则按钮文字/颜色不刷新）
     property bool serialIsOpen: { void root.themeRoot.dataTick; return bridge.isSerialOpen() }
 
+    // 串口设备列表（bridge.ports() 是方法调用，QML 绑定只求值一次不自动刷新，
+    // 故存为属性，由"刷新"按钮手动重新枚举）
+    property var serialPorts: bridge.ports()
+    function refreshPorts() {
+        const cur = portCombo.editText
+        root.serialPorts = bridge.ports()
+        portCombo.editText = cur   // 刷新后恢复原选中/输入
+        root.showNote(root.serialPorts.length ? "已刷新：检测到 " + root.serialPorts.length + " 个串口设备" : "未检测到串口设备")
+    }
+
     // 告警规则（经 bridge CRUD，持久化到 ground_station.json）
     property var rules: bridge.alarmRules()
     // C++ 侧规则变化时自动刷新（增删/改不丢失）
@@ -58,10 +68,27 @@ Item {
                             id: portCombo
                             editable: true
                             Layout.preferredWidth: 220
-                            model: bridge.ports()
+                            model: root.serialPorts
                             // 可编辑：既可从下拉选标准串口，也可手动输入虚拟串口路径
                             // （如 /tmp/gcs_pty2），便于本地模拟联调。
                             font.pixelSize: 12
+                        }
+                        Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_serial_refresh
+                                cursorShape: Qt.PointingHandCursor
+                            }
+                            text: "刷新"
+                            background: Rectangle {
+                                radius: 8
+                                color: root.themeRoot.colPrimarySoft
+                                border.color: root.themeRoot.colPrimary
+                            }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.bold: true }
+                            onClicked: root.refreshPorts()
                         }
                         Item { Layout.fillWidth: true }
                     }
