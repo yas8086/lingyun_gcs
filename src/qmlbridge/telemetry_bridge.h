@@ -156,6 +156,7 @@ public:
     Q_INVOKABLE QVariant probeMapping() const;            // QVariantList<QVariantMap{pid,ei,row,col,base}>
     Q_INVOKABLE void saveProbeMapping(const QVariant &list);
     Q_INVOKABLE QVariant defaultProbeMapping() const;
+    Q_INVOKABLE void resetProbeMapping();                 // 恢复默认布局（写回默认并持久化）
 
     // 设备卡显示字段配置（决策 #？）：每设备可见字段 key 列表
     Q_INVOKABLE QStringList fieldConfig(const QString &device) const;

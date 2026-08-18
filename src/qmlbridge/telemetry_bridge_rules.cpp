@@ -220,6 +220,10 @@ void TelemetryBridge::saveProbeMapping(const QVariant &list) {
     f.close();
 }
 
+void TelemetryBridge::resetProbeMapping() {
+    saveProbeMapping(defaultProbeMapping());
+}
+
 // ---- 设备卡显示字段配置（原型：更多字段可勾选隐藏）----
 QStringList TelemetryBridge::fieldConfig(const QString &device) const {
     // 运行时由 QML 维护缓存，这里仅提供默认全部字段

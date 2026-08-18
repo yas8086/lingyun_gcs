@@ -102,8 +102,8 @@ ApplicationWindow {
     property var rtcData: ({"v":[], "pv":[], "outp":[], "i":[]})
     property int rtcIdx: 0
     property int rtcTick: 0
-    property int rtcMax: 100
-    property int rtcWindowPoints: 40   // 曲线时间窗显示点数（500ms 采样：20s=40/10s=20/5s=10），图示页可切换
+    property int rtcMax: 600
+    property int rtcWindowPoints: 60   // 曲线时间窗显示点数（500ms 采样：30s=60/1min=120/5min=600），图示页可切换
     property bool rtcPlaying: true
 
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }

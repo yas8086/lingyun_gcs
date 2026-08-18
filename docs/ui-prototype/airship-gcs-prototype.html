@@ -597,6 +597,21 @@
   .topo-link.off{color:var(--off)}
   .topo-link.off line{animation:none}
   .topo-link.off .link-v{fill:var(--off)}
+  /* 两级并联混动：母线带 + 双向充电线 */
+  .topo-bus{stroke:var(--primary);stroke-width:5;stroke-linecap:round;opacity:.85}
+  .topo-bus.off{stroke:var(--off);animation:none}
+  .topo-bus-tag{fill:var(--text-2);font-size:12px;font-weight:700}
+  .topo-joint{fill:var(--card);stroke:var(--primary);stroke-width:3}
+  .topo-joint.off{stroke:var(--off)}
+  .topo-link.bi line{stroke-dasharray:4 4;animation:flow-bi 1.2s linear infinite}
+  .topo-link.bi.reverse line{animation-direction:reverse}
+  @keyframes flow-bi{to{stroke-dashoffset:-8}}
+  .topo-link.charge .link-v{fill:var(--ok)}
+  .topo-link.discharge .link-v{fill:var(--err)}
+  /* 分区域（高压域 / 48V 弱电域） */
+  .topo-zone{fill:var(--card-2);stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5}
+  .topo-zone-title{fill:var(--text-2);font-size:13px;font-weight:700}
+  .topo-zone-title svg{fill:none;stroke:var(--text-2)}
   /* ===== 温度/压力采集 ===== */
   .lora-nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
   .lora-node{display:flex;flex-direction:column;gap:3px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card-2);position:relative;transition:all .2s}
@@ -1065,49 +1080,192 @@
                   <span class="lg-item"><i class="off"></i>离线</span>
                 </div>
                 <div class="topo-canvas">
-                  <svg class="topo-svg" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid meet">
+                  <svg class="topo-svg" viewBox="0 0 1200 820" preserveAspectRatio="xMidYMid meet">
                     <defs>
-                      <marker id="tp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+                      <marker id="tp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+                      <marker id="tp-arrow-s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="currentColor"/></marker>
                     </defs>
-                    <g class="topo-link" data-flow="l1"><line x1="205" y1="120" x2="285" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l1" class="link-v" x="245" y="110" text-anchor="middle">600 W</text></g>
-                    <g class="topo-link" data-flow="l2"><line x1="435" y1="120" x2="525" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l2" class="link-v" x="480" y="110" text-anchor="middle">7.0 A</text></g>
-                    <g class="topo-link" data-flow="l3"><line x1="675" y1="120" x2="765" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l3" class="link-v" x="720" y="110" text-anchor="middle">250 W</text></g>
-                    <g class="topo-link" data-flow="l4"><line x1="915" y1="120" x2="995" y2="120" marker-end="url(#tp-arrow)"/><text id="tp-l4" class="link-v" x="955" y="110" text-anchor="middle">250 W</text></g>
-
-                    <g class="topo-node" id="tp-node-pv">
-                      <rect class="node-box" x="55" y="88" width="150" height="150" rx="12"/>
-                      <g class="node-ic"><circle cx="130" cy="96" r="5"/><line x1="130" y1="86" x2="130" y2="90"/><line x1="130" y1="102" x2="130" y2="106"/><line x1="120" y1="96" x2="124" y2="96"/><line x1="136" y1="96" x2="140" y2="96"/><line x1="123" y1="89" x2="126" y2="92"/><line x1="134" y1="100" x2="137" y2="103"/><line x1="137" y1="89" x2="134" y2="92"/><line x1="126" y1="100" x2="123" y2="103"/></g>
-                      <text class="node-title" x="130" y="150" text-anchor="middle">光伏面板</text>
-                      <text class="node-val" id="tp-pv-v" x="130" y="185" text-anchor="middle">600 W</text>
-                      <text class="node-sub" id="tp-pv-s" x="130" y="207" text-anchor="middle">89.5 V</text>
+                    <!-- ===== 区域分区：上下五五开，灰框四边距白色容器一致 ===== -->
+                    <rect class="topo-zone" x="10" y="10" width="1180" height="398"/>
+                    <text class="topo-zone-title" x="26" y="34">高压直流域</text>
+                    <rect class="topo-zone" x="10" y="413" width="1180" height="397"/>
+                    <text class="topo-zone-title" x="26" y="437">48V 弱电域</text>
+                    <!-- ===== 第一级母线带 ===== -->
+                    <line class="topo-bus" x1="86" y1="209" x2="1114" y2="209"/>
+                    <circle class="topo-joint" cx="86" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="375" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="429" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="515" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="600" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="771" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="825" cy="209" r="6"/>
+                    <circle class="topo-joint" cx="1114" cy="209" r="6"/>
+                    <text class="topo-bus-tag" id="tp-bus1-v" x="110" y="201">第一级母线 · 367V</text>
+                    <!-- ===== 第二级 48V 母线带 ===== -->
+                    <line class="topo-bus" x1="121" y1="611" x2="1079" y2="611"/>
+                    <circle class="topo-joint" cx="121" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="279" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="437" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="515" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="600" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="685" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="763" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="921" cy="611" r="6"/>
+                    <circle class="topo-joint" cx="1079" cy="611" r="6"/>
+                    <text class="topo-bus-tag" id="tp-bus2-v" x="140" y="603">第二级母线 · 48V</text>
+                    <!-- 连线：光伏 → MPPT（同排水平，PV1 箭头向右、PV2 箭头向左，显示功率） -->
+                    <g class="topo-link" data-flow="l1a"><line x1="225" y1="95" x2="300" y2="95" marker-end="url(#tp-arrow)"/><text id="tp-l1a" class="link-v" x="263" y="90">600 W</text></g>
+                    <g class="topo-link" data-flow="l1b"><line x1="975" y1="95" x2="900" y2="95" marker-end="url(#tp-arrow)"/><text id="tp-l1b" class="link-v" x="938" y="90">480 W</text></g>
+                    <!-- 连线：MPPT/102S ↔ 母线1 -->
+                    <g class="topo-link" data-flow="l2a"><line x1="375" y1="140" x2="375" y2="209" marker-end="url(#tp-arrow)"/><text id="tp-l2a" class="link-v" x="380" y="175">6 A</text></g>
+                    <g class="topo-link bi" data-flow="lb1"><line x1="600" y1="140" x2="600" y2="209" marker-start="url(#tp-arrow-s)" marker-end="url(#tp-arrow)"/><text id="tp-lb1" class="link-v" x="605" y="175">放电</text></g>
+                    <g class="topo-link" data-flow="l2b"><line x1="825" y1="140" x2="825" y2="209" marker-end="url(#tp-arrow)"/><text id="tp-l2b" class="link-v" x="830" y="175">6 A</text></g>
+                    <!-- 连线：母线1 → 4 推进电机 / → DCDC（跨域长线） -->
+                    <g class="topo-link" data-flow="l3a"><line x1="86" y1="209" x2="86" y2="278" marker-end="url(#tp-arrow)"/><text id="tp-l3a" class="link-v" x="91" y="244">0.2 A</text></g>
+                    <g class="topo-link" data-flow="l3b"><line x1="429" y1="209" x2="429" y2="278" marker-end="url(#tp-arrow)"/><text id="tp-l3b" class="link-v" x="434" y="244">0.2 A</text></g>
+                    <g class="topo-link" data-flow="l3c"><line x1="771" y1="209" x2="771" y2="278" marker-end="url(#tp-arrow)"/><text id="tp-l3c" class="link-v" x="776" y="244">0.2 A</text></g>
+                    <g class="topo-link" data-flow="l3d"><line x1="1114" y1="209" x2="1114" y2="278" marker-end="url(#tp-arrow)"/><text id="tp-l3d" class="link-v" x="1119" y="244">0.2 A</text></g>
+                    <g class="topo-link" data-flow="l4"><line x1="515" y1="209" x2="515" y2="453" marker-end="url(#tp-arrow)"/><text id="tp-l4" class="link-v" x="520" y="331">0.7 A</text></g>
+                    <!-- 连线：DCDC → 母线2，母线2 ↔ 12S -->
+                    <g class="topo-link" data-flow="l5"><line x1="515" y1="543" x2="515" y2="611" marker-end="url(#tp-arrow)"/><text id="tp-l5" class="link-v" x="520" y="577">5.2 A</text></g>
+                    <g class="topo-link bi" data-flow="lb2"><line x1="685" y1="543" x2="685" y2="611" marker-start="url(#tp-arrow-s)" marker-end="url(#tp-arrow)"/><text id="tp-lb2" class="link-v" x="690" y="577">充电</text></g>
+                    <!-- 连线：母线2 → 小电机（左右对称，其他载荷居中） -->
+                    <g class="topo-link" data-flow="l6a"><line x1="121" y1="611" x2="121" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6a" class="link-v" x="126" y="646">0.4 A</text></g>
+                    <g class="topo-link" data-flow="l6b"><line x1="279" y1="611" x2="279" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6b" class="link-v" x="284" y="646">0.4 A</text></g>
+                    <g class="topo-link" data-flow="l6c"><line x1="437" y1="611" x2="437" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6c" class="link-v" x="442" y="646">0.4 A</text></g>
+                    <g class="topo-link" data-flow="l7"><line x1="600" y1="611" x2="600" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l7" class="link-v" x="605" y="646">3.1 A</text></g>
+                    <g class="topo-link" data-flow="l6d"><line x1="763" y1="611" x2="763" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6d" class="link-v" x="768" y="646">0.4 A</text></g>
+                    <g class="topo-link" data-flow="l6e"><line x1="921" y1="611" x2="921" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6e" class="link-v" x="926" y="646">0.4 A</text></g>
+                    <g class="topo-link" data-flow="l6f"><line x1="1079" y1="611" x2="1079" y2="680" marker-end="url(#tp-arrow)"/><text id="tp-l6f" class="link-v" x="1084" y="646">0.4 A</text></g>
+                    <!-- 节点：第一排 PV1 / MPPT1 / 102S / MPPT2 / PV2 同排，PV 置于各自 MPPT 外侧（中心对称），箭头 PV1→MPPT1 向右、MPPT2→PV2 向左 -->
+                    <g class="topo-node" id="tp-node-pv1">
+                      <rect class="node-box" x="75" y="50" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="150" cy="70" r="5"/><line x1="150" y1="60" x2="150" y2="64"/><line x1="150" y1="76" x2="150" y2="80"/><line x1="140" y1="70" x2="144" y2="70"/><line x1="156" y1="70" x2="160" y2="70"/><line x1="143" y1="63" x2="146" y2="66"/><line x1="154" y1="77" x2="157" y2="80"/><line x1="157" y1="63" x2="154" y2="66"/><line x1="146" y1="77" x2="143" y2="80"/></g>
+                      <text class="node-title" x="150" y="97" text-anchor="middle">光伏主囊</text>
+                      <text class="node-val" id="tp-pv1-v" x="150" y="119" text-anchor="middle">600 W</text>
+                      <text class="node-sub" id="tp-pv1-s" x="150" y="136" text-anchor="middle">89.5 V</text>
                     </g>
-                    <g class="topo-node" id="tp-node-mppt">
-                      <rect class="node-box" x="285" y="88" width="150" height="150" rx="12"/>
-                      <g class="node-ic"><rect x="352" y="90" width="16" height="15" rx="3"/><path d="M358 94l-3 4h3l-3 5"/></g>
-                      <text class="node-title" x="360" y="150" text-anchor="middle">MPPT 控制器</text>
-                      <text class="node-val" id="tp-mppt-v" x="360" y="185" text-anchor="middle">7.0 A</text>
-                      <text class="node-sub" id="tp-mppt-s" x="360" y="207" text-anchor="middle">效率 42%</text>
+                    <g class="topo-node" id="tp-node-pv2">
+                      <rect class="node-box" x="975" y="50" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="1050" cy="70" r="5"/><line x1="1050" y1="60" x2="1050" y2="64"/><line x1="1050" y1="76" x2="1050" y2="80"/><line x1="1040" y1="70" x2="1044" y2="70"/><line x1="1056" y1="70" x2="1060" y2="70"/><line x1="1043" y1="63" x2="1046" y2="66"/><line x1="1054" y1="77" x2="1057" y2="80"/><line x1="1057" y1="63" x2="1054" y2="66"/><line x1="1046" y1="77" x2="1043" y2="80"/></g>
+                      <text class="node-title" x="1050" y="97" text-anchor="middle">光伏副囊</text>
+                      <text class="node-val" id="tp-pv2-v" x="1050" y="119" text-anchor="middle">480 W</text>
+                      <text class="node-sub" id="tp-pv2-s" x="1050" y="136" text-anchor="middle">85.0 V</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-mppt1">
+                      <rect class="node-box" x="300" y="50" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><rect x="367" y="65" width="16" height="14" rx="3"/><path d="M373 68l-3 4h3l-3 5"/></g>
+                      <text class="node-title" x="375" y="97" text-anchor="middle">MPPT 1</text>
+                      <text class="node-val" id="tp-mppt1-v" x="375" y="119" text-anchor="middle">6.0 A</text>
+                      <text class="node-sub" id="tp-mppt1-s" x="375" y="136" text-anchor="middle">效率 93%</text>
                     </g>
                     <g class="topo-node" id="tp-node-bms">
-                      <rect class="node-box" x="525" y="88" width="150" height="150" rx="12"/>
-                      <g class="node-ic"><rect x="591" y="90" width="18" height="15" rx="2"/><line x1="603" y1="88" x2="603" y2="90"/><line x1="594" y1="95" x2="594" y2="99"/><line x1="600" y1="93" x2="600" y2="101"/><line x1="606" y1="95" x2="606" y2="99"/></g>
-                      <text class="node-title" x="600" y="150" text-anchor="middle">电池组 BMS</text>
-                      <text class="node-val" id="tp-bms-v" x="600" y="185" text-anchor="middle">85%</text>
-                      <text class="node-sub" id="tp-bms-s" x="600" y="207" text-anchor="middle">367.2 V</text>
+                      <rect class="node-box" x="525" y="50" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><rect x="592" y="65" width="16" height="14" rx="2"/><line x1="602" y1="63" x2="602" y2="65"/><line x1="594" y1="70" x2="594" y2="74"/><line x1="598" y1="69" x2="598" y2="75"/><line x1="602" y1="70" x2="602" y2="74"/><line x1="606" y1="70" x2="606" y2="74"/></g>
+                      <text class="node-title" x="600" y="97" text-anchor="middle">102S 主电池组</text>
+                      <text class="node-val" id="tp-bms-v" x="600" y="119" text-anchor="middle">85%</text>
+                      <text class="node-sub" id="tp-bms-s" x="600" y="136" text-anchor="middle">367.2 V</text>
                     </g>
+                    <g class="topo-node" id="tp-node-mppt2">
+                      <rect class="node-box" x="750" y="50" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><rect x="817" y="65" width="16" height="14" rx="3"/><path d="M823 68l-3 4h3l-3 5"/></g>
+                      <text class="node-title" x="825" y="97" text-anchor="middle">MPPT 2</text>
+                      <text class="node-val" id="tp-mppt2-v" x="825" y="119" text-anchor="middle">5.0 A</text>
+                      <text class="node-sub" id="tp-mppt2-s" x="825" y="136" text-anchor="middle">效率 93%</text>
+                    </g>
+                    <!-- 节点：母线1 下 4 个推进电机（左前/左后/右后/右前，等宽对称、避开中轴跨域线） -->
+                    <g class="topo-node" id="tp-node-mot1">
+                      <rect class="node-box" x="11" y="278" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="86" cy="300" r="7"/><path d="M86 300h9m-4-4l4 4-4 4"/></g>
+                      <text class="node-title" x="86" y="324" text-anchor="middle">推进电机 · 左前</text>
+                      <text class="node-val" id="tp-mot1-v" x="86" y="346" text-anchor="middle">60 W</text>
+                      <text class="node-sub" id="tp-mot1-s" x="86" y="363" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-mot2">
+                      <rect class="node-box" x="354" y="278" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="429" cy="300" r="7"/><path d="M429 300h9m-4-4l4 4-4 4"/></g>
+                      <text class="node-title" x="429" y="324" text-anchor="middle">推进电机 · 左后</text>
+                      <text class="node-val" id="tp-mot2-v" x="429" y="346" text-anchor="middle">60 W</text>
+                      <text class="node-sub" id="tp-mot2-s" x="429" y="363" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-mot3">
+                      <rect class="node-box" x="696" y="278" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="771" cy="300" r="7"/><path d="M771 300h9m-4-4l4 4-4 4"/></g>
+                      <text class="node-title" x="771" y="324" text-anchor="middle">推进电机 · 右后</text>
+                      <text class="node-val" id="tp-mot3-v" x="771" y="346" text-anchor="middle">60 W</text>
+                      <text class="node-sub" id="tp-mot3-s" x="771" y="363" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-mot4">
+                      <rect class="node-box" x="1039" y="278" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="1114" cy="300" r="7"/><path d="M1114 300h9m-4-4l4 4-4 4"/></g>
+                      <text class="node-title" x="1114" y="324" text-anchor="middle">推进电机 · 右前</text>
+                      <text class="node-val" id="tp-mot4-v" x="1114" y="346" text-anchor="middle">60 W</text>
+                      <text class="node-sub" id="tp-mot4-s" x="1114" y="363" text-anchor="middle">在线</text>
+                    </g>
+                    <!-- 节点：48V 域 DCDC + 12S 一行，位于母线2 上方（左右对称） -->
                     <g class="topo-node" id="tp-node-dcdc">
-                      <rect class="node-box" x="765" y="88" width="150" height="150" rx="12"/>
-                      <g class="node-ic"><path d="M837 92l-5 6h4l-4 7"/></g>
-                      <text class="node-title" x="840" y="150" text-anchor="middle">DCDC 模块</text>
-                      <text class="node-val" id="tp-dcdc-v" x="840" y="185" text-anchor="middle">250 W</text>
-                      <text class="node-sub" id="tp-dcdc-s" x="840" y="207" text-anchor="middle">41.0 ℃</text>
+                      <rect class="node-box" x="440" y="453" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><path d="M511 471l-4 5h3l-3 6"/></g>
+                      <text class="node-title" x="515" y="499" text-anchor="middle">DCDC 模块</text>
+                      <text class="node-val" id="tp-dcdc-v" x="515" y="521" text-anchor="middle">250 W</text>
+                      <text class="node-sub" id="tp-dcdc-s" x="515" y="539" text-anchor="middle">41.0 ℃</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-bk">
+                      <rect class="node-box" x="610" y="453" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><rect x="677" y="471" width="16" height="14" rx="2"/><line x1="687" y1="469" x2="687" y2="471"/><line x1="679" y1="476" x2="679" y2="480"/><line x1="683" y1="475" x2="683" y2="481"/><line x1="687" y1="476" x2="687" y2="480"/><line x1="691" y1="476" x2="691" y2="480"/></g>
+                      <text class="node-title" x="685" y="499" text-anchor="middle">12S 备用锂电</text>
+                      <text class="node-val" id="tp-bk-v" x="685" y="521" text-anchor="middle">86%</text>
+                      <text class="node-sub" id="tp-bk-s" x="685" y="539" text-anchor="middle">44.0 V</text>
+                    </g>
+                    <!-- 节点：母线2 下 6 小电机 + 其他载荷（其他载荷居中，前后下降电机紧邻其两侧，整体左右对称） -->
+                    <g class="topo-node" id="tp-node-s1">
+                      <rect class="node-box" x="51" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="121" cy="700" r="6"/><path d="M121 712v-14m-4 4l4-4 4 4"/></g>
+                      <text class="node-title" x="121" y="726" text-anchor="middle">左前上升电机</text>
+                      <text class="node-val" id="tp-s1-v" x="121" y="748" text-anchor="middle">1800 rpm</text>
+                      <text class="node-sub" id="tp-s1-s" x="121" y="765" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-s2">
+                      <rect class="node-box" x="209" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="279" cy="700" r="6"/><path d="M279 712v-14m-4 4l4-4 4 4"/></g>
+                      <text class="node-title" x="279" y="726" text-anchor="middle">左后上升电机</text>
+                      <text class="node-val" id="tp-s2-v" x="279" y="748" text-anchor="middle">1800 rpm</text>
+                      <text class="node-sub" id="tp-s2-s" x="279" y="765" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-s3">
+                      <rect class="node-box" x="367" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="437" cy="706" r="6"/><path d="M437 694v14m-4-4l4 4 4-4"/></g>
+                      <text class="node-title" x="437" y="726" text-anchor="middle">前下降电机</text>
+                      <text class="node-val" id="tp-s3-v" x="437" y="748" text-anchor="middle">1200 rpm</text>
+                      <text class="node-sub" id="tp-s3-s" x="437" y="765" text-anchor="middle">在线</text>
                     </g>
                     <g class="topo-node" id="tp-node-load">
-                      <rect class="node-box" x="995" y="88" width="150" height="150" rx="12"/>
-                      <g class="node-ic"><circle cx="1070" cy="97" r="8"/><path d="M1070 97l5-6"/></g>
-                      <text class="node-title" x="1070" y="150" text-anchor="middle">机载负载</text>
-                      <text class="node-val" id="tp-load-v" x="1070" y="185" text-anchor="middle">250 W</text>
-                      <text class="node-sub" id="tp-load-s" x="1070" y="207" text-anchor="middle">在线</text>
+                      <rect class="node-box" x="525" y="680" width="150" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="600" cy="702" r="8"/><path d="M600 702l5-6"/></g>
+                      <text class="node-title" x="600" y="726" text-anchor="middle">其他载荷</text>
+                      <text class="node-val" id="tp-load-v" x="600" y="748" text-anchor="middle">150 W</text>
+                      <text class="node-sub" id="tp-load-s" x="600" y="765" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-s4">
+                      <rect class="node-box" x="693" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="763" cy="706" r="6"/><path d="M763 694v14m-4-4l4 4 4-4"/></g>
+                      <text class="node-title" x="763" y="726" text-anchor="middle">后下降电机</text>
+                      <text class="node-val" id="tp-s4-v" x="763" y="748" text-anchor="middle">1200 rpm</text>
+                      <text class="node-sub" id="tp-s4-s" x="763" y="765" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-s5">
+                      <rect class="node-box" x="851" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="921" cy="700" r="6"/><path d="M921 712v-14m-4 4l4-4 4 4"/></g>
+                      <text class="node-title" x="921" y="726" text-anchor="middle">右后上升电机</text>
+                      <text class="node-val" id="tp-s5-v" x="921" y="748" text-anchor="middle">1800 rpm</text>
+                      <text class="node-sub" id="tp-s5-s" x="921" y="765" text-anchor="middle">在线</text>
+                    </g>
+                    <g class="topo-node" id="tp-node-s6">
+                      <rect class="node-box" x="1009" y="680" width="140" height="90" rx="12"/>
+                      <g class="node-ic"><circle cx="1079" cy="700" r="6"/><path d="M1079 712v-14m-4 4l4-4 4 4"/></g>
+                      <text class="node-title" x="1079" y="726" text-anchor="middle">右前上升电机</text>
+                      <text class="node-val" id="tp-s6-v" x="1079" y="748" text-anchor="middle">1800 rpm</text>
+                      <text class="node-sub" id="tp-s6-s" x="1079" y="765" text-anchor="middle">在线</text>
                     </g>
                   </svg>
                 </div>
@@ -1658,32 +1816,161 @@ function ring(soc){const r=30,c=2*Math.PI*r,off=c*(1-soc/100),col=soc>50?'#16a34
 
 /* 电源链路拓扑图更新 */
 function getT(dev,fid){const el=$(dev+'-'+fid);if(!el)return NaN;const uv=el.getAttribute('data-uv');return parseFloat(uv!=null?uv:el.childNodes[0].nodeValue);}
+/* 电源链路拓扑图更新：两级并联混动（MPPT+102S / DCDC+12S），含充放电方向判定（按电流显示） */
+function setBatFlow(flow,batP,volts){
+  const g=document.querySelector('.topo-link[data-flow="'+flow+'"]');if(!g)return;
+  const txt=$('tp-'+flow);
+  const cur=Math.abs(batP)/(volts||1);
+  if(batP>=0){ // 充电：母线→电池
+    txt.textContent='充电 '+cur.toFixed(1)+' A';
+    g.classList.remove('discharge');g.classList.add('charge');
+    g.classList.remove('reverse');
+  }else{ // 放电：电池→母线
+    txt.textContent='放电 '+cur.toFixed(1)+' A';
+    g.classList.remove('charge');g.classList.add('discharge');
+    g.classList.add('reverse');
+  }
+}
 function updateTopo(){
-  const pv=Math.round(getT('mppt','pv_p'))||0;
-  const pvv=getT('mppt','pv_v')||0;
-  const ci=getT('mppt','charge_i')||0;
+  // 光伏主囊：现有 mppt 设备卡片数据
+  const pvM=Math.round(getT('mppt','pv_p'))||0;
+  const pvMv=getT('mppt','pv_v')||0;
+  const c1=getT('mppt','charge_i')||0;
+  // 光伏副囊：原型无第二个 MPPT 设备卡片，以模拟值演示（Qt 落地对接 mppt2 设备）
+  const pvS=Math.max(0,Math.round(pvM*(0.8+0.2*Math.sin(Date.now()/9000))));
+  const pvSv=pvMv*(0.95+0.05*Math.sin(Date.now()/7000));
+  const c2=Math.round(c1*(pvS/(pvM||1))*10)/10;
+  const pv=pvM+pvS; // 两组光伏并联总功率
   const soc=getT('bms','soc')||0;
   const packv=getT('bms','pack_v')||0;
   const op=getT('dcdc','out_p')||0;
   const temp=getT('dcdc','temp')||0;
-  const eff=(pv&&op)?Math.round(op/pv*100):0;
-  $('tp-pv-v').textContent=pv+' W';
-  $('tp-pv-s').textContent=pvv.toFixed(1)+' V';
-  $('tp-mppt-v').textContent=ci.toFixed(1)+' A';
-  $('tp-mppt-s').textContent='效率 '+eff+'%';
+  const eff=92+Math.round(Math.sin(Date.now()/12000)*3); // MPPT 转换效率（模拟 89~95%）
+  // 12S 备用锂电：原型无独立设备卡片，先以模拟值演示（Qt 落地对接 backup 设备）
+  const bkSoc=Math.round(86+Math.sin(Date.now()/8000)*3);
+  const bkV=44+Math.sin(Date.now()/7000)*0.8;
+  // —— 第一级混动（MPPT1+MPPT2 并联 + 102S，母线电压=102S 电压）：4 个推进电机 ——
+  const motTot=Math.round(pv*0.45+120); // 4 推进电机总功率（模拟：随光伏波动）
+  const mot1=Math.round(motTot/4);
+  const dcdcIn=op; // DCDC 输入功率（简化，忽略损耗）
+  const bus1Load=motTot+dcdcIn;
+  const bat1=Math.round(pv-bus1Load); // >0 光伏富余→给 102S 充电；<0→102S 放电补足
+  // —— 第二级混动（DCDC + 12S 并联，母线电压=48V=DCDC 输出口电压）：6 个小电机 + 其他载荷 ——
+  const smTot=Math.round(op*0.5); // 6 小电机总功率（模拟）
+  const sm1=Math.round(smTot/6);
+  const load48=Math.max(0,op-smTot); // 其他载荷
+  const dcdcCap=320; // DCDC 额定输出能力（模拟）；需求超出→12S 放电，富余→12S 充电
+  const bat2=Math.round(dcdcCap-op);
+  // 电机转速（模拟）：推进电机低转速，上升/下降电机高转速
+  const rpmMot=Math.round(280+mot1*0.6+Math.sin(Date.now()/6000)*25);
+  const rpmUp=Math.round(1800+Math.sin(Date.now()/7000)*80);
+  const rpmDn=Math.round(1200+Math.sin(Date.now()/8000)*60);
+  // 节点数值
+  $('tp-pv1-v').textContent=pvM+' W';
+  $('tp-pv1-s').textContent=pvMv.toFixed(1)+' V';
+  $('tp-pv2-v').textContent=pvS+' W';
+  $('tp-pv2-s').textContent=pvSv.toFixed(1)+' V';
+  $('tp-mppt1-v').textContent=c1.toFixed(1)+' A';
+  $('tp-mppt1-s').textContent='效率 '+eff+'%';
+  $('tp-mppt2-v').textContent=c2.toFixed(1)+' A';
+  $('tp-mppt2-s').textContent='效率 '+eff+'%';
   $('tp-bms-v').textContent=Math.round(soc)+'%';
   $('tp-bms-s').textContent=packv.toFixed(1)+' V';
+  $('tp-bus1-v').textContent='第一级母线 · '+Math.round(packv)+'V';
+  $('tp-mot1-v').textContent=rpmMot+' rpm';
+  $('tp-mot1-s').textContent='在线';
+  $('tp-mot2-v').textContent=rpmMot+' rpm';
+  $('tp-mot2-s').textContent='在线';
+  $('tp-mot3-v').textContent=rpmMot+' rpm';
+  $('tp-mot3-s').textContent='在线';
+  $('tp-mot4-v').textContent=rpmMot+' rpm';
+  $('tp-mot4-s').textContent='在线';
   $('tp-dcdc-v').textContent=op+' W';
   $('tp-dcdc-s').textContent=temp.toFixed(1)+' ℃';
-  $('tp-load-v').textContent=op+' W';
+  $('tp-bus2-v').textContent='第二级母线 · 48V';
+  $('tp-bk-v').textContent=bkSoc+'%';
+  $('tp-bk-s').textContent=bkV.toFixed(1)+' V';
+  $('tp-s1-v').textContent=rpmUp+' rpm';
+  $('tp-s1-s').textContent='在线';
+  $('tp-s2-v').textContent=rpmUp+' rpm';
+  $('tp-s2-s').textContent='在线';
+  $('tp-s3-v').textContent=rpmDn+' rpm';
+  $('tp-s3-s').textContent='在线';
+  $('tp-s4-v').textContent=rpmDn+' rpm';
+  $('tp-s4-s').textContent='在线';
+  $('tp-s5-v').textContent=rpmUp+' rpm';
+  $('tp-s5-s').textContent='在线';
+  $('tp-s6-v').textContent=rpmUp+' rpm';
+  $('tp-s6-s').textContent='在线';
+  $('tp-load-v').textContent=load48+' W';
   $('tp-load-s').textContent='在线';
-  $('tp-l1').textContent=pv+' W';
-  $('tp-l2').textContent=ci.toFixed(1)+' A';
-  $('tp-l3').textContent=op+' W';
-  $('tp-l4').textContent=op+' W';
-  const off=document.querySelector('.card[data-dev="dcdc"]').classList.contains('off');
-  document.querySelectorAll('.topo-node').forEach(n=>n.classList.toggle('off',off&&n.id==='tp-node-dcdc'));
-  document.querySelectorAll('.topo-link').forEach(l=>l.classList.toggle('off',off&&(l.dataset.flow==='l3'||l.dataset.flow==='l4')));
+  // 连线：光伏→MPPT 显示功率；其余显示电流（A）
+  $('tp-l1a').textContent=pvM+' W';
+  $('tp-l1b').textContent=pvS+' W';
+  $('tp-l2a').textContent=c1.toFixed(1)+' A';
+  $('tp-l2b').textContent=c2.toFixed(1)+' A';
+  $('tp-l3a').textContent=(mot1/(packv||1)).toFixed(1)+' A';
+  $('tp-l3b').textContent=(mot1/(packv||1)).toFixed(1)+' A';
+  $('tp-l3c').textContent=(mot1/(packv||1)).toFixed(1)+' A';
+  $('tp-l3d').textContent=(mot1/(packv||1)).toFixed(1)+' A';
+  $('tp-l4').textContent=(op/(packv||1)).toFixed(1)+' A';
+  $('tp-l5').textContent=(op/48).toFixed(1)+' A';
+  $('tp-l6a').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l6b').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l6c').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l6d').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l6e').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l6f').textContent=(sm1/48).toFixed(1)+' A';
+  $('tp-l7').textContent=(load48/48).toFixed(1)+' A';
+  // 双向充放电（母线↔电池，按实际电压显示充电/放电电流）
+  setBatFlow('lb1',bat1,packv);
+  setBatFlow('lb2',bat2,48);
+  // 母线负载标注（总功率）
+  $('tp-bus1-v').textContent='第一级母线 · '+Math.round(packv)+'V · 负载 '+bus1Load+'W';
+  $('tp-bus2-v').textContent='第二级母线 · 48V · 负载 '+op+'W';
+  /* ---- 在线/离线联动置灰（DCDC / BMS / MPPT） ---- */
+  const dcdcCard=document.querySelector('.card[data-dev="dcdc"]'),dcdcOff=dcdcCard&&dcdcCard.classList.contains('off');
+  const bmsCard=document.querySelector('.card[data-dev="bms"]'),bmsOff=bmsCard&&bmsCard.classList.contains('off');
+  const mpptCard=document.querySelector('.card[data-dev="mppt"]'),mpptOff=mpptCard&&mpptCard.classList.contains('off');
+  document.querySelectorAll('.topo-node').forEach(n=>{
+    const id=n.id;
+    n.classList.toggle('off',
+      (dcdcOff&&(id==='tp-node-dcdc'||id==='tp-node-bk'||/^tp-node-s\d$/.test(id)||id==='tp-node-load'))||
+      (bmsOff&&id==='tp-node-bms')||
+      (mpptOff&&(id==='tp-node-mppt1'||id==='tp-node-mppt2')));
+  });
+  document.querySelectorAll('.topo-link').forEach(l=>{
+    const f=l.dataset.flow;
+    l.classList.toggle('off',
+      (dcdcOff&&(f==='l4'||f==='l5'||/^l6[a-f]$/.test(f)||f==='l7'||f==='lb2'))||
+      (bmsOff&&f==='lb1')||
+      (mpptOff&&(f==='l1a'||f==='l1b'||f==='l2a'||f==='l2b')));
+  });
+  /* ---- 告警状态着色（黄色告警边框） ---- */
+  document.getElementById('tp-node-dcdc').classList.toggle('warn',!dcdcOff&&temp>43);
+  document.getElementById('tp-node-bms').classList.toggle('warn',!bmsOff&&soc<20);
+  document.getElementById('tp-node-mppt1').classList.toggle('warn',!mpptOff&&eff<90);
+  document.getElementById('tp-node-mppt2').classList.toggle('warn',!mpptOff&&eff<90);
+  ['mot1','mot2','mot3','mot4'].forEach(id=>document.getElementById('tp-node-'+id).classList.toggle('warn',!dcdcOff&&rpmMot>520));
+  ['s1','s2','s5','s6'].forEach(id=>document.getElementById('tp-node-'+id).classList.toggle('warn',!dcdcOff&&rpmUp>2200));
+  ['s3','s4'].forEach(id=>document.getElementById('tp-node-'+id).classList.toggle('warn',!dcdcOff&&rpmDn>1500));
+  /* ---- 节点悬停详情 ---- */
+  function tpTitle(id,title){const g=document.getElementById(id);if(g)g.setAttribute('title',title);}
+  tpTitle('tp-node-pv1','光伏主囊\n功率 '+pvM+' W\n电压 '+pvMv.toFixed(1)+' V\n向 MPPT 1 供电');
+  tpTitle('tp-node-pv2','光伏副囊\n功率 '+pvS+' W\n电压 '+pvSv.toFixed(1)+' V\n向 MPPT 2 供电');
+  tpTitle('tp-node-mppt1','MPPT 1\n光伏输入 '+pvM+' W\n充电电流 '+c1.toFixed(1)+' A\n转换效率 '+eff+'%');
+  tpTitle('tp-node-mppt2','MPPT 2\n光伏输入 '+pvS+' W\n充电电流 '+c2.toFixed(1)+' A\n转换效率 '+eff+'%');
+  tpTitle('tp-node-bms','102S 主电池组\n荷电状态 SOC '+Math.round(soc)+'%\n总压 '+packv.toFixed(1)+' V\n总电流 '+getT('bms','pack_i').toFixed(1)+' A');
+  ['mot1','mot2','mot3','mot4'].forEach((id,i)=>tpTitle('tp-node-'+id,'推进电机 · '+(['左前','左后','右后','右前'])[i]+'\n功率 '+mot1+' W\n转速 '+Math.round(rpmMot)+' rpm'));
+  tpTitle('tp-node-dcdc','DCDC 模块\n输出功率 '+op+' W\n输出电压 '+getT('dcdc','out_v').toFixed(1)+' V\n散热温度 '+temp.toFixed(1)+' ℃');
+  tpTitle('tp-node-bk','12S 备用锂电\n荷电状态 '+bkSoc+'%\n电压 '+bkV.toFixed(1)+' V\n与 DCDC 构成 48V 混动');
+  tpTitle('tp-node-s1','左前上升电机\n转速 '+Math.round(rpmUp)+' rpm\n由 48V 母线供电');
+  tpTitle('tp-node-s2','左后上升电机\n转速 '+Math.round(rpmUp)+' rpm\n由 48V 母线供电');
+  tpTitle('tp-node-s3','前下降电机\n转速 '+Math.round(rpmDn)+' rpm\n由 48V 母线供电');
+  tpTitle('tp-node-load','其他载荷\n功率 '+load48+' W\n48V 弱电负载');
+  tpTitle('tp-node-s4','后下降电机\n转速 '+Math.round(rpmDn)+' rpm\n由 48V 母线供电');
+  tpTitle('tp-node-s5','右后上升电机\n转速 '+Math.round(rpmUp)+' rpm\n由 48V 母线供电');
+  tpTitle('tp-node-s6','右前上升电机\n转速 '+Math.round(rpmUp)+' rpm\n由 48V 母线供电');
 }
 /* 光伏板下温度热力图（四囊体并排：副·主·主·副） */
 const ENV=[
@@ -2075,7 +2362,7 @@ function sim(){
   }
   const soc=Math.max(0,Math.min(100,Number($('bms-soc').childNodes[0].nodeValue)+(0.5>Math.random()?0:rand(0,0.4))));
   $('bms-soc').childNodes[0].nodeValue=Math.round(soc);ring(Math.round(soc));
-  const pv=rand(89.5,1),packi=rand(0,1.2);temp=rand(41,1);
+  const pv=rand(89.5,1),packi=rand(0,1.2);temp=rand(44,4);
   $('bms-pack_v').childNodes[0].nodeValue=rand(367.2,0.5).toFixed(1);
   $('bms-max_v').childNodes[0].nodeValue=rand(3.62,0.02).toFixed(2);
   renderMeas('bms-max_t','temp',temp);
@@ -2354,7 +2641,7 @@ applySbWidgets();
   box.addEventListener('change',e=>{const t=e.target;if(!t.dataset.sb)return;let cur=loadSb();if(t.checked){if(!cur.includes(t.dataset.sb))cur.push(t.dataset.sb);}else{cur=cur.filter(x=>x!==t.dataset.sb);}localStorage.setItem(SB_STORE,JSON.stringify(cur));applySbWidgets();});
 })();
 
-ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();updateBanner();setInterval(sim,200);
+ring(85);size();draw();runCheck();updateTopo();initLoRa();updateLoRa();initTemp();initTempTable();initTempWide();initMapping();updateTemp();updateBanner();setInterval(sim,200);setInterval(updateTopo,500);
 
 /* ===== 摄像头监控（动态相机布局，独立模块） ===== */
 /* ---- 相机数据模型：id 主键 + 可编辑名称，支持动态增删 ---- */
@@ -2722,6 +3009,102 @@ function openCamCfg(){
 }
 $('camCfgBtn').onclick=openCamCfg;
 applyCamCfg();
+
+/* ===== 图示页电源链路：灰框始终铺满白色容器（四边距一致、上下五五分），内容按统一比例等比缩放居中 ===== */
+const TOPO_BASE={
+  W:1200,H:820,m:10,gap:5,
+  /* 节点：id -> [基准中心x, 基准中心y, 宽, 高] */
+  nodes:{pv1:[150,95,150,90],pv2:[1050,95,150,90],mppt1:[375,95,150,90],mppt2:[825,95,150,90],bms:[600,95,150,90],
+    mot1:[86,323,150,90],mot2:[429,323,150,90],mot3:[771,323,150,90],mot4:[1114,323,150,90],
+    dcdc:[515,498,150,90],bk:[685,498,150,90],
+    s1:[121,725,140,90],s2:[279,725,140,90],s3:[437,725,140,90],load:[600,725,150,90],s4:[763,725,140,90],s5:[921,725,140,90],s6:[1079,725,140,90]},
+  /* 母线连接点 x 与 基准 y */
+  busJ:{bus1:[86,375,429,515,600,771,825,1114],bus2:[121,279,437,515,600,685,763,921,1079]},
+  busY:{bus1:209,bus2:611},
+  /* 连线：H 水平[类型,a,方向,b]；V 垂直[类型,node,bus,dir]，dir=1 卡底→母线，dir=-1 母线→卡顶 */
+  links:{l1a:['H','pv1','E','mppt1'],l1b:['H','pv2','W','mppt2'],
+    l2a:['V','mppt1','bus1',1],lb1:['V','bms','bus1',1],l2b:['V','mppt2','bus1',1],
+    l3a:['V','mot1','bus1',-1],l3b:['V','mot2','bus1',-1],l3c:['V','mot3','bus1',-1],l3d:['V','mot4','bus1',-1],
+    l4:['V','dcdc','bus1',-1],l5:['V','dcdc','bus2',1],lb2:['V','bk','bus2',1],
+    l6a:['V','s1','bus2',-1],l6b:['V','s2','bus2',-1],l6c:['V','s3','bus2',-1],
+    l7:['V','load','bus2',-1],l6d:['V','s4','bus2',-1],l6e:['V','s5','bus2',-1],l6f:['V','s6','bus2',-1]}
+};
+let _TE=null;
+function initTopoEls(){
+  const svg=document.querySelector('.topo-svg');
+  if(!svg)return false;
+  const E={svg,nodes:{},buses:{},zones:[],zt:[],joints:{bus1:[],bus2:[]},links:{},btags:{}};
+  for(const id in TOPO_BASE.nodes){const g=svg.getElementById('tp-node-'+id);if(g)E.nodes[id]=g;}
+  const bl=svg.querySelectorAll('line.topo-bus');E.buses.bus1=bl[0];E.buses.bus2=bl[1];
+  E.zones=svg.querySelectorAll('rect.topo-zone');
+  E.zt=svg.querySelectorAll('text.topo-zone-title');
+  svg.querySelectorAll('circle.topo-joint').forEach(c=>{const y=parseFloat(c.getAttribute('cy'))||0;(y<400?E.joints.bus1:E.joints.bus2).push(c);});
+  svg.querySelectorAll('g.topo-link').forEach(g=>{const f=g.dataset.flow;if(f&&TOPO_BASE.links[f])E.links[f]={line:g.querySelector('line'),text:g.querySelector('text')};});
+  E.btags.bus1=svg.getElementById('tp-bus1-v');
+  E.btags.bus2=svg.getElementById('tp-bus2-v');
+  _TE=E;return true;
+}
+function relayoutTopo(cw,ch){
+  if(!_TE)return;
+  const B=TOPO_BASE,E=_TE,m=B.m,gap=B.gap;
+  const W=Math.max(Math.round(cw),720),H=Math.max(Math.round(ch),480);
+  E.svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  /* 灰框铺满白色容器：四边距 10px 一致，上下五五分 */
+  const availH=H-2*m-gap,hvH=Math.round(availH/2),wvH=availH-hvH;
+  const hv={x:m,y:m,w:W-2*m,h:hvH},wv={x:m,y:m+hvH+gap,w:W-2*m,h:wvH};
+  /* 宽度/高度各轴独立等比：水平跟随窗口宽度、垂直跟随窗口高度；卡片等比（不变形） */
+  const sx=(W-2*m)/(B.W-2*m), sy=(H-2*m-gap)/(B.H-2*m-gap);
+  const s=Math.max(0.3,Math.min(sx,sy));
+  const mapX=bx=>m+(bx-10)*sx;
+  const mapY=by=>by<=408?m+(by-10)/398*hvH:m+hvH+gap+(by-413)/397*wvH;
+  /* 箭头随内容等比缩放（保持小巧不突兀） */
+  const _a=E.svg.getElementById('tp-arrow'); if(_a){_a.setAttribute('markerWidth',5*s);_a.setAttribute('markerHeight',5*s);}
+  const _b=E.svg.getElementById('tp-arrow-s'); if(_b){_b.setAttribute('markerWidth',5*s);_b.setAttribute('markerHeight',5*s);}
+  /* 灰框 + 标题 */
+  if(E.zones[0]){E.zones[0].setAttribute('x',hv.x);E.zones[0].setAttribute('y',hv.y);E.zones[0].setAttribute('width',hv.w);E.zones[0].setAttribute('height',hv.h);}
+  if(E.zones[1]){E.zones[1].setAttribute('x',wv.x);E.zones[1].setAttribute('y',wv.y);E.zones[1].setAttribute('width',wv.w);E.zones[1].setAttribute('height',wv.h);}
+  if(E.zt[0]){E.zt[0].setAttribute('x',m+16);E.zt[0].setAttribute('y',hv.y+24*s);E.zt[0].style.fontSize=(13*s)+'px';}
+  if(E.zt[1]){E.zt[1].setAttribute('x',m+16);E.zt[1].setAttribute('y',wv.y+24*s);E.zt[1].style.fontSize=(13*s)+'px';}
+  /* 节点卡片（transform 等比缩放，内部图标/文字不变形） */
+  for(const id in B.nodes){
+    const g=E.nodes[id];if(!g)continue;
+    const n=B.nodes[id],cx=mapX(n[0]),cy=mapY(n[1]);
+    g.setAttribute('transform','translate('+cx.toFixed(2)+','+cy.toFixed(2)+') scale('+s.toFixed(4)+') translate('+(-n[0]).toFixed(2)+','+(-n[1]).toFixed(2)+')');
+  }
+  /* 母线 + 连接点 + 母线标签 */
+  ['bus1','bus2'].forEach(bk=>{
+    const bus=E.buses[bk],J=B.busJ[bk],by=mapY(B.busY[bk]);
+    if(bus){const x1=mapX(J[0]),x2=mapX(J[J.length-1]);
+      bus.setAttribute('x1',x1);bus.setAttribute('y1',by);bus.setAttribute('x2',x2);bus.setAttribute('y2',by);
+      E.joints[bk].forEach((c,i)=>{c.setAttribute('cx',mapX(J[i]));c.setAttribute('cy',by);});
+      const tg=E.btags[bk];if(tg){tg.setAttribute('x',mapX(bk==='bus1'?170:140));tg.setAttribute('y',by-8*s);tg.style.fontSize=(12*s)+'px';}
+    }
+  });
+  /* 连线：端点贴合卡片边缘/母线，线长与标注随框等比变化 */
+  for(const id in B.links){
+    const L=E.links[id];if(!L)continue;
+    const d=B.links[id];
+    if(d[0]==='H'){
+      const na=B.nodes[d[1]],nb=B.nodes[d[3]],y=mapY(na[1]);
+      const ca=mapX(na[0]),cb=mapX(nb[0]);
+      const x1=ca+(d[2]==='E'?na[2]/2*s:-na[2]/2*s);
+      const x2=cb+(d[2]==='E'?-nb[2]/2*s:nb[2]/2*s);
+      L.line.setAttribute('x1',x1);L.line.setAttribute('y1',y);L.line.setAttribute('x2',x2);L.line.setAttribute('y2',y);
+      if(L.text){L.text.setAttribute('x',(x1+x2)/2);L.text.setAttribute('y',y-5*s);L.text.style.fontSize=(12*s)+'px';}
+    }else{
+      const na=B.nodes[d[1]],x=mapX(na[0]),ny=mapY(na[1]),hh=na[3]/2*s,by=mapY(B.busY[d[2]]);
+      const y1=d[3]>0?ny+hh:by, y2=d[3]>0?by:ny-hh;
+      L.line.setAttribute('x1',x);L.line.setAttribute('y1',y1);L.line.setAttribute('x2',x);L.line.setAttribute('y2',y2);
+      if(L.text){L.text.setAttribute('x',x+5*s);L.text.setAttribute('y',(y1+y2)/2);L.text.style.fontSize=(12*s)+'px';}
+    }
+  }
+}
+(function(){
+  const c=document.querySelector('.topo-canvas');
+  if(!c)return;
+  initTopoEls();
+  new ResizeObserver(es=>{es.forEach(e=>relayoutTopo(e.contentRect.width,e.contentRect.height));}).observe(c);
+})();
 </script>
 <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
 </body>
