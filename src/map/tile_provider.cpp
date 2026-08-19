@@ -123,6 +123,8 @@ void TileProvider::startDownload(int z, int x, int y, int layer, const QString &
         // 只 readAll() 一次并复用：readAll 是消费性的，二次调用会返回空
         const QByteArray data = reply->readAll();
         if (reply->error() != QNetworkReply::NoError || data.isEmpty()) {
+            // 下载失败：清理可能残留的 0 字节残件，避免下次请求被空文件命中
+            QFile::remove(path);
             emit tileFailed(z, x, y, layer);
         } else {
             QFile f(path);
@@ -132,6 +134,7 @@ void TileProvider::startDownload(int z, int x, int y, int layer, const QString &
                 enforceCacheQuota();
                 emit tileLoaded(z, x, y, layer, path);
             } else {
+                QFile::remove(path);
                 emit tileFailed(z, x, y, layer);
             }
         }

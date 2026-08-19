@@ -42,11 +42,15 @@ Item {
         void root.themeRoot.dataTick
         const n = root.loraNodes().length
         if (n === 0) return 150
-        const cardW = 92, cardH = 70, gap = 6
+        // 估算卡片尺寸与真实布局对齐：卡片固定高 60px（见下方 LoRa 卡片 height:60），
+        // 宽度随内容自适应——压力卡（压力+温度副值）明显宽于温度卡，统一按较宽值估算，
+        // 避免按过窄值估算导致行数偏少、内容溢出被裁剪。
+        const cardH = 60, cardW = 118, gap = 6
         const flowW = Math.max(1, root.width/2 - 28)        // 温度/压力采集为半宽（margin 14*2）
         const perRow = Math.max(1, Math.floor((flowW + gap) / (cardW + gap)))
         const rows = Math.ceil(n / perRow)
-        return Math.max(150, 30 + 8 + rows * cardH + (rows - 1) * gap + 28)
+        // 模块内布局：上 margin 14 + 标题行 + spacing + Flow 行数*卡片高 + 行间距 + 下 margin 14
+        return Math.max(150, 14 + 24 + 8 + rows * cardH + (rows - 1) * gap + 14)
     }
     // 功率单位：W / kW
     function powerUnit() { return "W" }

@@ -362,8 +362,9 @@ Item {
                     padding: 0
                     background: Rectangle { radius: 8; color: root.follow ? root.themeRoot.colPrimarySoft : root.themeRoot.colCard2; border.color: root.follow ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                     contentItem: Text {
-                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）
-                        scale: dragArea.pressed ? 0.96 : 1.0
+                        // 按压缩放反馈（对齐原型 :active{scale(.94)}）。
+                        // 原实现误绑 dragArea.pressed（全局拖拽区），按该按钮不会缩放
+                        scale: parent.pressed ? 0.96 : 1.0
                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                         text: parent.text
                         anchors.fill: parent

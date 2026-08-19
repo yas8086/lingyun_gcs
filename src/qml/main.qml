@@ -363,10 +363,33 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     clip: true
 
-                    // 全局刷新节拍：遥测变化驱动 dataTick（所有视图绑定重算），不依赖任一子视图
+                    // 全局刷新节拍：遥测变化驱动 dataTick（所有视图绑定重算），不依赖任一子视图。
+                    // 节流 50ms：telemetryChanged 每帧触发，若不节流，串口频率升高时全页数十处
+                    // 绑定会每帧全量重算（CPU 开销线性放大）。值已实时写入 bridge，UI 仅 50ms 合并刷新。
+                    property bool tickPending: false
+                    Timer {
+                        id: tickThrottle
+                        interval: 50
+                        onTriggered: {
+                            tickThrottle.stop()
+                            if (root.tickPending) {
+                                root.tickPending = false
+                                root.dataTick++
+                            }
+                        }
+                    }
                     Connections {
                         target: bridge
-                        function onTelemetryChanged() { root.dataTick++ }
+                        function onTelemetryChanged() {
+                            if (!root.tickPending) {
+                                root.tickPending = true
+                                // 若 timer 未运行则立即刷新并重启节流窗；已运行则等其触发
+                                if (!tickThrottle.running) {
+                                    root.dataTick++
+                                    tickThrottle.start()
+                                }
+                            }
+                        }
                         // 串口开关/配置变更（模块可见性等）也要驱动 dataTick，
                         // 否则 isModuleHidden/serialIsOpen 等依赖 dataTick 的绑定不刷新
                         function onStateChanged() { root.dataTick++ }

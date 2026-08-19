@@ -841,7 +841,16 @@ Item {
             // 地图设置与串口设置一并恢复，避免导入后显示与实际不一致
             mapSourceCombo.currentIndex = bridge.configMapSource()
             mapKeyField.text = bridge.configMapKey()
-            portCombo.currentIndex = Math.max(0, portCombo.find(bridge.port()))
+            // 可编辑 ComboBox：能在候选列表中匹配则高亮该索引，否则直接写入文本，
+            // 避免 find() 返回 -1 被 Math.max 强置为 0 而选中错误的设备
+            const port = bridge.port()
+            const pIdx = portCombo.find(port)
+            if (pIdx >= 0) {
+                portCombo.currentIndex = pIdx
+                portCombo.editText = portCombo.textAt(pIdx)
+            } else {
+                portCombo.editText = port
+            }
             baudCombo.currentText = bridge.baud().toString()
         }
     }

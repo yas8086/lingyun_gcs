@@ -347,14 +347,17 @@ Item {
         root.applyMapping()
         root.showNote("已删除探头 " + pid)
     }
-    // 从实机同步：按 LoRa 在线温度节点对齐探头列表（pid=T+节点id）。
+    // 从实机同步：按 LoRa 在线温度节点对齐探头列表（pid=T+节点id，两位补零与默认布局一致）。
     // 已有探头保留位置；缺失的添加（铺到主囊·左）；无实机对应的移除。
     function syncFromLora() {
         const lora = bridge.loraNodes()
         const temps = []
         for (const n of lora) if (n.isTemp) temps.push(n)
         if (!temps.length) { root.showNote("未检测到实机温度节点，请检查采集链路"); return }
-        const want = new Set(temps.map(n => "T" + n.id))
+        // pid 统一两位补零（T01~T44），与 defaultProbeMapping 的 rightJustified(2,'0') 对齐，
+        // 否则 "T1" 与已有 "T01" 匹配失败，会导致全部探头被误删重建、布局丢失
+        const pad = id => "T" + String(id).padStart(2, "0")
+        const want = new Set(temps.map(n => pad(n.id)))
         let removed = 0
         root.probes = root.probes.filter(p => {
             if (want.has(p.pid)) return true
@@ -365,7 +368,7 @@ Item {
         })
         let added = 0
         for (const n of temps) {
-            const pid = "T" + n.id
+            const pid = pad(n.id)
             if (root.probeOf(pid)) continue
             // 新探头依次铺到主囊·左（ei=1，9列×13行），从第2行2列起每行3个
             const seq = root.probes.filter(p => p.ei === 1).length
@@ -1991,7 +1994,15 @@ Item {
                 target: root.themeRoot
                 function onRtcTickChanged() { chartRoot.syncSeries() }
             }
-            Component.onCompleted: chartRoot.syncSeries()
+            Component.onCompleted: {
+                // 重建（Loader 懒加载销毁重建）后按顶层实际窗口点数恢复档位选中态，
+                // 否则 UI 显示 30s 但 syncSeries 仍按上次的 rtcWindowPoints（如 600）渲染
+                const pts = root.themeRoot ? root.themeRoot.rtcWindowPoints : 60
+                for (let i = 0; i < chartRoot.winOpts.length; i++) {
+                    if (chartRoot.winOpts[i][1] === pts) { chartRoot.winIdx = i; break }
+                }
+                chartRoot.syncSeries()
+            }
             // 监听快照保存请求，导出当前曲线图片（白色背景）
             Connections {
                 target: root

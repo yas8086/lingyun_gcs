@@ -87,12 +87,22 @@ private slots:
 
     void alarmConfirmFlow() {
         auto bridge = new TelemetryBridge;
-        bridge->addAlarm("测试严重告警", "严重", "集成");
-        bridge->addAlarm("测试提示", "提示", "集成");
+        const int a1 = bridge->addAlarm("测试严重告警", "严重", "集成");
+        const int a2 = bridge->addAlarm("测试提示", "提示", "集成");
         QCOMPARE(bridge->unconfirmedCount(), 2);
         QCOMPARE(bridge->alarms().toList().size(), 2);
-        bridge->confirmAlarm(0); // 确认最新一条
+        QVERIFY(a1 > 0 && a2 > a1); // aid 自增单调
+        // 按 aid 精确确认单条（不误伤其他告警）
+        bridge->confirmAlarmByAid(a1);
         QCOMPARE(bridge->unconfirmedCount(), 1);
+        QCOMPARE(bridge->alarms().toList()[0].toMap().value("state").toString(), QStringLiteral("未确认"));
+        // 规则恢复标记：ruleId 匹配的未确认告警标记为已恢复
+        bridge->addAlarm("DCDC 过温", "告警", "DCDC", "rule:dcdc.temp");
+        bridge->markAlarmRecovered("rule:dcdc.temp");
+        QCOMPARE(bridge->unconfirmedCount(), 1); // 恢复后未确认计数下降
+        // alarms() 最新在前：index0=DCDC(已恢复) index1=a2(未确认)，确认剩余一条
+        bridge->confirmAlarm(1);
+        QCOMPARE(bridge->unconfirmedCount(), 0);
         bridge->confirmAllAlarms();
         QCOMPARE(bridge->unconfirmedCount(), 0);
         delete bridge;

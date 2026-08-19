@@ -133,8 +133,12 @@ int main(int argc, char *argv[]) {
 
     const int rc = app.exec();
 
-    // 退出清理：先在串口线程内关闭端口，再退出线程
-    bridge.closeSerial();
+    // 退出清理：先用 BlockingQueued 同步关闭串口（确保 close 在 quit 前完成，
+    // 避免 Queued 投递的事件因线程退出来不及处理、串口保持打开到进程退出），
+    // 再退出串口线程。
+    if (serial) {
+        QMetaObject::invokeMethod(serial, "close", Qt::BlockingQueuedConnection);
+    }
     serialThread->quit();
     serialThread->wait(2000);
 
