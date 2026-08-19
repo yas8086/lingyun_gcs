@@ -38,6 +38,7 @@ private slots:
     void onReadyRead();
     void onError(QSerialPort::SerialPortError err);
     void onLinkWatchdog();
+    void tryReopen();   // ResourceError 后的自动重连尝试
 
 private:
     // serial_/watchdog_ 必须为 SerialManager 的 child（new Xxx(this)），
@@ -47,10 +48,13 @@ private:
     QSerialPort *serial_ = nullptr;
     std::unique_ptr<FrameParser> parser_;
     QTimer *watchdog_ = nullptr;   // 链路超时看门狗
+    QTimer *reopenTimer_ = nullptr; // ResourceError 自动重连定时器（2s 周期）
     QElapsedTimer rxClock_;    // 距上次收到帧的时间源
     bool linkOnline_ = false;  // 当前链路在线状态（避免看门狗重复置离线）
     int linkTimeoutMs_ = 3000; // 默认 3s，与协议离线判定一致
     QString lastOpenError_;    // 最近一次 open 失败的具体原因（供 QML 透出）
+    QString reopenPort_;       // 自动重连目标端口（最近一次成功 open 的）
+    qint32 reopenBaud_ = 115200;
 };
 
 } // namespace lgs

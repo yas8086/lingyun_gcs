@@ -140,11 +140,17 @@ public:
     Q_INVOKABLE QVariant netInterfaces() const;
 
     // 告警列表与确认（决策 #20）
-    void addAlarm(const QString &msg, const QString &level, const QString &source);
+    // addAlarm 返回该条告警的自增 aid，QML 侧据此精确确认单条（而非误调"确认全部"）。
+    // ruleId 为告警规则 id（AlarmEngine 的 AlarmEvent.id）：规则恢复时据此定位并标记"已恢复"
+    int addAlarm(const QString &msg, const QString &level, const QString &source,
+                 const QString &ruleId = QString());
     Q_INVOKABLE QVariant alarms() const;          // 返回 QVariantList<QVariantMap>
     Q_INVOKABLE void confirmAlarm(int i);
+    Q_INVOKABLE void confirmAlarmByAid(int aid);  // 按 aid 确认单条
     Q_INVOKABLE void confirmAllAlarms();
     Q_INVOKABLE int unconfirmedCount() const;
+    // 规则恢复：AlarmEngine::alarmCleared 触发时调用，将该规则未确认告警标记"已恢复"
+    void markAlarmRecovered(const QString &ruleId);
 
     // 告警规则（决策 #15/#31）：经 ConfigManager JSON 持久化并应用到 AlarmEngine
     Q_INVOKABLE QVariant alarmRules() const;              // QVariantList<QVariantMap>
@@ -194,6 +200,7 @@ private:
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;
+    int alarmSeq_ = 0;   // 告警自增 aid（QML 侧单条确认据此定位）
     // 温度历史（决策 #28）：每轮 LoRa 节点采样，环形上限 200 轮
     QList<QVariantMap> loraHistory_;
     QElapsedTimer uptime_;

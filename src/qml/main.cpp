@@ -92,8 +92,12 @@ int main(int argc, char *argv[]) {
                      &bridge, [&bridge](const lgs::AlarmEvent &e) {
         const QString lv = e.level == lgs::AlarmEvent::Critical ? "严重"
                            : e.level == lgs::AlarmEvent::Warn ? "告警" : "提示";
-        bridge.addAlarm(e.message, lv, e.source);
+        // 携带规则 id（AlarmEvent.id）供规则恢复时（alarmCleared）自动标记"已恢复"
+        bridge.addAlarm(e.message, lv, e.source, e.id);
     });
+    // 规则/设备恢复 → bridge 标记对应告警"已恢复"（未确认计数下降，恢复语义反映到 UI）
+    QObject::connect(&alarm, &lgs::AlarmEngine::alarmCleared,
+                     &bridge, &lgs::TelemetryBridge::markAlarmRecovered);
 
     QQmlApplicationEngine engine;
     // 摄像头 RTSP 视频渲染（B 方案）：注册自定义 QML 类型

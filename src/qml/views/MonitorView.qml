@@ -139,13 +139,14 @@ Item {
     // 告警：写入日志流（同时记录到 bridge 便于确认/计数）
     function addAlarm(lv, msg, source) {
         const d = new Date().toTimeString().slice(0,8)
-        root.logStream.push({type:"alarm", lv:lv, msg:msg, time:d, source:source||"", aid:root.alarmSeq++})
+        // bridge.addAlarm 返回该条告警的自增 aid：本地条目同步记录，
+        // 单条"确认"按钮据此调用 bridge.confirmAlarmByAid 精确确认该条
+        const aid = bridge.addAlarm(msg, lv, source)
+        root.logStream.push({type:"alarm", lv:lv, msg:msg, time:d, source:source||"", aid:aid, confirmed:false})
         if (root.logStream.length > 500) root.logStream.shift()
         if (root.themeRoot) root.themeRoot.lastMsg = "⚠ " + msg
-        bridge.addAlarm(msg, lv, source)
         root.alarmsChanged()
     }
-    property int alarmSeq: 1
 
     // 时间轴事件（决策：状态栏/操作时间轴）
     property var tlEvents: []
@@ -926,24 +927,27 @@ Item {
                             }
                             Text { text: modelData.source !== "" ? "[" + modelData.source + "]" : ""; color: root.themeRoot.colText2; font.pixelSize: 11 }
                             Text { text: modelData.msg; elide: Text.ElideRight; Layout.fillWidth: true; color: root.themeRoot.colText; font.pixelSize: 12 }
-                            // 告警确认按钮
+                            // 告警确认按钮（已确认后置灰不可点）
                             Rectangle {
                                 // 按压缩放反馈（对齐原型 :active{scale(.94)}）
                                 scale: ma_2.pressed ? 0.96 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                 visible: modelData.type === "alarm"
                                 width: 52; height: 20; radius: 6
-                                color: root.themeRoot.colCard2
-                                border.color: root.themeRoot.colErr
+                                color: modelData.confirmed ? root.themeRoot.colCard2 : root.themeRoot.colErrSoft
+                                border.color: modelData.confirmed ? root.themeRoot.colOff : root.themeRoot.colErr
                                 Text {
-                                    anchors.centerIn: parent; text: "确认"; font.pixelSize: 11
-                                    color: root.themeRoot.colErr
+                                    anchors.centerIn: parent
+                                    text: modelData.confirmed ? "已确认" : "确认"
+                                    font.pixelSize: 11
+                                    color: modelData.confirmed ? root.themeRoot.colOff : root.themeRoot.colErr
                                 }
                                 MouseArea {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     id: ma_2
                                     anchors.fill: parent
+                                    enabled: !modelData.confirmed
                                     onClicked: root.confirmLogAlarm(modelData)
                                 }
                             }
@@ -964,15 +968,22 @@ Item {
         const arr = root.logFilter === "alarm" ? root.logStream.filter(x=>x.type==="alarm") : root.logStream
         return arr.slice().reverse()
     }
-    // 告警确认：bridge 层（形参 e 为日志条目，确认全部未确认告警）
+    // 告警确认：单条确认该条（含 bridge 侧计数同步），不再误调"确认全部"
     function confirmLogAlarm(e) {
-        root.clearAlarms()
+        if (!e || e.aid === undefined) return
+        e.confirmed = true
+        // 同步 bridge 的未确认计数（alarmSeq 由 bridge 自增分配）
+        bridge.confirmAlarmByAid(e.aid)
+        root.alarmsChanged()
     }
     function clearAlarms() {
         bridge.confirmAllAlarms()
         root.alarmsChanged()
     }
-    function alarmsChanged() {}
+    function alarmsChanged() {
+        // 触发 dataTick 刷新日志列表（filteredLog 依赖 dataTick 重算）
+        if (root.themeRoot) root.themeRoot.dataTick++
+    }
 
     // 数据源辅助
     function loraNodes() {

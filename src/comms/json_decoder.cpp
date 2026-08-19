@@ -15,13 +15,20 @@ static bool readDouble(const QJsonObject &o, const char *key, double &out) {
     out = v.toDouble();
     return true;
 }
-static bool readInt(const QJsonObject &o, const char *key, int &out) {
+static int readInt(const QJsonObject &o, const char *key, int &out) {
     const QJsonValue v = o.value(QLatin1String(key));
     if (v.isNull() || !v.isDouble())
         return false;
     const double d = v.toDouble();
     // 容忍整数域字段收到小数（如 3.9）：四舍五入而非静默截断丢精度
-    out = qRound(d);
+    // 超出 int 可表示范围时钳制，避免 qRound(超大 double) 对 int 溢出（UB）
+    if (d >= 2147483647.0) {
+        out = 2147483647;
+    } else if (d <= -2147483648.0) {
+        out = -2147483648;
+    } else {
+        out = qRound(d);
+    }
     return true;
 }
 static bool readBool(const QJsonObject &o, const char *key, bool &out) {

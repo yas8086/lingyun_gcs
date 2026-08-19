@@ -249,14 +249,17 @@ int TelemetryBridge::readinessState() const {
     return 3;
 }
 
-void TelemetryBridge::addAlarm(const QString &msg, const QString &level,
-                               const QString &source) {
+int TelemetryBridge::addAlarm(const QString &msg, const QString &level,
+                              const QString &source, const QString &ruleId) {
     QVariantMap entry;
     entry["time"] = QTime::currentTime().toString("HH:mm:ss");
     entry["level"] = level;
     entry["source"] = source;
     entry["content"] = msg;
     entry["state"] = QStringLiteral("未确认");
+    entry["aid"] = ++alarmSeq_;   // 自增 aid：供 QML 按 id 精确确认单条
+    if (!ruleId.isEmpty())
+        entry["ruleId"] = ruleId; // 规则恢复时按此定位
     alarmList_.push_front(entry); // 最新在前
     ++unconfirmed_;
     // 环形上限（决策 #33）：告警 200 条
@@ -264,6 +267,7 @@ void TelemetryBridge::addAlarm(const QString &msg, const QString &level,
         alarmList_.pop_back();
     }
     emit alarmsChanged();
+    return alarmSeq_;
 }
 
 QVariant TelemetryBridge::alarms() const {
@@ -282,6 +286,33 @@ void TelemetryBridge::confirmAlarm(int i) {
         --unconfirmed_;
         emit alarmsChanged();
     }
+}
+
+void TelemetryBridge::confirmAlarmByAid(int aid) {
+    for (int i = 0; i < alarmList_.size(); ++i) {
+        if (alarmList_[i].value("aid").toInt() == aid
+            && alarmList_[i].value("state").toString() == QStringLiteral("未确认")) {
+            alarmList_[i]["state"] = QStringLiteral("已确认");
+            --unconfirmed_;
+            emit alarmsChanged();
+            return;
+        }
+    }
+}
+
+void TelemetryBridge::markAlarmRecovered(const QString &ruleId) {
+    if (ruleId.isEmpty())
+        return;
+    // 规则/设备恢复：将对应规则的未确认告警标记为"已恢复"（等价于自动确认），
+    // 使恢复语义反映到 UI（未确认计数下降），避免告警只增不减永远滞留
+    for (auto &m : alarmList_) {
+        if (m.value("ruleId").toString() == ruleId
+            && m.value("state").toString() == QStringLiteral("未确认")) {
+            m["state"] = QStringLiteral("已恢复");
+            --unconfirmed_;
+        }
+    }
+    emit alarmsChanged();
 }
 
 void TelemetryBridge::confirmAllAlarms() {

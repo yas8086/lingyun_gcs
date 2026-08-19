@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QTimer>
 #include <QVector>
+#include <optional>
 #include "model/telemetry_data.h"
 
 namespace lgs {

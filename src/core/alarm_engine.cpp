@@ -150,8 +150,7 @@ void AlarmEngine::updateDevice(const QString &id, bool present) {
         // 最后在线时刻，交由 scanOffline 超时判定触发离线告警。
         // 设备"从未上线"（lastSeen_ 无 key）时不得写入/刷新，否则每次收帧都会
         // 重置其计时，导致永不告警；整段断连时还会把它误报为曾经在线设备的离线。
-        if (lastSeen_.contains(id))
-            lastSeen_[id] = lastSeen_.value(id);
+        // （lastSeen_ 已有该设备时无需任何操作：最后在线时刻保持不变）
     }
 }
 

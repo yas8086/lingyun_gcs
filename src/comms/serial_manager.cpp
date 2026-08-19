@@ -16,6 +16,11 @@ SerialManager::SerialManager(QObject *parent)
     watchdog_->setInterval(500);
     watchdog_->setSingleShot(false);
     connect(watchdog_, &QTimer::timeout, this, &SerialManager::onLinkWatchdog);
+    // ResourceError 自动重连：2s 周期尝试重新 open 同一端口（见 onError）
+    reopenTimer_ = new QTimer(this);
+    reopenTimer_->setInterval(2000);
+    reopenTimer_->setSingleShot(false);
+    connect(reopenTimer_, &QTimer::timeout, this, &SerialManager::tryReopen);
 }
 
 SerialManager::~SerialManager() {
@@ -23,6 +28,7 @@ SerialManager::~SerialManager() {
 }
 
 bool SerialManager::open(const QString &port, qint32 baud) {
+    reopenTimer_->stop(); // 手动打开时取消自动重连
     if (serial_->isOpen())
         this->close(); // 触发 linkStatusChanged(false)，避免状态灯失真
     parser_ = std::make_unique<FrameParser>(); // 重新打开时清空旧缓冲
@@ -39,6 +45,8 @@ bool SerialManager::open(const QString &port, qint32 baud) {
         return false;
     }
     lastOpenError_.clear();
+    reopenPort_ = port;      // 记录当前端口，供 ResourceError 自动重连复用
+    reopenBaud_ = baud;
     linkOnline_ = true;
     rxClock_.start();
     watchdog_->start();
@@ -47,6 +55,7 @@ bool SerialManager::open(const QString &port, qint32 baud) {
 }
 
 void SerialManager::close() {
+    reopenTimer_->stop(); // 手动关闭后不再自动重连
     watchdog_->stop();
     linkOnline_ = false;
     if (serial_->isOpen()) {
@@ -109,6 +118,24 @@ void SerialManager::onError(QSerialPort::SerialPortError err) {
     if (err == QSerialPort::ResourceError) {
         emit errorOccurred(serial_->errorString());
         emit linkStatusChanged(false);
+        // ResourceError（设备拔出/锁冲突）：关闭失效句柄，等待端口恢复后自动重连。
+        // Qt 的 QSerialPort 在此错误后内部句柄已失效，必须 close 才能重新 open。
+        if (serial_->isOpen())
+            serial_->close();
+        if (!reopenPort_.isEmpty())
+            reopenTimer_->start(); // 2s 后尝试重新 open
+    }
+}
+
+// ResourceError 自动重连：周期尝试重新打开同一端口，成功则停止重试
+void SerialManager::tryReopen() {
+    if (serial_->isOpen()) {
+        reopenTimer_->stop();
+        return;
+    }
+    qWarning("SerialManager: 尝试自动重连 %s", qPrintable(reopenPort_));
+    if (open(reopenPort_, reopenBaud_)) {
+        reopenTimer_->stop(); // open() 内已 stop，此处为保险
     }
 }
 
