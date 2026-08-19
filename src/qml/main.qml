@@ -96,6 +96,27 @@ ApplicationWindow {
     property int currentNav: 0
     property int dataTick: 0
 
+    // 地图视口状态提升到顶层：MapView 用 Loader 懒加载，切出即销毁、切回重建。
+    // 状态存顶层才能跨页面保留（切走再回不重置缩放/中心/图层/跟随），
+    // 与 rtcData 的处理思路一致。默认定位：杭州余杭 · 良渚文化村。
+    property double mapZoom: 14
+    property double mapCenterLon: 120.029
+    property double mapCenterLat: 30.365
+    property int mapLayer: 0            // 0=街道 1=影像
+    property bool mapFollow: true
+    // 飞艇模拟遥测（地图页坐标显示/轨迹绘制/跟随定位）
+    // 提升到顶层常驻：即使切出地图页，模拟与轨迹累积也在后台持续，
+    // 切回可看到完整连续的 A→B 路径（mapTick 驱动地图重绘）。
+    property var mapAirPos: ({lon:120.029, lat:30.365})
+    property double mapHeading: 0
+    property double mapAlt: 150
+    property double mapSpeed: 12.5
+    property var mapTrack: []            // 轨迹点 [{lon,lat}]
+    property var mapHomePos: ({lon:120.029, lat:30.365})
+    property double mapDist: 0
+    property double mapBearing: 0
+    property int mapTick: 0              // 每秒自增，驱动地图页面重绘
+
     // 实时曲线采样数据（提升到顶层而非 TopoView：TopoView 用 Loader 懒加载，
     // 切出图示页即被销毁。数据放顶层才能跨页面保留，实现"切出再回曲线不重绘"，
     // 且采样 Timer 常驻，无论在哪页都持续采样，保证曲线连续。）
@@ -380,7 +401,11 @@ ApplicationWindow {
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/MapView.qml"
-                        onLoaded: { item.themeRoot = root }
+                        onLoaded: {
+                            item.themeRoot = root
+                            // 恢复上次切换前保存的地图视口状态（切页不重置）
+                            item.restoreMapState()
+                        }
                     }
                     // 飞控占位
                     Loader {
@@ -989,6 +1014,39 @@ ApplicationWindow {
             }
             root.rtcIdx++
             root.rtcTick++   // 触发 chartPanel.syncSeries 增量追加
+        }
+    }
+
+    // 飞艇位置模拟（常驻顶层，每秒更新）：与 rtcData 同理，无论当前在哪页都持续
+    // 累积轨迹。让"切出地图页再切回"时看到完整的连续路径，而不是只在图上停留期间
+    // 采样导致的断线（A 切出 → B 切回，中间空段无轨迹）。
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            // 沿椭圆路径移动
+            const t = Date.now() / 1000
+            const r = 0.004
+            root.mapAirPos.lon = root.mapHomePos.lon + r * Math.cos(t * 0.3)
+            root.mapAirPos.lat = root.mapHomePos.lat + r * Math.sin(t * 0.3)
+            root.mapHeading = (t * 20) % 360
+            root.mapAlt = 150 + 30 * Math.sin(t * 0.2)
+            root.mapSpeed = 10 + 3 * Math.sin(t * 0.4)
+            // 累积轨迹点
+            root.mapTrack.push({lon: root.mapAirPos.lon, lat: root.mapAirPos.lat})
+            if (root.mapTrack.length > 500) root.mapTrack.shift()
+            // 距离与方位（近似，忽略海拔）
+            const dLat = (root.mapAirPos.lat - root.mapHomePos.lat) * 111320
+            const dLon = (root.mapAirPos.lon - root.mapHomePos.lon) * 111320 * Math.cos(root.mapHomePos.lat * Math.PI / 180)
+            root.mapDist = Math.sqrt(dLat * dLat + dLon * dLon)
+            root.mapBearing = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360
+            // 跟随：跟随模式下面板中心点跟随飞艇，否则保持用户视口
+            if (root.mapFollow) {
+                root.mapCenterLon = root.mapAirPos.lon
+                root.mapCenterLat = root.mapAirPos.lat
+            }
+            root.mapTick++   // 驱动地图页重绘（切出时无订阅，切回仍与最新位置同步）
         }
     }
 

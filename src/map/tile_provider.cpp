@@ -44,8 +44,10 @@ QString TileProvider::cacheRoot() const {
 }
 
 QString TileProvider::cachePath(int z, int x, int y, int layer) const {
+    // 目录含 source 维度：天地图(0)/OSM(1) 瓦片 URL 不同但坐标相同，
+    // 若共用缓存路径会互相命中旧图源瓦片（切图源后显示不变）。
     const QString dir = cacheRoot()
-                        + QStringLiteral("/%1/%2/%3").arg(layer).arg(z).arg(x);
+                        + QStringLiteral("/%1/%2/%3/%4").arg(source_).arg(layer).arg(z).arg(x);
     QDir().mkpath(dir);
     return dir + QStringLiteral("/%1.png").arg(y);
 }
@@ -81,17 +83,18 @@ void TileProvider::requestTile(int z, int x, int y, int layer) {
 void TileProvider::startDownload(int z, int x, int y, int layer, const QString &path) {
     QUrl url;
     if (source_ == 0) {
-        // 天地图：街道 vec_w / 影像 img_w（Layer 分别对应）。
-        // 天地图 TILEMATRIX 从 1 开始（对应 OSM 的 z=0），故 z+1 对齐坐标系。
+        // 天地图：街道 vec / 影像 img（Layer 分别对应）。
+        // 关键：TILEMATRIXSET 必须用 "w"（与 OSM 一致的 Web 墨卡托金字塔），
+        // TILEMATRIX 直接用 z、无需 +1；若误用 vec_w/img_w 且 TILEMATRIX=z+1，
+        // 矢量街道层返回 103B "无数据" 占位瓦片（地图显示"此级别无影像"空白）。
         const int sub = (x + y + z) % 8;
         const QString layerName = (layer == 1) ? "img" : "vec";
-        const QString layerSet   = (layer == 1) ? "img_w" : "vec_w";
         url = QUrl(QStringLiteral(
             "https://t%1.tianditu.gov.cn/%2/wmts?SERVICE=WMTS&REQUEST=GetTile"
-            "&VERSION=1.0.0&LAYER=%3&STYLE=default&TILEMATRIXSET=%4&FORMAT=tiles"
-            "&TILEMATRIX=%5&TILEROW=%6&TILECOL=%7&tk=%8")
-            .arg(sub).arg(layerSet).arg(layerName).arg(layerSet)
-            .arg(z + 1).arg(y).arg(x).arg(key_));
+            "&VERSION=1.0.0&LAYER=%3&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles"
+            "&TILEMATRIX=%4&TILEROW=%5&TILECOL=%6&tk=%7")
+            .arg(sub).arg(layerName + "_w").arg(layerName)
+            .arg(z).arg(y).arg(x).arg(key_));
     } else {
         // OSM 标准瓦片（无影像，layer 忽略）
         url = QUrl(QStringLiteral("https://tile.openstreetmap.org/%1/%2/%3.png")

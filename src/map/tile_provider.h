@@ -19,7 +19,7 @@ public:
     // 图源：0=天地图 1=OSM；运行时可由 QML 调用以同步设置页修改
     Q_INVOKABLE void setMapSource(int source);
     QString mapKey() const;
-    int mapSource() const;
+    Q_INVOKABLE int mapSource() const;
 
     // 请求下载指定层与坐标的瓦片：layer 0=街道 1=影像（OSM 无影像则回退街道）
     Q_INVOKABLE void requestTile(int z, int x, int y, int layer);

@@ -11,23 +11,36 @@ Item {
     property QtObject themeRoot: null
 
     // ===== 地图状态（Web Mercator）=====
-    property double zoom: 13
-    property double centerLon: 120.15
-    property double centerLat: 30.27
+    property double zoom: 14
+    // 默认定位：杭州余杭 · 良渚文化村（东经120.029 / 北纬30.365）
+    property double centerLon: 120.029
+    property double centerLat: 30.365
     property int mapLayer: 0            // 0=街道 1=影像
     property bool follow: true          // 跟随飞艇
     property int tileTick: 0            // 瓦片加载后自增，触发重绘
 
-    // ===== 飞艇模拟数据（占位，后续接串口位置）=====
-    property var airPos: ({lon:120.15, lat:30.27})
-    property double heading: 0
-    property double alt: 150
-    property double speed: 12.5
-    property var track: []              // 轨迹点 [{lon,lat}]
-    property var homePos: ({lon:120.15, lat:30.27})
-    property double dist: 0             // 距 Home
-    property double bearing: 0          // 方位角
-    property int trackMax: 500
+    // ===== 飞艇模拟数据（提升到顶层 main.qml 常驻）=====
+    // 轨迹/位置/航向/距离等由顶层每秒更新，本页只读展示。这样切出地图页再切回，
+    // 仍能看到完整连续的轨迹（后台持续累积），而非切出期间漏采样的断线。
+    readonly property var airPos:  root.themeRoot ? root.themeRoot.mapAirPos : ({lon:120.029, lat:30.365})
+    readonly property double heading: root.themeRoot ? root.themeRoot.mapHeading : 0
+    readonly property double alt:   root.themeRoot ? root.themeRoot.mapAlt : 150
+    readonly property double speed: root.themeRoot ? root.themeRoot.mapSpeed : 12.5
+    readonly property var track:   root.themeRoot ? root.themeRoot.mapTrack : []
+    readonly property var homePos: root.themeRoot ? root.themeRoot.mapHomePos : ({lon:120.029, lat:30.365})
+    readonly property double dist:   root.themeRoot ? root.themeRoot.mapDist : 0
+    readonly property double bearing: root.themeRoot ? root.themeRoot.mapBearing : 0
+    readonly property int mapTick: root.themeRoot ? root.themeRoot.mapTick : 0
+
+    // 顶层每秒更新飞艇位置 → mapTick 变化 → 重绘地图（展示最新位置与轨迹）
+    // 跟随模式下同步顶层中心到本地视口（跟随逻辑在顶层 Timer，本地需联动否则不跟随）
+    onMapTickChanged: {
+        if (root.follow && root.themeRoot) {
+            root.centerLon = root.themeRoot.mapCenterLon
+            root.centerLat = root.themeRoot.mapCenterLat
+        }
+        canvas.requestPaint()
+    }
 
     // ===== 墨卡托投影 =====
     function worldSize() { return 256 * Math.pow(2, root.zoom) }
@@ -46,9 +59,9 @@ Item {
     function screenX(wx) { return wx - (root.lonToX(root.centerLon) - canvas.width / 2) }
     function screenY(wy) { return wy - (root.latToY(root.centerLat) - canvas.height / 2) }
 
-    // 瓦片本地路径
+    // 瓦片本地路径（与 C++ cachePath 一致：含图源维度，切图源不误读旧缓存）
     function tilePath(z, x, y) {
-        return tileProvider.cacheRoot() + "/" + root.mapLayer + "/" + z + "/" + x + "/" + y + ".png"
+        return tileProvider.cacheRoot() + "/" + tileProvider.mapSource() + "/" + root.mapLayer + "/" + z + "/" + x + "/" + y + ".png"
     }
     // 已发出请求的瓦片集合（避免重复下载）
     property var reqSet: new Object()
@@ -78,6 +91,17 @@ Item {
                 const ctx = getContext("2d")
                 ctx.reset()
                 const vw = width, vh = height
+                // 圆角裁剪：Rectangle 的 clip 仅按外框矩形裁剪（不含圆角），
+                // 故在 Canvas 内用圆角路径 clip，使瓦片/轨迹/标记全部被圆角遮罩
+                const r = 14
+                ctx.beginPath()
+                ctx.moveTo(r, 0)
+                ctx.arcTo(vw, 0, vw, vh, r)
+                ctx.arcTo(vw, vh, 0, vh, r)
+                ctx.arcTo(0, vh, 0, 0, r)
+                ctx.arcTo(0, 0, vw, 0, r)
+                ctx.closePath()
+                ctx.clip()
                 const TLx = root.lonToX(root.centerLon) - vw / 2
                 const TLy = root.latToY(root.centerLat) - vh / 2
                 const z = Math.round(root.zoom)
@@ -362,34 +386,26 @@ Item {
         }
     }
 
-    // ===== 模拟数据定时器（占位，后续接串口位置）=====
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: {
-            // 沿椭圆路径移动
-            const t = Date.now() / 1000
-            const r = 0.004
-            root.airPos.lon = root.homePos.lon + r * Math.cos(t * 0.3)
-            root.airPos.lat = root.homePos.lat + r * Math.sin(t * 0.3)
-            root.heading = (t * 20) % 360
-            root.alt = 150 + 30 * Math.sin(t * 0.2)
-            root.speed = 10 + 3 * Math.sin(t * 0.4)
-            // 轨迹
-            root.track.push({lon: root.airPos.lon, lat: root.airPos.lat})
-            if (root.track.length > root.trackMax) root.track.shift()
-            // 距离与方位（近似，忽略海拔）
-            const dLat = (root.airPos.lat - root.homePos.lat) * 111320
-            const dLon = (root.airPos.lon - root.homePos.lon) * 111320 * Math.cos(root.homePos.lat * Math.PI / 180)
-            root.dist = Math.sqrt(dLat * dLat + dLon * dLon)
-            root.bearing = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360
-            // 跟随
-            if (root.follow) {
-                root.centerLon = root.airPos.lon
-                root.centerLat = root.airPos.lat
-            }
-            canvas.requestPaint()
-        }
+    // ===== 地图视口状态与顶层 main.qml 同步（切页不重置）=====
+    // MapView 用 Loader 懒加载，切走即销毁、切回重建。
+    // - restoreMapState：本视图被重建加载时，从顶层读回上次切换前保存的状态
+    // - onDestruction：切出本页 / 销毁前，把当前视口状态写回顶层保存
+    function restoreMapState() {
+        if (!root.themeRoot) return
+        root.zoom = root.themeRoot.mapZoom
+        root.centerLon = root.themeRoot.mapCenterLon
+        root.centerLat = root.themeRoot.mapCenterLat
+        root.mapLayer = root.themeRoot.mapLayer
+        root.follow = root.themeRoot.mapFollow
+        // 轨迹/位置由顶层常驻维护（readonly 绑定），进入本页时重绘一次展示当前轨迹
+        canvas.requestPaint()
+    }
+    Component.onDestruction: {
+        if (!root.themeRoot) return
+        root.themeRoot.mapZoom = root.zoom
+        root.themeRoot.mapCenterLon = root.centerLon
+        root.themeRoot.mapCenterLat = root.centerLat
+        root.themeRoot.mapLayer = root.mapLayer
+        root.themeRoot.mapFollow = root.follow
     }
 }
