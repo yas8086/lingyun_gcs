@@ -37,6 +37,9 @@ void VideoSurface::paint(QPainter *painter)
     const QImage img = stream_->lastFrame();
     if (img.isNull())
         return;
+    // 防御性：极端情况下上游可能产生 0 尺寸 QImage，避免除零
+    if (img.width() <= 0 || img.height() <= 0)
+        return;
     // 保持画面比例居中（类似 CSS object-fit: contain）
     const QRectF r = boundingRect();
     if (r.width() <= 0 || r.height() <= 0)

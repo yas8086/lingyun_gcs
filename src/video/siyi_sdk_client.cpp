@@ -39,7 +39,12 @@ void SiyiSdkClient::start(const QString &ip, quint16 port)
         qWarning() << "[SiyiSdk] 无效 IP:" << ip;
         return;
     }
-    sock_->bind(QHostAddress::AnyIPv4, 0, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
+    if (!sock_->bind(QHostAddress::AnyIPv4, 0, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+        // 绑定失败（端口/权限等）：静默重试会表现为"永远连不上"且无提示，必须显式告警
+        qWarning() << "[SiyiSdk] UDP 绑定失败:" << sock_->errorString();
+        setConnected(false);
+        return;
+    }
     poll_->start();
     qInfo() << "[SiyiSdk] 会话启动 →" << ip << ":" << port;
 }

@@ -72,6 +72,12 @@ QString TelemetryBridge::startCameraRecord(const QString &camId) {
                              .arg(camId).arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
     if (!rec->start(url, cameraDir() + "/" + name))
         return QString();
+    // 维护跨页录像运行时状态（CameraView 切出销毁后依据此恢复）
+    if (!camCamIds_.contains(camId))
+        camCamIds_.append(camId);
+    camRecOn_ = true;
+    if (camRecStart_ == 0)
+        camRecStart_ = QDateTime::currentMSecsSinceEpoch();
     return name;
 }
 
@@ -83,7 +89,25 @@ bool TelemetryBridge::stopCameraRecord() {
             any = true;
         }
     }
+    // 释放全部录制器对象（next frame 前 stop() 已完成异步收尾入队）。
+    // 原实现 recorders_ 只增不减：反复开关录像会在哈希表累积已停止的
+    // RtspRecorder 对象（长期运行资源泄漏）。录制器 stop 后不再可复用，
+    // 下次 startCameraRecord 会重建新实例。
+    for (auto it = recorders_.begin(); it != recorders_.end(); ++it)
+        it.value()->deleteLater();
+    recorders_.clear();
+    // 无论是否有路已录，都复位运行时状态（切页后 UI 依据此值恢复）
+    camCamIds_.clear();
+    camRecOn_ = false;
+    camRecStart_ = 0;
     return any;
+}
+
+QVariantList TelemetryBridge::cameraRecordingCams() const {
+    QVariantList list;
+    for (const QString &id : camCamIds_)
+        list.append(id);
+    return list;
 }
 
 bool TelemetryBridge::recordEnabled() const {

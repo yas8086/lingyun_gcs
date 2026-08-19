@@ -8,15 +8,27 @@ namespace lgs {
 RtspRecorder::RtspRecorder(QObject *parent)
     : QObject(parent)
 {
+    // 收尾轮询：50ms 一拍，非阻塞检查 bus 上的 EOS/ERROR 消息
+    finalizeTimer_ = new QTimer(this);
+    finalizeTimer_->setInterval(50);
+    connect(finalizeTimer_, &QTimer::timeout, this, &RtspRecorder::pollFinalize);
 }
 
 RtspRecorder::~RtspRecorder()
 {
-    stop();
+    // 析构时若有未完成的收尾（pendingBus_/pipeline_ 仍在），同步完成释放，
+    // 避免 timer 随父对象销毁而停止后遗留 GStreamer 资源。
+    if (finalizeTimer_->isActive())
+        finalizeTimer_->stop();
+    finishFinalize();
 }
 
 bool RtspRecorder::start(const QString &url, const QString &filePath)
 {
+    // 若上一次 stop 的收尾尚未完成（异步进行中），此处先同步完成释放，
+    // 否则下方 pipeline_ 重新赋值会覆盖旧指针导致 GStreamer 资源泄漏。
+    if (finalizing_)
+        finishFinalize();
     stop();
     if (url.isEmpty() || filePath.isEmpty())
         return false;
@@ -92,17 +104,57 @@ void RtspRecorder::stop()
 
     // 发 EOS：matroskamux 收到 EOS 才写文件尾与索引（否则文件不可拖动甚至不可播）
     gst_element_send_event(pipeline_, gst_event_new_eos());
+
     if (bus) {
-        GstMessage *msg = gst_bus_timed_pop_filtered(
-            bus, 3 * GST_SECOND,
-            static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
-        if (msg)
-            gst_message_unref(msg);
-        gst_object_unref(bus);
+        // 异步收尾：保存 bus 引用交给 pollFinalize 轮询，EOS/ERROR 或超时后释放。
+        // 原实现 gst_bus_timed_pop_filtered(3s) 会同步阻塞 GUI 线程最多 3 秒。
+        if (finalizing_ && pendingBus_) {
+            // 上一次 stop 的收尾尚未完成：丢弃旧 bus，本次优先处理新 EOS
+            gst_object_unref(pendingBus_);
+        }
+        pendingBus_ = bus;
+        finalizing_ = true;
+        finalizeStartUs_ = gst_util_get_timestamp() / 1000;
+        finalizeTimer_->start();
+    } else {
+        // 无 bus：直接释放
+        finishFinalize();
     }
-    gst_element_set_state(pipeline_, GST_STATE_NULL);
-    gst_object_unref(pipeline_);
-    pipeline_ = nullptr;
+}
+
+void RtspRecorder::pollFinalize()
+{
+    if (!pendingBus_ || !pipeline_)
+    {
+        finishFinalize();
+        return;
+    }
+    // 非阻塞取 EOS/ERROR 消息（timeout=0 立即返回）；matroskamux 写完索引后
+    // 管道自然走到 EOS，此处仅等待该消息落总线。
+    GstMessage *msg = gst_bus_timed_pop_filtered(
+        pendingBus_, 0,
+        static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+    const bool got = (msg != nullptr);
+    if (msg)
+        gst_message_unref(msg);
+    const bool timeout = (gst_util_get_timestamp() / 1000 - finalizeStartUs_) > 3000000;
+    if (got || timeout)
+        finishFinalize();
+}
+
+void RtspRecorder::finishFinalize()
+{
+    finalizeTimer_->stop();
+    if (pendingBus_) {
+        gst_object_unref(pendingBus_);
+        pendingBus_ = nullptr;
+    }
+    if (pipeline_) {
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        gst_object_unref(pipeline_);
+        pipeline_ = nullptr;
+    }
+    finalizing_ = false;
     qInfo() << "[RtspRecorder] 录制已停止，文件已收尾:" << fileName_;
 }
 

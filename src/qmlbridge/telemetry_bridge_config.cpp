@@ -146,6 +146,18 @@ QObject *TelemetryBridge::videoStream(const QString &camId) {
     return s;
 }
 
+void TelemetryBridge::releaseStream(const QString &camId) {
+    auto it = streams_.find(camId);
+    if (it == streams_.end())
+        return;
+    RtspStream *s = it.value();
+    streams_.erase(it);
+    if (s) {
+        s->stop();
+        s->deleteLater(); // 停流后由事件循环安全销毁，避免立即删除导致排队信号打到已销毁对象
+    }
+}
+
 // ---- 思翼云台 SDK（A2 mini）----
 void TelemetryBridge::startGimbal(const QString &ip) {
     if (ip.isEmpty())

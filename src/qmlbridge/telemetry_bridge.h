@@ -121,11 +121,20 @@ public:
     Q_INVOKABLE void setCameraLay(const QString &lay);
     // RTSP 视频流（B 方案：GStreamer）：按相机 id 获取（不存在则创建），url 取自相机配置
     Q_INVOKABLE QObject *videoStream(const QString &camId);
+    // 释放指定相机的 RTSP 流对象（停流并从缓存移除，相机配置删除时调用，
+    // 避免 streams_ 只增不减导致对象与 QTimer 累积）
+    Q_INVOKABLE void releaseStream(const QString &camId);
     // 摄像头录像：真实录制（rtspsrc→parsebin→matroskamux 零转码存 .mkv，按天归档）
     // 多路并行：按相机 id 各建录制器。返回文件名（空=失败，如相机未配置地址；
     // 该相机已在录则返回当前文件名）；stopCameraRecord 停止全部在录并返回是否有路停止
     Q_INVOKABLE QString startCameraRecord(const QString &camId);
     Q_INVOKABLE bool stopCameraRecord();
+    // 录像运行时状态提升到 bridge（录制器随桥接层跨页面存活）：
+    // CameraView 用 Loader 懒加载，切出即销毁；录像状态/计时若放页面则切回丢失，
+    // 导致 UI 无法正确显示"仍在录制"。故由 bridge 统一维护供任意页面读写。
+    Q_INVOKABLE bool cameraRecording() const { return camRecOn_; }
+    Q_INVOKABLE QVariantList cameraRecordingCams() const;  // 当前在录相机 id 列表
+    Q_INVOKABLE qint64 cameraRecStart() const { return camRecStart_; }  // 开始时间戳(ms)
     // 思翼云台控制（A2 mini，UDP 37260）：startGimbal(ip) 启动会话并 200ms 轮询姿态；
     // gimbalCtrlMove(yaw,pitch) 组合速度控制 -100~100（A2 mini 仅俯仰轴生效，松手发 0,0）；
     // gimbalCenter 一键回中
@@ -196,6 +205,9 @@ private:
     AlarmEngine *engine_ = nullptr;
     QHash<QString, RtspStream *> streams_;   // 相机 id → RTSP 流（懒创建，随桥接层销毁）
     QHash<QString, RtspRecorder *> recorders_;  // 相机 id → 录制器（多路并行，随桥接层销毁）
+    QStringList camCamIds_;                   // 当前在录相机 id 集（跨页保留）
+    bool camRecOn_ = false;                   // 当前是否正在录像（跨页保留）
+    qint64 camRecStart_ = 0;                  // 录像开始时间戳(ms)，跨页保留
     SiyiSdkClient *gimbal_ = nullptr;        // 思翼云台 SDK 客户端（随桥接层销毁）
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;

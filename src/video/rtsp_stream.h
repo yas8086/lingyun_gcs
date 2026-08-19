@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QImage>
 #include <QMutex>
+#include <atomic>
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 
@@ -53,15 +54,16 @@ private:
     void scheduleReconnect();
 
     QString url_;
-    bool online_ = false;
-    bool busy_ = false;
-    bool started_ = false;
+    // GST streaming 线程写 / Qt 主线程读 的状态，必须原子化避免数据竞争（UB）
+    std::atomic<bool> online_{false};
+    bool busy_ = false;        // 仅主线程访问（start/stop 均为 GUI 线程调用）
+    std::atomic<bool> started_{false};
     GstElement *pipeline_ = nullptr;
     GstElement *sink_ = nullptr;
     mutable QMutex mutex_;
     QImage lastFrame_;
-    qint64 lastSampleUs_ = 0;   // 最近帧时间戳（µs），用于超时看门狗
-    qint64 startUs_ = 0;        // start() 成功时刻（µs），用于首帧超时检测
+    std::atomic<qint64> lastSampleUs_{0};   // 最近帧时间戳（µs），用于超时看门狗
+    std::atomic<qint64> startUs_{0};        // start() 成功时刻（µs），用于首帧超时检测
     QTimer *watchdog_ = nullptr;
     QTimer *reconnect_ = nullptr;
     int reconnectAttempt_ = 0;

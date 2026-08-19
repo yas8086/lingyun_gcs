@@ -16,9 +16,9 @@ RtspStream::RtspStream(QObject *parent)
     watchdog_->setInterval(1000);
     connect(watchdog_, &QTimer::timeout, this, [this]() {
         const qint64 now = gst_util_get_timestamp() / 1000;
-        if (online_ && lastSampleUs_ > 0 && (now - lastSampleUs_) > 3000000)
+        if (online_.load() && lastSampleUs_.load() > 0 && (now - lastSampleUs_.load()) > 3000000)
             scheduleReconnect();
-        else if (started_ && !online_ && startUs_ > 0 && (now - startUs_) > 8000000)
+        else if (started_.load() && !online_.load() && startUs_.load() > 0 && (now - startUs_.load()) > 8000000)
             scheduleReconnect();   // 连接被拒/并发路数占满等场景（bus 会先报错，此为兜底）
     });
     watchdog_->start();
@@ -47,16 +47,16 @@ void RtspStream::setUrl(const QString &u)
     emit urlChanged();
 }
 
-bool RtspStream::online() const { return online_; }
+bool RtspStream::online() const { return online_.load(); }
 
 bool RtspStream::busy() const { return busy_; }
 
-bool RtspStream::started() const { return started_; }
+bool RtspStream::started() const { return started_.load(); }
 
 void RtspStream::setStarted(bool on)
 {
-    if (started_ == on) return;
-    started_ = on;
+    if (started_.load() == on) return;
+    started_.store(on);
     emit startedChanged();
 }
 
@@ -166,11 +166,11 @@ void RtspStream::start()
     }
 
     setStarted(true);
-    startUs_ = gst_util_get_timestamp() / 1000;
+    startUs_.store(gst_util_get_timestamp() / 1000);
     busy_ = false;
     emit busyChanged();
     reconnectAttempt_ = 0;
-    lastSampleUs_ = 0;
+    lastSampleUs_.store(0);
 }
 
 void RtspStream::stop()
@@ -207,8 +207,8 @@ void RtspStream::teardown()
 
 void RtspStream::setOnline(bool on)
 {
-    if (online_ == on) return;
-    online_ = on;
+    if (online_.load() == on) return;
+    online_.store(on);
     emit onlineChanged();
 }
 
@@ -218,7 +218,10 @@ void RtspStream::scheduleReconnect()
     setStarted(false);
     if (url_.isEmpty()) return;
     reconnect_->stop();
-    reconnect_->setInterval(qBound(2000, 2000 * (1 << reconnectAttempt_), 10000));
+    // 指数退避：2s 起步、上限 10s。重连次数封顶到 4 再移位，
+    // 避免 reconnectAttempt_ 无限递增导致 1 << n 对 int 溢出（UB）。
+    const int attempt = qMin(reconnectAttempt_, 4);
+    reconnect_->setInterval(qBound(2000, 2000 * (1 << attempt), 10000));
     reconnectAttempt_++;
     reconnect_->start();
 }
@@ -290,9 +293,9 @@ void RtspStream::onSample(GstAppSink *sink)
                 QMutexLocker lock(&mutex_);
                 lastFrame_ = img.copy();
             }
-            lastSampleUs_ = gst_util_get_timestamp() / 1000;
+            lastSampleUs_.store(gst_util_get_timestamp() / 1000);
             gst_video_frame_unmap(&frame);
-            if (!online_)
+            if (!online_.load())
                 setOnline(true);
             // 在 GST 线程发信号，QML Connections 默认 AutoConnection 会排队到 GUI 线程
             emit frameChanged();

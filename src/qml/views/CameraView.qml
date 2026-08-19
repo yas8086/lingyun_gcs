@@ -32,8 +32,9 @@ Item {
     // 云台控制焦点相机索引（对齐原型 focusIdx：点击画面格/tab 切换，控制盘跟随）
     property int focusIdx: 0
     property bool ptzFolded: false   // 云台控制盘折叠状态
-    // 思翼云台（A2 mini）：持有其相机 id，SDK 会话随页面启动（特征：RTSP 端口 8554）
-    property string gimbalCamId: ""
+    // 思翼云台（A2 mini）：持有其相机 IP，SDK 会话随页面启动（特征：RTSP 端口 8554）。
+    // 用 IP 而非 id 判断：同相机仅改 IP 时也能正确重启 SDK 会话
+    property string gimbalCamIp: ""
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0
@@ -104,15 +105,15 @@ Item {
             s.url = c.ip ? root.camRtspUrl(i) : ""
             if (!c.ip) s.stop()
         }
-        // 思翼云台 IP 变更时重启 SDK 会话
+        // 思翼云台 IP 变更时重启 SDK 会话（用 IP 而非 id：同相机改 IP 也能正确重启）
         var gb = ""
         for (var j = 0; j < root.camCfg.length; j++) {
             var gj = root.camCfg[j]
-            if (gj && gj.ip && gj.port === 8554) { gb = gj.id; break }
+            if (gj && gj.ip && gj.port === 8554) { gb = gj.ip; break }
         }
-        if (gb !== root.gimbalCamId) {
-            root.gimbalCamId = gb
-            if (gb) bridge.startGimbal(root.camCfg[j].ip)
+        if (gb !== root.gimbalCamIp) {
+            root.gimbalCamIp = gb
+            if (gb) bridge.startGimbal(gb)
             else bridge.stopGimbal()
         }
         root.manageStreams()
@@ -155,6 +156,13 @@ Item {
     }
     function camIdxOf(id) {
         return root.camIdxIn(root.camCfg, id)
+    }
+    // 判断某相机是否为当前云台相机（RTSP 端口 8554 且 IP 与云台会话一致）
+    function isGimbalCam(id) {
+        const i = root.camIdxOf(id)
+        if (i < 0 || !root.camCfg[i]) return false
+        const c = root.camCfg[i]
+        return c.port === 8554 && c.ip === root.gimbalCamIp
     }
     function camIdxIn(arr, id) {   // 通用：在指定数组中找相机 id 索引
         for (var i = 0; i < (arr ? arr.length : 0); i++)
@@ -201,18 +209,34 @@ Item {
         root.layMode = bridge.cameraLay()
         root.camCfgSel = root.camCfg.length ? root.camCfg[0].id : ""
         root.selected = root.defaultSelected(root.layMode)
-        root.syncStreams()   // 首次拉流（仅选中启用的相机）
-        // 识别思翼云台相机（A2 mini，RTSP 端口 8554）并启动 UDP SDK 会话（姿态轮询）
-        for (var g = 0; g < root.camCfg.length; g++) {
-            var gc = root.camCfg[g]
-            if (gc && gc.ip && gc.port === 8554) {
-                root.gimbalCamId = gc.id
-                bridge.startGimbal(gc.ip)
-                break
-            }
-        }
+        root.syncStreams()   // 首次拉流（仅选中启用的相机）；云台会话启动也在此完成
+        // 录像状态恢复：录制器挂在 bridge（跨页存活），切出本页再回来时
+        // recOn/recCamIds/recStart 都是页面本地值已重置，须从 bridge 读回，
+        // 否则 UI 会显示"未录像"，用户也无法正常停止真正仍在录制的视频。
+        root.recOn = bridge.cameraRecording()
+        root.recCamIds = bridge.cameraRecordingCams()
+        root.recStart = bridge.cameraRecStart()
+        root.recElapsed = root.recOn ? Math.floor((Date.now() - root.recStart) / 1000) : 0
         // 周期刷新：OSD 时钟 / 网口状态 / 断流后按需补拉
         streamWatch.start()
+    }
+
+    // 切出页面时释放资源：停掉"未在录像"的预览流。
+    // 录像流由 RtspRecorder 独立录制（rtspsrc→matroskamux→filesink，不依赖本预览流），
+    // 故停预览流不影响录像。已开录相机的预览流保留（切回秒出画面）；
+    // 未录像相机的预览流释放带宽/CPU。切回时 onCompleted→syncStreams 会自动补拉。
+    Component.onDestruction: {
+        if (!root.camCfg) return
+        var recIds = bridge.cameraRecordingCams()   // 当前在录像的相机 id 集
+        for (var i = 0; i < root.camCfg.length; i++) {
+            var c = root.camCfg[i]
+            if (!c) continue
+            if (recIds.indexOf(c.id) >= 0) continue   // 在录像：保留预览流
+            var s = bridge.videoStream(c.id)
+            if (s && s.started) s.stop()
+        }
+        // 停止思翼云台会话（切出页面无需维持姿态轮询）
+        bridge.stopGimbal()
     }
 
     Timer {
@@ -558,14 +582,11 @@ Item {
                         id: viewItem
                         property bool viewOn: root.selected.indexOf(index) >= 0
                         property bool live: modelData.enable
-                        property bool viewActive: viewOn && root.layMode === "1" ? true : viewOn && root.selected.length === 1
                         // 云台焦点格（对齐原型 .cam-view.focus）：选中+启用+云台相机+当前焦点
                         property bool ptzFocus: viewOn && live && modelData.ptz && root.focusIdx === index
                         visible: viewOn
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        // 按压缩放反馈（对齐原型 .cam-view active ring）
-                        scale: viewOn && root.selected.length === 1 && root.layMode !== "a" && root.selected[0] === index ? 1.0 : 1.0
 
                         Rectangle {
                             anchors.fill: parent
@@ -739,7 +760,7 @@ Item {
                                 implicitHeight: root.ptzFolded ? 26 : ptzBodyCol.implicitHeight + 26
                                 // 方向按钮发出指令（yaw,pitch）：A2 mini 仅 pitch 生效；速度 40 中速
                                 function move(yaw, pitch) {
-                                    if (root.gimbalCamId === modelData.id && bridge.gimbalConnected)
+                                    if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected)
                                         bridge.gimbalCtrlMove(yaw, pitch)
                                 }
                                 Column {
@@ -894,7 +915,7 @@ Item {
                                     Text { text: "ALT " + root.fmt0(bridge.value("fc","alt")) + "m    SPD " + root.fmt1(bridge.value("fc","vx")) + "m/s    HDG " + root.fmt0(bridge.value("fc","yaw")) + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
                                     // 云台俯仰（思翼 SDK 实时回读，A2 mini 仅俯仰轴有效）
                                     Text {
-                                        visible: root.gimbalCamId === modelData.id && bridge.gimbalConnected
+                                        visible: root.isGimbalCam(modelData.id) && bridge.gimbalConnected
                                         text: "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
                                         font.pixelSize: 11; font.family: "monospace"; color: "#ffd166"
                                     }
@@ -932,8 +953,10 @@ Item {
                                             if (!(vidSurf.stream && vidSurf.stream.online)) { root.toast("该相机无画面，截图失败", "err"); return }
                                             var dir = bridge.cameraDir()
                                             var name = "snapshot_" + modelData.name + "_" + Date.now() + ".png"
+                                            // grabToImage().saveToFile 接收本地路径；file:// 前缀在含
+                                            // 中文/空格的路径下会保存失败（QImage 会把它当相对文件名）
                                             viewItem.grabToImage(function(result) {
-                                                if (result.saveToFile("file://" + dir + "/" + name))
+                                                if (result.saveToFile(dir + "/" + name))
                                                     root.toast("已保存截图 " + name)
                                                 else
                                                     root.toast("截图保存失败")
@@ -985,7 +1008,8 @@ Item {
                                 var camNm = (root.camCfg[idx] && root.camCfg[idx].name) ? root.camCfg[idx].name : ("cam" + idx)
                                 var name = "snapshot_" + camNm + "_" + ts + ".png"
                                 it.grabToImage(function(result) {
-                                    result.saveToFile("file://" + dir + "/" + name)
+                                    // 本地路径而非 file:// 前缀（中文/空格路径保存更可靠）
+                                    result.saveToFile(dir + "/" + name)
                                 })
                             })(root.selected[k])
                         }
@@ -1052,7 +1076,7 @@ Item {
                             if (!okCnt) { root.toast("选中相机均无画面，无法录像", "err"); return }
                             root.recCamIds = ids
                             root.recOn = true
-                            root.recStart = Date.now()
+                            root.recStart = bridge.cameraRecStart()
                             root.recElapsed = 0
                             root.toast("开始录像（" + okCnt + " 路）")
                         } else {
@@ -1121,16 +1145,33 @@ Item {
                         root.connBusy = true
                         root.toast("正在重连网口视频流…")
                         // 对选中且启用的流逐一真实重连
+                        var cnt = 0
                         for (var i = 0; i < root.camCfg.length; i++) {
                             var c = root.camCfg[i]
-                            if (c.enable && c.ip && root.selected.indexOf(i) >= 0)
+                            if (c.enable && c.ip && root.selected.indexOf(i) >= 0) {
                                 bridge.videoStream(c.id).reconnect()
+                                cnt++
+                            }
                         }
+                        if (cnt === 0) { root.connBusy = false; return }
                         connTimer.restart()
                     }
                     Timer {
                         id: connTimer; interval: 1200
-                        onTriggered: { root.connBusy = false; root.toast("网口视频流已恢复") }
+                        onTriggered: {
+                            root.connBusy = false
+                            // 校验真实恢复：至少一路选中且启用的流已在线才提示成功，
+                            // 避免盲目提示"已恢复"误导（断流时重连仍在退避中）
+                            var ok = false
+                            for (var i = 0; i < root.camCfg.length; i++) {
+                                var c = root.camCfg[i]
+                                if (c.enable && c.ip && root.selected.indexOf(i) >= 0) {
+                                    var st = bridge.videoStream(c.id)
+                                    if (st && st.online) { ok = true; break }
+                                }
+                            }
+                            root.toast(ok ? "网口视频流已恢复" : "重连中，请稍候…（仍在尝试）", ok ? "ok" : "info")
+                        }
                     }
                 }
                 Rectangle { width: 1; height: 20; color: root.themeRoot.colLine }
@@ -1203,8 +1244,7 @@ Item {
                 if (arr.indexOf(k) < 0) arr.push(k)                    // 补足到上限（按序补）
             root.selected = arr
         }
-        root.saveAll()
-        root.manageStreams()   // 选中集变化 → 拉流启停同步
+        root.saveAll()   // 内部 syncStreams() 已按新 selected 同步拉流启停
     }
 
     // ===== 相机拉流设置弹窗（对齐原型 modal 结构：head + body 滚动 + 表单 + cf-actions）=====
@@ -1795,12 +1835,11 @@ Item {
     // 保存设置：草稿写回生效（配置持久化 + 拉流同步 + 选中集重建）
     function saveCfgDlg() {
         root.readCfgForm()   // 表单 → 草稿
-        // 先停掉已被删除相机的流（不在新配置中的）
+        // 先停掉并释放已被删除相机的流（不在新配置中的；释放对象避免 streams_ 只增不减）
         for (var d = 0; d < root.camCfg.length; d++) {
             var oldId = root.camCfg[d].id
             if (root.camIdxIn(root.cfgDraft, oldId) < 0) {
-                var ds = bridge.videoStream(oldId)
-                if (ds) ds.stop()
+                bridge.releaseStream(oldId)
             }
         }
         // 草稿 → 正式配置
