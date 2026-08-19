@@ -55,6 +55,8 @@ public:
     Q_INVOKABLE bool online(const QString &device) const;
     // 读取设备字段数值；设备离线或字段不存在返回 NaN
     Q_INVOKABLE double value(const QString &device, const QString &key) const;
+    // 飞控字符串字段（mode 飞行模式）：离线返回空串
+    Q_INVOKABLE QString fcStringField(const QString &key) const;
     // 就绪度状态：0 待自检 / 1 就绪可飞 / 2 起飞受限 / 3 不可起飞
     Q_INVOKABLE int readinessState() const;
     // LoRa 节点概要（多行文本）

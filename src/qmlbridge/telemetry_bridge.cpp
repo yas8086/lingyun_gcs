@@ -143,7 +143,15 @@ bool TelemetryBridge::online(const QString &device) const {
     if (device == "mppt") return last_.mppt.has_value();
     if (device == "dcdc") return last_.dcdc.has_value();
     if (device == "lora") return last_.lora.has_value();
+    if (device == "fc") return last_.fc.has_value();
     return false;
+}
+
+QString TelemetryBridge::fcStringField(const QString &key) const {
+    if (!last_.fc) return QString();
+    const auto &f = *last_.fc;
+    if (key == "mode") return f.mode;
+    return QString();
 }
 
 double TelemetryBridge::value(const QString &device, const QString &key) const {
@@ -198,6 +206,20 @@ double TelemetryBridge::value(const QString &device, const QString &key) const {
         if (key == "temp") return d.temp;
         if (key == "fault") return d.fault;
         if (key == "enabled") return d.enabled ? 1 : 0;
+    } else if (device == "fc" && last_.fc) {
+        const auto &f = *last_.fc;
+        if (key == "roll") return f.roll;
+        if (key == "pitch") return f.pitch;
+        if (key == "yaw") return f.yaw;
+        if (key == "lat") return f.lat;
+        if (key == "lon") return f.lon;
+        if (key == "alt") return f.alt;
+        if (key == "vx") return f.vx;
+        if (key == "vy") return f.vy;
+        if (key == "vz") return f.vz;
+        if (key == "batt_v") return f.batt_v;
+        if (key == "batt_pct") return f.batt_pct;
+        if (key == "armed") return f.armed ? 1 : 0;
     }
     return nan;
 }

@@ -42,6 +42,25 @@ Item {
         canvas.requestPaint()
     }
 
+    // 飞控 fc 遥测（左上角悬浮卡）：带 dataTick 依赖，随串口 fc 数据实时刷新
+    function fcLon() { void root.themeRoot.dataTick; const v=bridge.value("fc","lon"); return isNaN(v)?"--":v.toFixed(6)+"°" }
+    function fcLat() { void root.themeRoot.dataTick; const v=bridge.value("fc","lat"); return isNaN(v)?"--":v.toFixed(6)+"°" }
+    function fcAlt() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","alt"))?"--":bridge.value("fc","alt").toFixed(1)+" m" }
+    function fcGs() {
+        void root.themeRoot.dataTick
+        const vx=bridge.value("fc","vx"), vy=bridge.value("fc","vy")
+        if (isNaN(vx)||isNaN(vy)) return "--"
+        return Math.sqrt(vx*vx+vy*vy).toFixed(1)+" m/s"
+    }
+    function fcSigned(key) {
+        void root.themeRoot.dataTick
+        const v=bridge.value("fc", key)
+        if (isNaN(v)) return "--"
+        return (v>=0?"+":"")+v.toFixed(1)+" m/s"
+    }
+    function fcYaw() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","yaw"))?"--":bridge.value("fc","yaw").toFixed(1)+"°" }
+    function fcVz() { return root.fcSigned("vz") }
+
     // ===== 墨卡托投影 =====
     function worldSize() { return 256 * Math.pow(2, root.zoom) }
     function lonToX(lon) { return (lon + 180) / 360 * root.worldSize() }
@@ -190,7 +209,7 @@ Item {
             }
         }
 
-        // ===== 顶部悬浮信息卡 =====
+        // ===== 顶部悬浮信息卡（保持原样式，仅增补参数）=====
         Rectangle {
             anchors.top: parent.top; anchors.left: parent.left
             anchors.margins: 14
@@ -200,15 +219,17 @@ Item {
             border.color: root.themeRoot.colLine
             Column {
                 anchors.fill: parent; anchors.margins: 12; spacing: 5
-                Text { text: "● 飞艇遥测（模拟）"; color: root.themeRoot.colText; font.pixelSize: 12; font.bold: true }
+                Text { text: "● 飞艇遥测"; color: root.themeRoot.colText; font.pixelSize: 12; font.bold: true }
                 Repeater {
                     model: [
-                        ["经度", root.airPos.lon.toFixed(5)],
-                        ["纬度", root.airPos.lat.toFixed(5)],
-                        ["高度", root.alt.toFixed(0) + " m"],
-                        ["地速", root.speed.toFixed(1) + " m/s"],
-                        ["航向", root.heading.toFixed(0) + " °"],
-                        ["距Home", root.dist.toFixed(0) + " m · " + root.bearing.toFixed(0) + "°"]
+                        ["高度", root.fcAlt()],
+                        ["地速", root.fcGs()],
+                        ["东向速度", root.fcSigned("vx")],
+                        ["北向速度", root.fcSigned("vy")],
+                        ["升降率", root.fcVz()],
+                        ["航向", root.fcYaw()],
+                        ["经度", root.fcLon()],
+                        ["纬度", root.fcLat()]
                     ]
                     Rectangle {
                         width: 216; height: 24; color: "transparent"

@@ -174,7 +174,6 @@ ApplicationWindow {
                     model: [
                         {name:"监控",ic:"📡"},
                         {name:"自检",ic:"✓"},
-                        {name:"地图",ic:"🗺"},
                         {name:"飞控",ic:"✈"},
                         {name:"摄像头",svg:"qrc:/qml/img/camera-nav.svg"},
                         {name:"图示",ic:"📊"},
@@ -395,21 +394,9 @@ ApplicationWindow {
                             item.showNote.connect(root.showToast)
                         }
                     }
-                    // 地图占位
+                    // 飞控页（内含地图右栏，见 FlightView 布局）
                     Loader {
                         active: root.currentNav === 2
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        source: "qrc:/qml/views/MapView.qml"
-                        onLoaded: {
-                            item.themeRoot = root
-                            // 恢复上次切换前保存的地图视口状态（切页不重置）
-                            item.restoreMapState()
-                        }
-                    }
-                    // 飞控占位
-                    Loader {
-                        active: root.currentNav === 3
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/FlightView.qml"
@@ -417,7 +404,7 @@ ApplicationWindow {
                     }
                     // 摄像头监控页（独立模块，复刻原型）
                     Loader {
-                        active: root.currentNav === 4
+                        active: root.currentNav === 3
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/CameraView.qml"
@@ -428,7 +415,7 @@ ApplicationWindow {
                     }
                     // 图示页
                     Loader {
-                        active: root.currentNav === 5
+                        active: root.currentNav === 4
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/TopoView.qml"
@@ -439,7 +426,7 @@ ApplicationWindow {
                     }
                     // 设置页
                     Loader {
-                        active: root.currentNav === 6
+                        active: root.currentNav === 5
                         anchors.fill: parent
                         anchors.margins: 14
                         source: "qrc:/qml/views/SettingsView.qml"
@@ -1058,7 +1045,6 @@ ApplicationWindow {
     Shortcut { sequence: "4"; onActivated: root.currentNav = 3 }
     Shortcut { sequence: "5"; onActivated: root.currentNav = 4 }
     Shortcut { sequence: "6"; onActivated: root.currentNav = 5 }
-    Shortcut { sequence: "7"; onActivated: root.currentNav = 6 }
     Shortcut {
         sequence: "Space"
         onActivated: root.rtcPlaying = !root.rtcPlaying

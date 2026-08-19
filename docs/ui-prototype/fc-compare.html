@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵云01 飞控页面 · 布局方案对比（临时讨论稿）</title>
+<style>
+  :root{
+    --bg:#eef2f7; --bg-2:#e6ebf2; --card:#ffffff; --card-2:#f8fafc;
+    --text:#1e293b; --text-2:#64748b; --line:#e2e8f0;
+    --primary:#2563eb; --primary-soft:#eff6ff;
+    --ok:#16a34a; --ok-soft:#f0fdf4;
+    --warn:#d97706; --warn-soft:#fffbeb;
+    --err:#dc2626; --err-soft:#fef2f2;
+    --mono:ui-monospace,Consolas,"JetBrains Mono",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:28px 20px 60px}
+  .page-title{max-width:1120px;margin:0 auto 8px;font-size:22px;font-weight:800}
+  .page-sub{max-width:1120px;margin:0 auto 28px;color:var(--text-2);font-size:13px;line-height:1.8}
+  .page-sub b{color:var(--primary)}
+
+  .scheme{max-width:1120px;margin:0 auto 48px}
+  .scheme-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .scheme-badge{font-size:13px;font-weight:700;color:#fff;background:var(--primary);padding:4px 10px;border-radius:6px}
+  .scheme-name{font-size:17px;font-weight:800}
+  .scheme-desc{font-size:12px;color:var(--text-2)}
+  .scheme-stage{width:100%;height:680px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg)}
+
+  /* ================= 公共小件 ================= */
+  .fc-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+  .fc-bar .bt{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800}
+  .fc-bar .bt svg{width:18px;height:18px;fill:none;stroke:var(--primary);stroke-width:2}
+  .fc-seg{display:flex;background:var(--bg-2);border-radius:8px;padding:3px;gap:2px}
+  .fc-seg span{font-size:12px;font-weight:600;color:var(--text-2);padding:4px 12px;border-radius:6px;cursor:pointer}
+  .fc-seg span.on{background:var(--primary);color:#fff}
+  .fc-seg span.badge{background:var(--warn-soft);color:var(--warn)}
+  .fc-status{font-size:11px;color:var(--text-2);display:flex;gap:10px}
+  .fc-status b{color:var(--ok);font-weight:700}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column}
+  .card-h{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text-2);border-bottom:1px solid var(--line)}
+  .card-h svg{width:14px;height:14px;fill:none;stroke:var(--text-2);stroke-width:2}
+  .card-h .tag{margin-left:auto;font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px}
+  .tag.g{background:var(--ok-soft);color:var(--ok)}
+  .tag.w{background:var(--warn-soft);color:var(--warn)}
+  .tag.r{background:var(--err-soft);color:var(--err)}
+
+  .kv{display:flex;justify-content:space-between;align-items:baseline;padding:6px 12px;font-size:12px;color:var(--text-2)}
+  .kv b{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)}
+  .kv b.unit{font-size:11px;color:var(--text-2);font-weight:500;margin-left:2px}
+  .kv .st{font-size:11px;font-weight:600;color:var(--ok)}
+  .kv .st.w{color:var(--warn)} .kv .st.r{color:var(--err)}
+
+  /* 姿态仪表 */
+  .ai-wrap{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;padding:10px}
+  .ai{position:relative;width:210px;height:210px}
+  .ai svg{width:100%;height:100%}
+  .ai-lbl{position:absolute;left:0;right:0;bottom:-2px;text-align:center;font-size:12px;color:var(--text-2)}
+
+  /* 电机条 */
+  .motor{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:11px}
+  .motor .m-name{width:86px;color:var(--text-2);font-weight:600;font-size:11px}
+  .motor .m-bar{flex:1;height:6px;background:var(--bg-2);border-radius:99px;overflow:hidden}
+  .motor .m-bar i{display:block;height:100%;border-radius:99px}
+  .motor .m-val{width:52px;text-align:right;font-family:var(--mono);font-weight:700;font-size:12px}
+
+  /* 指令按钮 */
+  .cmd{display:grid;gap:8px}
+  .cmd button{border:1px solid var(--line);background:var(--card-2);border-radius:8px;padding:9px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .cmd button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+  .cmd button.p{background:var(--ok);border-color:var(--ok);color:#fff}
+  .cmd button.d{background:var(--err);border-color:var(--err);color:#fff}
+  .cmd button:disabled{opacity:.4;cursor:not-allowed}
+
+  .footbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--card);border-top:1px solid var(--line);font-size:11px;color:var(--text-2)}
+</style>
+</head>
+<body>
+
+<div class="page-title">灵云01 飞控页面 · 布局方案对比</div>
+<div class="page-sub">三种布局方向（讨论稿，非最终设计）：<b>A 仪表主导</b> 人工地平仪居中、参考 QGC；<b>B 数据卡网格</b> 贴合地面站现有简洁商用风；<b>C 左树右布</b> 复用图示页左侧导航树结构。下方可滚动逐方案浏览对比。</div>
+
+<!-- ================= 方案 A：仪表主导 ================= -->
+<div class="scheme">
+  <div class="scheme-head">
+    <span class="scheme-badge">方案 A</span>
+    <span class="scheme-name">仪表主导 · QGC 风格</span>
+    <span class="scheme-desc">中央大姿态仪表 + 两侧数据面板 + 底部指令条</span>
+  </div>
+  <div class="scheme-stage">
+    <div class="fc-bar">
+      <div class="bt"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>飞控</div>
+      <div class="fc-seg"><span>手动</span><span class="on">定高</span><span>悬停</span><span>返航</span><span>任务</span><span class="badge">急停</span></div>
+      <div class="fc-status"><span>链路 <b>正常</b></span><span>GPS <b>15</b> 颗</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:240px 1fr 260px;gap:12px;padding:12px;height:calc(100% - 49px)">
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>导航数据<span class="tag g">在线</span></div>
+        <div style="flex:1;overflow:auto;padding:6px 0">
+          <div class="kv"><span>经度</span><b>120.123456<b class="unit">°</b></b></div>
+          <div class="kv"><span>纬度</span><b>30.987654<b class="unit">°</b></b></div>
+          <div class="kv"><span>相对高度</span><b>52.4<b class="unit">m</b></b></div>
+          <div class="kv"><span>地速</span><b>3.2<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>空速</span><b>4.1<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>航向</span><b>127.5<b class="unit">°</b></b></div>
+          <div class="kv"><span>升降率</span><b>0.8<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>垂直速度</span><b>-0.3<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>地速分量</span><b>1.9<b class="unit">m/s</b></b></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg>姿态仪表<span class="tag g">正常</span></div>
+        <div class="ai-wrap">
+          <div class="ai">
+            <svg viewBox="0 0 210 210">
+              <defs><clipPath id="aiA"><circle cx="105" cy="105" r="84"/></clipPath></defs>
+              <g clip-path="url(#aiA)">
+                <rect x="0" y="0" width="210" height="210" fill="#4a90d9"/>
+                <rect x="0" y="105" width="210" height="105" fill="#b0894f"/>
+                <g stroke="#ffffff" stroke-width="1.6" opacity=".85">
+                  <line x1="0" y1="62" x2="210" y2="62"/><line x1="0" y1="83" x2="210" y2="83"/>
+                  <line x1="0" y1="127" x2="210" y2="127"/><line x1="0" y1="148" x2="210" y2="148"/>
+                </g>
+                <rect x="105" y="0" width="2" height="210" fill="#ffffff" opacity=".4"/>
+                <rect x="0" y="105" width="210" height="2" fill="#ffffff" opacity=".4"/>
+              </g>
+              <circle cx="105" cy="105" r="84" fill="none" stroke="#1e293b" stroke-width="4"/>
+              <circle cx="105" cy="105" r="76" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+              <g stroke="#64748b" stroke-width="1.4">
+                <line x1="105" y1="29" x2="105" y2="35"/><line x1="40" y1="105" x2="46" y2="105"/><line x1="164" y1="105" x2="170" y2="105"/>
+                <line x1="58" y1="58" x2="62" y2="62"/><line x1="148" y1="58" x2="152" y2="62"/><line x1="58" y1="152" x2="62" y2="148"/><line x1="148" y1="152" x2="152" y2="148"/>
+              </g>
+              <line x1="105" y1="105" x2="105" y2="92" stroke="#ef4444" stroke-width="2.5"/>
+              <line x1="105" y1="105" x2="105" y2="118" stroke="#ffffff" stroke-width="2.5"/>
+              <line x1="92" y1="105" x2="118" y2="105" stroke="#ffffff" stroke-width="2.5"/>
+              <circle cx="105" cy="105" r="5" fill="#ef4444"/>
+              <text x="105" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#1e293b" font-family="monospace">350</text>
+              <text x="18" y="108" text-anchor="middle" font-size="10" font-weight="700" fill="#1e293b" font-family="monospace">270</text>
+              <text x="192" y="108" text-anchor="middle" font-size="10" font-weight="700" fill="#1e293b" font-family="monospace">090</text>
+            </svg>
+            <div class="ai-lbl">俯仰 +3.2° · 横滚 -1.4°</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3"/></svg>电机状态<span class="tag g">全部正常</span></div>
+        <div style="flex:1;overflow:auto;padding:8px 0">
+          <div style="font-size:11px;font-weight:800;color:var(--text-2);padding:2px 12px">推进电机</div>
+          <div class="motor"><span class="m-name">左前</span><div class="m-bar"><i style="width:38%;background:var(--primary)"></i></div><span class="m-val">380 rpm</span></div>
+          <div class="motor"><span class="m-name">左后</span><div class="m-bar"><i style="width:36%;background:var(--primary)"></i></div><span class="m-val">362 rpm</span></div>
+          <div class="motor"><span class="m-name">右后</span><div class="m-bar"><i style="width:37%;background:var(--primary)"></i></div><span class="m-val">375 rpm</span></div>
+          <div class="motor"><span class="m-name">右前</span><div class="m-bar"><i style="width:39%;background:var(--primary)"></i></div><span class="m-val">388 rpm</span></div>
+          <div style="font-size:11px;font-weight:800;color:var(--text-2);padding:8px 12px 2px">上升电机</div>
+          <div class="motor"><span class="m-name">左前上升</span><div class="m-bar"><i style="width:62%;background:var(--ok)"></i></div><span class="m-val">1240 rpm</span></div>
+          <div class="motor"><span class="m-name">左后上升</span><div class="m-bar"><i style="width:60%;background:var(--ok)"></i></div><span class="m-val">1205 rpm</span></div>
+          <div class="motor"><span class="m-name">前下降</span><div class="m-bar"><i style="width:55%;background:var(--ok)"></i></div><span class="m-val">1102 rpm</span></div>
+          <div class="motor"><span class="m-name">后下降</span><div class="m-bar"><i style="width:58%;background:var(--ok)"></i></div><span class="m-val">1160 rpm</span></div>
+          <div class="motor"><span class="m-name">右后上升</span><div class="m-bar"><i style="width:61%;background:var(--ok)"></i></div><span class="m-val">1218 rpm</span></div>
+          <div class="motor"><span class="m-name">右前上升</span><div class="m-bar"><i style="width:63%;background:var(--ok)"></i></div><span class="m-val">1255 rpm</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="footbar">
+      <div class="cmd" style="grid-template-columns:repeat(5,92px);gap:8px">
+        <button style="background:var(--primary);border-color:var(--primary);color:#fff">起飞</button>
+        <button>降落</button>
+        <button>悬停</button>
+        <button>返航</button>
+        <button class="d">紧急停车</button>
+      </div>
+      <span>HUD 视频小窗（机载相机）</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 方案 B：数据卡网格 ================= -->
+<div class="scheme">
+  <div class="scheme-head">
+    <span class="scheme-badge">方案 B</span>
+    <span class="scheme-name">数据卡网格 · 商用简洁风</span>
+    <span class="scheme-desc">与监控页一致的多卡片网格，信息分层折叠</span>
+  </div>
+  <div class="scheme-stage">
+    <div class="fc-bar">
+      <div class="bt"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>飞控</div>
+      <div class="fc-seg"><span>手动</span><span class="on">定高</span><span>悬停</span><span>返航</span><span>任务</span></div>
+      <div class="fc-status"><span>链路 <b>正常</b></span><span>GPS <b>15</b> 颗</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;height:calc(100% - 49px)">
+      <div class="card" style="grid-row:span 2">
+        <div class="card-h"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg>姿态仪表<span class="tag g">正常</span></div>
+        <div class="ai-wrap">
+          <div class="ai" style="width:250px;height:250px">
+            <svg viewBox="0 0 210 210">
+              <defs><clipPath id="aiB"><circle cx="105" cy="105" r="84"/></clipPath></defs>
+              <g clip-path="url(#aiB)">
+                <rect x="0" y="0" width="210" height="210" fill="#4a90d9"/>
+                <rect x="0" y="105" width="210" height="105" fill="#b0894f"/>
+                <g stroke="#ffffff" stroke-width="1.6" opacity=".85"><line x1="0" y1="62" x2="210" y2="62"/><line x1="0" y1="83" x2="210" y2="83"/><line x1="0" y1="127" x2="210" y2="127"/><line x1="0" y1="148" x2="210" y2="148"/></g>
+              </g>
+              <circle cx="105" cy="105" r="84" fill="none" stroke="#1e293b" stroke-width="4"/>
+              <circle cx="105" cy="105" r="76" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+              <line x1="105" y1="105" x2="105" y2="92" stroke="#ef4444" stroke-width="2.5"/>
+              <line x1="105" y1="105" x2="105" y2="118" stroke="#ffffff" stroke-width="2.5"/>
+              <line x1="92" y1="105" x2="118" y2="105" stroke="#ffffff" stroke-width="2.5"/>
+              <circle cx="105" cy="105" r="5" fill="#ef4444"/>
+            </svg>
+            <div class="ai-lbl">俯仰 +3.2° · 横滚 -1.4° · 航向 127°</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>导航数据<span class="tag g">在线</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px;padding:8px 0">
+          <div class="kv"><span>高度</span><b>52.4<b class="unit">m</b></b></div>
+          <div class="kv"><span>地速</span><b>3.2<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>航向</span><b>127.5<b class="unit">°</b></b></div>
+          <div class="kv"><span>升降率</span><b>0.8<b class="unit">m/s</b></b></div>
+          <div class="kv"><span>经度</span><b>120.12</b></div>
+          <div class="kv"><span>纬度</span><b>30.98</b></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>飞行模式<span class="tag w">定高</span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px">
+          <div style="text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 0;font-size:12px;color:var(--text-2)">手动</div>
+          <div style="text-align:center;border:1px solid var(--primary);background:var(--primary-soft);border-radius:8px;padding:8px 0;font-size:12px;font-weight:700;color:var(--primary)">定高</div>
+          <div style="text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 0;font-size:12px;color:var(--text-2)">悬停</div>
+          <div style="text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 0;font-size:12px;color:var(--text-2)">返航</div>
+          <div style="text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 0;font-size:12px;color:var(--text-2)">任务</div>
+          <div style="text-align:center;border:1px solid var(--err);background:var(--err-soft);border-radius:8px;padding:8px 0;font-size:12px;font-weight:700;color:var(--err)">急停</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/></svg>HUD 视频<span class="tag g">推流中</span></div>
+        <div style="flex:1;margin:10px;border-radius:8px;background:repeating-linear-gradient(45deg,#0f172a,#0f172a 12px,#152238 12px,#152238 24px);display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px">机载相机实时画面</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3"/></svg>电机状态<span class="tag g">正常</span></div>
+        <div style="padding:8px 0;overflow:auto">
+          <div class="motor"><span class="m-name">推进 · 左前</span><div class="m-bar"><i style="width:38%;background:var(--primary)"></i></div><span class="m-val">380 rpm</span></div>
+          <div class="motor"><span class="m-name">推进 · 右前</span><div class="m-bar"><i style="width:39%;background:var(--primary)"></i></div><span class="m-val">388 rpm</span></div>
+          <div class="motor"><span class="m-name">上升 · 左前</span><div class="m-bar"><i style="width:62%;background:var(--ok)"></i></div><span class="m-val">1240 rpm</span></div>
+          <div class="motor"><span class="m-name">上升 · 右前</span><div class="m-bar"><i style="width:63%;background:var(--ok)"></i></div><span class="m-val">1255 rpm</span></div>
+        </div>
+        <div style="padding:2px 12px 10px;font-size:11px;color:var(--text-2)">展开查看全部 10 台电机</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H4z"/><path d="M8 20h8"/></svg>飞行指令</div>
+        <div class="cmd" style="grid-template-columns:repeat(3,1fr);padding:12px">
+          <button class="p">起飞</button>
+          <button>降落</button>
+          <button>悬停</button>
+          <button>返航</button>
+          <button>悬停点</button>
+          <button class="d">急停</button>
+        </div>
+      </div>
+    </div>
+    <div class="footbar"><span>时间 12:34:56</span><span>数据率 4.6 Hz</span><span>链路 正常</span><span>GPS 15 颗</span><span>告警 0</span></div>
+  </div>
+</div>
+
+<!-- ================= 方案 C：左树右布 ================= -->
+<div class="scheme">
+  <div class="scheme-head">
+    <span class="scheme-badge">方案 C</span>
+    <span class="scheme-name">左树右布 · 画布主导</span>
+    <span class="scheme-desc">左侧操作树 + 右侧 HUD 与数据画布（复用图示页结构）</span>
+  </div>
+  <div class="scheme-stage">
+    <div class="fc-bar">
+      <div class="bt"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>飞控</div>
+      <div class="fc-status"><span>链路 <b>正常</b></span><span>GPS <b>15</b> 颗</span><span>模式 <b>定高</b></span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:210px 1fr;gap:0;height:calc(100% - 49px)">
+      <!-- 左树 -->
+      <div style="border-right:1px solid var(--line);background:var(--card-2);padding:10px;display:flex;flex-direction:column;gap:4px;overflow:auto">
+        <div style="font-size:12px;font-weight:800;color:var(--text-2);padding:6px 8px">飞行模式</div>
+        <div class="tree-item on">手动</div><div class="tree-item on2">定高</div>
+        <div class="tree-item">悬停</div><div class="tree-item">返航</div><div class="tree-item">任务</div>
+        <div style="font-size:12px;font-weight:800;color:var(--text-2);padding:10px 8px 6px">飞行指令</div>
+        <div class="tree-item">起飞</div><div class="tree-item">降落</div><div class="tree-item">悬停保持</div>
+        <div class="tree-item w">紧急停车</div>
+        <div style="font-size:12px;font-weight:800;color:var(--text-2);padding:10px 8px 6px">系统</div>
+        <div class="tree-item">自检报告</div><div class="tree-item">参数设置</div><div class="tree-item">传感器校准</div>
+      </div>
+      <!-- 右布 -->
+      <div style="display:grid;grid-template-rows:1.25fr 1fr;gap:12px;padding:12px">
+        <div style="display:grid;grid-template-columns:1fr 250px;gap:12px">
+          <div class="card">
+            <div class="card-h"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/></svg>HUD 视频<span class="tag g">推流中</span></div>
+            <div style="flex:1;margin:10px;border-radius:8px;background:repeating-linear-gradient(45deg,#0f172a,#0f172a 12px,#152238 12px,#152238 24px);display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px">机载相机实时画面 + 飞行数据叠加</div>
+          </div>
+          <div class="card">
+            <div class="card-h"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg>姿态<span class="tag g">正常</span></div>
+            <div class="ai-wrap">
+              <div class="ai" style="width:170px;height:170px">
+                <svg viewBox="0 0 210 210">
+                  <defs><clipPath id="aiC"><circle cx="105" cy="105" r="84"/></clipPath></defs>
+                  <g clip-path="url(#aiC)">
+                    <rect x="0" y="0" width="210" height="210" fill="#4a90d9"/>
+                    <rect x="0" y="105" width="210" height="105" fill="#b0894f"/>
+                    <g stroke="#ffffff" stroke-width="1.6" opacity=".85"><line x1="0" y1="62" x2="210" y2="62"/><line x1="0" y1="83" x2="210" y2="83"/><line x1="0" y1="127" x2="210" y2="127"/><line x1="0" y1="148" x2="210" y2="148"/></g>
+                  </g>
+                  <circle cx="105" cy="105" r="84" fill="none" stroke="#1e293b" stroke-width="4"/>
+                  <line x1="105" y1="105" x2="105" y2="92" stroke="#ef4444" stroke-width="2.5"/>
+                  <line x1="105" y1="105" x2="105" y2="118" stroke="#ffffff" stroke-width="2.5"/>
+                  <line x1="92" y1="105" x2="118" y2="105" stroke="#ffffff" stroke-width="2.5"/>
+                  <circle cx="105" cy="105" r="5" fill="#ef4444"/>
+                </svg>
+                <div class="ai-lbl">俯仰 +3.2° · 横滚 -1.4°</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px">
+          <div class="card">
+            <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>导航数据<span class="tag g">在线</span></div>
+            <div style="padding:8px 0">
+              <div class="kv"><span>高度</span><b>52.4<b class="unit">m</b></b></div>
+              <div class="kv"><span>地速</span><b>3.2<b class="unit">m/s</b></b></div>
+              <div class="kv"><span>航向</span><b>127.5<b class="unit">°</b></b></div>
+              <div class="kv"><span>升降率</span><b>0.8<b class="unit">m/s</b></b></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3"/></svg>电机<span class="tag g">正常</span></div>
+            <div style="padding:8px 0">
+              <div class="motor"><span class="m-name">推进 4 台</span><div class="m-bar"><i style="width:38%;background:var(--primary)"></i></div><span class="m-val">376 rpm</span></div>
+              <div class="motor"><span class="m-name">上升 6 台</span><div class="m-bar"><i style="width:62%;background:var(--ok)"></i></div><span class="m-val">1216 rpm</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>链路状态<span class="tag g">正常</span></div>
+            <div style="padding:8px 0">
+              <div class="kv"><span>数传</span><b>正常<b class="unit">97%</b></b></div>
+              <div class="kv"><span>遥控</span><b>正常</b></div>
+              <div class="kv"><span>GPS</span><b>15<b class="unit">颗</b></b></div>
+              <div class="kv"><span>数据率</span><b>4.6<b class="unit">Hz</b></b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footbar"><span>时间 12:34:56</span><span>数据率 4.6 Hz</span><span>链路 正常</span><span>告警 0</span></div>
+  </div>
+</div>
+
+<style>
+  .tree-item{font-size:12px;font-weight:600;color:var(--text-2);padding:7px 10px;border-radius:7px;cursor:pointer}
+  .tree-item:hover{background:var(--card);color:var(--text)}
+  .tree-item.on{background:var(--primary);color:#fff}
+  .tree-item.on2{background:var(--primary-soft);color:var(--primary);font-weight:700}
+  .tree-item.w{color:var(--err);font-weight:700}
+</style>
+
+</body>
+</html>

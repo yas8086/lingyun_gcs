@@ -396,29 +396,112 @@
   html[data-contrast="high"] body{font-size:15px}
   /* 深色 + 高对比：文字更白、边框更深、背景近黑，--ring 高亮 */
   html[data-theme="dark"][data-contrast="high"]{--text:#ffffff;--text-2:#cbd5e1;--line:#475569;--bg:#000;--bg-2:#0a0f1c;--card:#0f172a;--card-2:#16213a;--ring:rgba(255,255,255,.3)}
-  /* ===== 地图参数悬浮窗 ===== */
-  .map-view{flex:1;min-height:0;position:relative;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);overflow:hidden;box-shadow:var(--shadow);display:flex}
-  .map-grid{flex:1;position:relative;background:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px}
-  .map-grid::after{content:"飞艇位置 / 轨迹 / 任务航线（地图预留）";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;opacity:.55}
-  .map-overlay{position:absolute;right:16px;top:16px;width:226px;background:rgba(15,23,42,.62);backdrop-filter:blur(6px);color:#eef2f7;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
-  html[data-theme="dark"] .map-overlay{background:rgba(11,18,32,.72)}
-  .map-overlay .mo-title{font-weight:700;font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px;color:#fff}
-  .map-overlay .mo-title .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
-  .mo-item{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.15)}
-  .mo-item:last-child{border-bottom:none}
-  .mo-item label{color:#cbd5e1}
-  .mo-item b{font-family:ui-monospace,monospace;color:#fff;font-weight:600}
-  /* ===== 飞控骨架预览 ===== */
-  .flight-preview{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
-  .fp-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow)}
-  .fp-head .t{font-weight:700;font-size:15px}
-  .fp-tag{font-size:11px;padding:2px 10px;border-radius:var(--r-full);background:var(--warn-soft);color:var(--warn);font-weight:700}
-  .fp-body{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-  .fp-card{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:12px;background:var(--card);color:var(--text-2);box-shadow:var(--shadow)}
-  .fp-card .sk-ic{width:30px;height:30px;opacity:.5;stroke-width:1.5;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
-  .fp-card .sk-tip{font-weight:600;font-size:13px;color:var(--text)}
-  .fp-card .sk-sub{font-size:11px}
-  @media(max-width:900px){.fp-body{grid-template-columns:1fr}}
+  /* ===== 飞控监控（只监控不控制，B 数据卡网格） ===== */
+  .fc-panel{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+  .fc-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);flex-wrap:wrap}
+  .fc-bar .t{font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px}
+  .fc-bar .t svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:var(--primary);stroke-linecap:round;stroke-linejoin:round}
+  .fc-mode{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--primary);background:var(--primary-soft);color:var(--primary);font-size:12px;font-weight:700;padding:3px 12px;border-radius:var(--r-full)}
+  .fc-mode .lock{opacity:.55}
+  /* 顶栏状态徽章：在线 / 解锁 / 电池 */
+  .fc-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg-2);color:var(--text-2);font-size:12px;font-weight:700;padding:3px 12px;border-radius:var(--r-full)}
+  .fc-pill svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .fc-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--text-2)}
+  .fc-pill.ok{border-color:rgba(34,197,94,.4);background:var(--ok-soft);color:var(--ok)}
+  .fc-pill.ok .dot{background:var(--ok)}
+  .fc-pill.arm{border-color:rgba(34,197,94,.4);background:var(--ok-soft);color:var(--ok)}
+  .fc-pill.arm.off{border-color:var(--line);background:var(--bg-2);color:var(--text-2)}
+  .fc-batt{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg-2);color:var(--text);font-size:12px;font-weight:700;padding:3px 12px;border-radius:var(--r-full)}
+  .fc-batt svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .fc-batt b{font-family:ui-monospace,monospace}
+  .fc-batt .v{font-size:11px;color:var(--text-2);font-weight:600;font-family:ui-monospace,monospace}
+  .fc-grid{flex:1;min-height:0;display:grid;grid-template-columns:1.12fr 1fr;grid-template-rows:1fr 1fr;gap:12px}
+  .fc-card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);min-height:0;overflow:hidden}
+  .fc-card-h{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text-2);border-bottom:1px solid var(--line);flex-shrink:0}
+  .fc-card-h svg{width:14px;height:14px;fill:none;stroke:var(--text-2);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .fc-card-h .hint{margin-left:auto;font-size:10px;color:var(--text-2);font-weight:500}
+  .fc-body{flex:1;min-height:0;overflow:auto;padding:8px 0}
+  /* 姿态仪表 */
+  .fc-ai-body{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px}
+  .fc-ai{width:min(100%,250px);aspect-ratio:1}
+  .fc-ai svg{width:100%;height:100%;display:block}
+  .fc-ai-lbl{font-size:12px;font-weight:600;color:var(--text-2);font-family:ui-monospace,monospace}
+  /* 导航 kv */
+  .fc-kv{display:flex;justify-content:space-between;align-items:baseline;padding:5px 14px;font-size:12px;color:var(--text-2)}
+  .fc-kv b{font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:var(--text)}
+  .fc-kv .u{font-size:10px;color:var(--text-2);font-weight:500;margin-left:2px}
+  .fc-kv .ok{font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:var(--ok)}
+  /* 飞行模式（只读） */
+  .fc-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px}
+  .fc-mode-cell{border:1px solid var(--line);border-radius:8px;text-align:center;padding:10px 0;font-size:12px;font-weight:600;color:var(--text-2);user-select:none;cursor:default}
+  .fc-mode-cell.cur{border-color:var(--primary);background:var(--primary-soft);color:var(--primary);font-weight:700}
+  .fc-mode-cell.off{opacity:.55}
+  .fc-mtask{padding:10px 12px 12px;font-size:11px;color:var(--text-2);border-top:1px dashed var(--line);margin-top:auto}
+  .fc-mtask b{font-family:ui-monospace,monospace;color:var(--text)}
+  /* 电机状态 */
+  .fc-msect{font-size:11px;font-weight:800;color:var(--text-2);padding:6px 12px 2px;letter-spacing:.3px}
+  .fc-motor{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:11px}
+  .fc-motor .mn{width:88px;color:var(--text-2);font-weight:600;white-space:nowrap}
+  .fc-motor .mb{flex:1;height:6px;background:var(--bg-2);border-radius:99px;overflow:hidden}
+  .fc-motor .mb i{display:block;height:100%;border-radius:99px;transition:width .6s}
+  .fc-motor .mv{width:102px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;font-size:11px}
+  .fc-motor .mv .t{color:var(--text-2);font-weight:500;font-size:10px}
+  .fc-motor .mv .t.w{color:var(--warn);font-weight:700}
+  /* 链路与定位 */
+  .fc-link{padding:6px 0}
+  .fc-link .lk{display:flex;align-items:center;gap:10px;padding:5px 14px;font-size:12px;color:var(--text-2)}
+  .fc-link .lk label{width:64px;flex-shrink:0}
+  .fc-link .lk .lb{flex:1;height:7px;background:var(--bg-2);border-radius:99px;overflow:hidden}
+  .fc-link .lk .lb i{display:block;height:100%;border-radius:99px;transition:width .6s}
+  .fc-link .lk b{width:64px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;font-size:12px}
+  .fc-link .lk b.g{color:var(--ok)} .fc-link .lk b.y{color:var(--warn)} .fc-link .lk b.r{color:var(--err)}
+  @media(max-width:900px){.fc-grid{grid-template-columns:1fr;grid-template-rows:auto}}
+  /* ===== 飞控+地图集成（分栏：左飞艇信息固定 + 右地图自适应） ===== */
+  .fc-split{flex:1;min-height:0;display:flex;flex-direction:row;gap:12px}
+  /* 左栏：飞艇信息（固定宽度，内容多时内部滚动） */
+  .fc-info{width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;scrollbar-width:thin}
+  .fc-float{flex-shrink:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+  .fc-float .fc-card-h{background:transparent}
+  .fc-float .fc-body{padding:4px 0}
+  /* 右栏：地图（占剩余空间，随窗口实时调整） */
+  .fc-map{flex:1;min-width:0;position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);background:
+    linear-gradient(var(--line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line) 1px,transparent 1px),
+    var(--bg-2);
+    background-size:56px 56px,56px 56px,auto}
+  html[data-theme="dark"] .fc-map{background:
+    linear-gradient(rgba(148,163,184,.14) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(148,163,184,.14) 1px,transparent 1px),
+    var(--bg-2)}
+  .fc-map svg{position:absolute;inset:0;width:100%;height:100%}
+  .fc-scale{position:absolute;left:16px;bottom:14px;height:4px;width:90px;background:var(--text-2);border-left:2px solid var(--text-2);border-right:2px solid var(--text-2);border-radius:2px}
+  .fc-scale::after{content:"100 m";position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:10px;color:var(--text-2);font-weight:600}
+  /* 地图右上角导航数据悬浮窗 */
+  .fc-ovl{position:absolute;right:14px;top:14px;width:218px;border:1px solid rgba(30,41,59,.1);border-radius:12px;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);box-shadow:0 6px 18px rgba(30,41,59,.08);overflow:hidden;pointer-events:none}
+  html[data-theme="dark"] .fc-ovl{background:rgba(22,33,58,.92);border-color:rgba(148,163,184,.16)}
+  .fc-ovl-t{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;padding:9px 12px;border-bottom:1px solid var(--line)}
+  .fc-ovl-t .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  .fc-ovl-i{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:4px 12px;color:var(--text-2)}
+  .fc-ovl-i:last-child{margin-bottom:6px}
+  .fc-ovl-i b{font-family:ui-monospace,monospace;color:var(--text);font-weight:700}
+  /* 飞控告警明细弹窗条目 */
+  .fc-alarm-row{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:12px;border-bottom:1px dashed var(--line)}
+  .fc-alarm-row:last-child{border-bottom:none}
+  .fc-alarm-row .lv{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:700;flex-shrink:0}
+  .fc-alarm-row .lv.w{background:var(--warn-soft);color:var(--warn)}
+  .fc-alarm-row .lv.e{background:rgba(239,68,68,.14);color:var(--err)}
+  .fc-alarm-row .msg{flex:1;min-width:0;color:var(--text);font-weight:600}
+  .fc-alarm-row .tm{color:var(--text-2);font-family:ui-monospace,monospace;font-size:11px;flex-shrink:0}
+  @media(max-width:1000px){.fc-info{width:240px}}
+  /* 电机折叠（默认展开，展开后占满左栏剩余空间） */
+  .fc-mfold{min-height:0}
+  .fc-mfold.open{flex:1;flex-shrink:1}
+  .fc-mfold-h{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text-2);cursor:pointer;user-select:none}
+  .fc-mfold-h svg{width:14px;height:14px;fill:none;stroke:var(--text-2);stroke-width:2}
+  .fc-mfold-h .arr{margin-left:auto;font-size:10px;transition:transform .2s}
+  .fc-mfold.open .fc-mfold-h .arr{transform:rotate(180deg)}
+  .fc-mfold-body{display:none;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--line)}
+  .fc-mfold.open .fc-mfold-body{display:block}
   @media(max-width:1200px){.main{grid-template-columns:1fr}.side-panel{min-width:240px}}
   /* ===== 摄像头监控（多路视频网格，独立模块） ===== */
   .cam-panel{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
@@ -691,7 +774,7 @@
   /* LoRa 节点容器：节点多时内部滚动，不突破卡片外框 */
   .lora-nodes{max-height:360px;overflow:auto;min-width:0}
   /* 图示/设置 view 内统一高度链路，避免正方形视口溢出 */
-  #view-check,#view-map,#view-flight,#view-camera,#view-topo,#view-setup{min-height:0;height:100%;max-height:100%}
+  #view-check,#view-flight,#view-camera,#view-topo,#view-setup{min-height:0;height:100%;max-height:100%}
   #view-topo > .topo-wrap,#view-check > .check-panel,#view-setup > .setup-panel{min-height:0;flex:1}
   /* 规则表与任何带 tt-table 的 set-group：横向超宽时在 set-group 内滚动，不溢出自身模块 */
   .set-group .tt-table{min-width:600px}
@@ -807,7 +890,6 @@
     <div class="logo"><svg aria-hidden="true" viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg></div>
     <button class="nav-item active" data-view="monitor"><svg aria-hidden="true" viewBox="0 0 2270 1024" preserveAspectRatio="xMidYMid meet" style="width:27px;height:12px;fill:currentColor;stroke:none"><path d="M1152.73507115 811.20657295l-4.97197536-0.37257733q-40.04559781-1.42607063-82.54506396-3.7000744s15.4169768 25.6949618 23.12546555 35.9729461c6.42374027 10.27798499 24.41021333 28.26445804 61.6679079 28.26445804h376.43118761s29.54920583-3.85424403 41.11193859-23.12546553c11.81968221-16.54755561 22.54732868-40.68797205 24.19180634-44.45228378C1447.01946642 825.37734438 1297.91160402 821.62587943 1152.73507115 811.20657295zM475.49296758 798.1406847c2.56949625 8.99323653 15.4169768 35.97294609 39.82719011 35.97294611h115.6273277s33.40344985-3.85424403 44.96618264-16.70172459c17.61389639-11.39571565 66.12598374-48.69195194 84.25377898-62.69570693a2365.64518416 2365.64518416 0 0 1-278.52053607-79.51305879c-1.6187827 17.40833617-9.62276329 106.72402282-6.15394336 122.9375442zM672.05942399 212.29555939c-3.85424403-12.84748055-17.98647303-38.54244234-53.95941982-35.97294609h-92.5018615s-33.40344985 1.28474779-33.40345053 32.11870207v162.55917477C583.20624631 336.14527471 677.66092545 311.18261945 772.96353835 290.48532795c-35.34342002-23.8449246-80.57939954-56.79871297-100.90411436-78.18976856zM1908.38534967 470.08026223c-8.24808253-44.51652113-30.962429-86.36076626-67.19232452-116.46241333a505.58691255 505.58691255 0 0 0-164.13941508-91.55114862c-101.13536884-33.40344985-206.90867879-29.39503617-311.84690177-25.84913146-148.09291151 5.01051778-295.4920589 24.56438297-440.92554117 52.17362C786.40200327 314.56150704 647.82907527 344.54752688 518.06951852 399.31633806 467.05217228 420.83586837 383.06819021 450.46215901 371.37698271 513.13217035q-0.70661159 3.85424403-1.04064582 7.580014c194.49801223 20.29901987 1123.30663728 106.68548041 1538.04901278-50.6319221z"/><path d="M374.7173279 553.2420055C392.33122429 599.24883394 455.29672744 625.80457699 496.61422557 641.59413115c209.09275023 80.27106023 431.8680673 124.78758137 654.96457183 140.78269436 149.27487952 10.71479901 303.12346214 13.64402444 450.47121966-16.08504599 132.32905231-26.70991268 311.19168007-97.74363376 309.82984744-259.86599382-110.83521694 47.00893257-482.461447 145.99877168-1537.1625366 46.81621981z"/></svg>监控</button>
     <button class="nav-item" data-view="check"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>自检</button>
-    <button class="nav-item" data-view="map"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg>地图</button>
     <button class="nav-item" data-view="flight"><svg aria-hidden="true" viewBox="0 0 1024 1024" style="fill:currentColor;stroke:none"><path d="M409.488333 239.177936h204.736191a34.122698 34.122698 0 0 0 34.122698-34.122698V136.809841a34.122698 34.122698 0 0 0-34.122698-34.122698 74.643403 74.643403 0 0 0 0-17.06135 95.117022 95.117022 0 0 0-102.368095-85.306746 95.117022 95.117022 0 0 0-102.368096 85.306746 74.643403 74.643403 0 0 0 0 17.06135 34.122698 34.122698 0 0 0-34.122698 34.122698v68.245397a34.122698 34.122698 0 0 0 34.122698 34.122698z m68.245397-170.613492h68.245397v68.245397H477.73373z m426.533731 68.245397h-221.79754v85.306746c0 28.151226-12.796012 51.184048-28.57776 51.184048H369.820697c-15.781748 0-28.57776-23.032821-28.57776-51.184048v-85.306746H119.445397A68.245397 68.245397 0 0 0 51.2 205.055238v750.699365A68.245397 68.245397 0 0 0 119.445397 1024H904.267461a68.245397 68.245397 0 0 0 68.245396-68.245397V205.055238A68.245397 68.245397 0 0 0 904.267461 136.809841z m-127.960119 349.757659L638.110413 597.46627l23.032821 275.540789-39.667637 31.99003-85.306746-227.769012L425.696615 768.079762v98.102758l-40.09417 29.857361-39.667637-131.798923-119.855979-66.965795l38.388036-31.99003 95.970089 21.75322L473.894927 597.46627l-203.45659-132.225457 40.094171-31.990029 263.597845 85.306746 140.329598-111.751838A51.184048 51.184048 0 0 1 776.307342 486.5675z"/></svg>飞控</button>
     <button class="nav-item" data-view="camera"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/><circle cx="9.5" cy="12" r="2.5"/></svg>摄像头</button>
     <button class="nav-item" data-view="topo"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="7" y1="7" x2="16" y2="6"/><line x1="7" y1="16" x2="16" y2="16.5"/><line x1="8" y1="8" x2="7" y2="16"/><line x1="16" y1="7" x2="17" y2="16"/></svg>图示</button>
@@ -987,27 +1069,85 @@
         </div>
       </section>
 
-      <section class="view" id="view-map">
-        <div class="map-view">
-          <div class="map-grid"></div>
-          <div class="map-overlay">
-            <div class="mo-title"><span class="dot"></span>飞艇遥测</div>
-            <div class="mo-item"><label>高度</label><b>— m</b></div>
-            <div class="mo-item"><label>位置</label><b>30.27,120.15</b></div>
-            <div class="mo-item"><label>航向</label><b>— °</b></div>
-            <div class="mo-item"><label>地速</label><b>— m/s</b></div>
-            <div class="mo-item"><label>舱内气压</label><b>105.2 kPa</b></div>
-          </div>
-        </div>
-      </section>
       <section class="view" id="view-flight">
-        <div class="flight-preview">
-          <div class="fp-head"><span class="t">飞控视图（预留）</span><span class="fp-tag">规划中</span></div>
-          <div class="fp-body">
-            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg><div class="sk-tip">姿态仪表</div><div class="sk-sub">横滚 / 俯仰 / 偏航</div></div>
-            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg><div class="sk-tip">位置与航迹</div><div class="sk-sub">GPS / 速度 / 航向</div></div>
-            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><div class="sk-tip">飞行模式</div><div class="sk-sub">手动 / 定高 / 任务</div></div>
-            <div class="fp-card"><svg class="sk-ic" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><div class="sk-tip">HUD 视频流</div><div class="sk-sub">机载相机实时画面</div></div>
+        <div class="fc-panel">
+          <div class="fc-bar">
+            <span class="t"><svg viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z"/></svg>飞控</span>
+            <span class="fc-pill ok" id="fcOnline"><span class="dot"></span>在线</span>
+            <span class="fc-pill arm" id="fcArm"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>已解锁</span>
+            <span class="fc-batt"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/><rect x="4" y="9" width="8" height="6" rx="1"/></svg><b id="fcBattPct">85%</b><span class="v" id="fcBattV">367.2 V</span></span>
+            <span class="fc-pill" id="fcGpsBar"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="1.6"/></svg>GPS <b id="fcGpsBarV">15 颗</b></span>
+            <span class="fc-pill ok" id="fcAlarmBar"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.5" fill="currentColor" stroke="none"/></svg>告警 <b id="fcAlarmBarV">0</b></span>
+            <span class="fc-mode" id="fcModeBar">定高</span>
+          </div>
+          <div class="fc-split">
+            <!-- 左栏：飞艇信息（固定宽度，内容多时内部滚动） -->
+            <div class="fc-info">
+              <!-- 姿态仪表卡 -->
+              <div class="fc-float">
+                <div class="fc-card-h"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="16" y2="8"/></svg>姿态仪表<span class="tag g" id="fcAiTag">正常</span></div>
+                <div class="fc-ai-body" style="padding:6px">
+                  <div class="fc-ai" style="width:168px">
+                    <svg viewBox="0 0 210 210">
+                      <defs><clipPath id="fcAiClip"><circle cx="105" cy="105" r="80"/></clipPath></defs>
+                      <circle cx="105" cy="105" r="84" fill="#1e293b" opacity=".05"/>
+                      <circle cx="105" cy="105" r="84" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+                      <g clip-path="url(#fcAiClip)">
+                        <g id="fcAiBall">
+                          <g id="fcAiPitch">
+                            <rect x="-90" y="-40" width="390" height="145" fill="#4a90d9"/>
+                            <rect x="-90" y="105" width="390" height="145" fill="#b0894f"/>
+                            <g stroke="#ffffff" stroke-width="1.6" opacity=".85">
+                              <line x1="-90" y1="30" x2="300" y2="30"/><line x1="-90" y1="52" x2="300" y2="52"/><line x1="-90" y1="74" x2="300" y2="74"/>
+                              <line x1="-90" y1="136" x2="300" y2="136"/><line x1="-90" y1="158" x2="300" y2="158"/><line x1="-90" y1="180" x2="300" y2="180"/>
+                            </g>
+                          </g>
+                        </g>
+                      </g>
+                      <line x1="60" y1="105" x2="78" y2="105" stroke="#ffffff" stroke-width="2.5"/>
+                      <line x1="132" y1="105" x2="150" y2="105" stroke="#ffffff" stroke-width="2.5"/>
+                      <line x1="105" y1="105" x2="105" y2="90" stroke="#ef4444" stroke-width="2.5"/>
+                      <circle cx="105" cy="105" r="5" fill="#ef4444"/>
+                      <g stroke="#94a3b8" stroke-width="1.4">
+                        <line x1="105" y1="25" x2="105" y2="31"/><line x1="46" y1="105" x2="52" y2="105"/><line x1="158" y1="105" x2="164" y2="105"/>
+                      </g>
+                      <text x="105" y="18" text-anchor="middle" font-size="9" fill="#64748b" font-weight="700" font-family="monospace">360</text>
+                      <text x="38" y="108" text-anchor="middle" font-size="9" fill="#64748b" font-weight="700" font-family="monospace">270</text>
+                      <text x="172" y="108" text-anchor="middle" font-size="9" fill="#64748b" font-weight="700" font-family="monospace">090</text>
+                    </svg>
+                  </div>
+                  <div class="fc-ai-lbl" id="fcAttLbl">俯仰 +3.2° · 横滚 -1.4° · 航向 127.5°</div>
+                </div>
+              </div>
+              <!-- 电机状态折叠卡 -->
+              <div class="fc-float fc-mfold open" id="fcMfold">
+                <div class="fc-mfold-h" id="fcMfoldH"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3"/></svg>电机状态<span class="hint">10 台 · 只读</span><span class="arr">▾</span></div>
+                <div class="fc-mfold-body"><div id="fcMotors"></div></div>
+              </div>
+            </div>
+            <!-- 右栏：地图（占剩余空间，随窗口实时调整） -->
+            <div class="fc-map">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path id="fcTrack" d="" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-dasharray="3 3" opacity=".5"/>
+                <circle id="fcStart" cx="50" cy="50" r="2.5" fill="var(--text-2)" opacity=".5"/>
+                <g id="fcShip" transform="translate(50,50) rotate(0)">
+                  <path d="M0 -8 L5.5 6 L0 3.5 L-5.5 6 Z" fill="var(--primary)" stroke="var(--card)" stroke-width="1"/>
+                </g>
+              </svg>
+              <div class="fc-scale"></div>
+              <!-- 导航数据悬浮窗（地图右上角） -->
+              <div class="fc-ovl">
+                <div class="fc-ovl-t"><span class="dot"></span>飞艇遥测</div>
+                <div class="fc-ovl-i"><label>高度</label><b id="fcOvlH">52.4 m</b></div>
+                <div class="fc-ovl-i"><label>地速</label><b id="fcOvlG">3.2 m/s</b></div>
+                <div class="fc-ovl-i"><label>东向速度</label><b id="fcOvlVx">+2.5 m/s</b></div>
+                <div class="fc-ovl-i"><label>北向速度</label><b id="fcOvlVy">+2.0 m/s</b></div>
+                <div class="fc-ovl-i"><label>升降率</label><b id="fcOvlV">+0.8 m/s</b></div>
+                <div class="fc-ovl-i"><label>航向</label><b id="fcOvlY">127.5°</b></div>
+                <div class="fc-ovl-i"><label>经度</label><b id="fcOvlLon">120.123456°</b></div>
+                <div class="fc-ovl-i"><label>纬度</label><b id="fcOvlLat">30.987654°</b></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1428,7 +1568,7 @@
               <div class="set-row"><label>告警声音</label><select id="setSound"><option>关闭</option><option>开启</option></select></div>
               <div class="set-row"><label>高对比度</label><select id="setContrast"><option>关闭</option><option>开启</option></select></div>
               <div class="set-row"><label>强调色</label><select id="setAccent"><option selected>蓝色</option><option>绿色</option><option>橙色</option><option>紫色</option><option>青色</option></select></div>
-              <div class="hint">快捷键：1-5 切换视图 · 空格 暂停曲线 · S 清屏 · T 主题 · D 密度</div>
+              <div class="hint">快捷键：1-6 切换视图 · 空格 暂停曲线 · S 清屏 · T 主题 · D 密度</div>
             </div>
             <div class="set-group">
               <div class="set-title"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>监控页模块可见性</div>
@@ -1500,8 +1640,8 @@ function applyAccent(v){document.documentElement.setAttribute('data-accent',v);l
 function accentLabel(){const k=Object.keys(ACCENT_MAP).find(x=>ACCENT_MAP[x]===document.documentElement.getAttribute('data-accent'));return k||'蓝色';}
 document.addEventListener('keydown',e=>{
   if(e.target&&e.target.matches&&e.target.matches('input,select,textarea'))return;
-  const map={'1':'monitor','2':'check','3':'map','4':'flight','5':'camera','6':'topo'};
-  if(map[e.key]){const v=map[e.key];document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));}
+  const map={'1':'monitor','2':'check','3':'flight','4':'camera','5':'topo','6':'setup'};
+  if(map[e.key]){switchView(map[e.key]);}
   else if(e.key===' '){e.preventDefault();$('pauseBtn').click();}
   else if(e.key==='s'||e.key==='S'){$('clearBtn').click();}
   else if(e.key==='t'||e.key==='T'){$('themeBtn').click();}
@@ -1516,12 +1656,12 @@ function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{ho
   const s=Math.floor((Date.now()-start)/1000),h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');$('sb-uptime').textContent=h+':'+m+':'+ss;}
 tick();setInterval(tick,1000);
 
-/* 视图切换 */
-document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>{
-  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  n.classList.add('active');$('view-'+n.dataset.view).classList.add('active');
-});
+/* 视图切换（所有页面统一显示底部状态栏） */
+function switchView(v){
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));
+}
+document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>switchView(n.dataset.view));
 /* 系统拓扑：树状层级导航切换 */
 const TREE_LABEL={power:'电源链路',temp:'温度监测',chart:'实时曲线'};
 document.querySelectorAll('.tree-item').forEach(t=>t.onclick=()=>{
@@ -3104,6 +3244,125 @@ function relayoutTopo(cw,ch){
   if(!c)return;
   initTopoEls();
   new ResizeObserver(es=>{es.forEach(e=>relayoutTopo(e.contentRect.width,e.contentRect.height));}).observe(c);
+})();
+/* ===== 飞控监控（只监控不控制）模拟 ===== */
+(function(){
+  const $=id=>document.getElementById(id);
+  if(!$('fcAiBall'))return;
+  const mot=[
+    ['推进 · 左前',1000,380,'var(--primary)'],['推进 · 左后',1000,362,'var(--primary)'],
+    ['推进 · 右后',1000,375,'var(--primary)'],['推进 · 右前',1000,388,'var(--primary)'],
+    ['上升 · 左前',2000,1240,'var(--ok)'],['上升 · 左后',2000,1205,'var(--ok)'],
+    ['上升 · 右后',2000,1218,'var(--ok)'],['上升 · 右前',2000,1255,'var(--ok)'],
+    ['前下降',2000,1102,'var(--ok)'],['后下降',2000,1160,'var(--ok)']
+  ];
+  const box=$('fcMotors'),rows=[];
+  [['推进电机',0,4],['上升电机',4,8],['下降电机',8,10]].forEach(g=>{
+    const sec=document.createElement('div');sec.className='fc-msect';sec.textContent=g[0];box.appendChild(sec);
+    for(let i=g[1];i<g[2];i++){
+      const m=mot[i],row=document.createElement('div');row.className='fc-motor';
+      const mn=document.createElement('span');mn.className='mn';mn.textContent=m[0];
+      const mb=document.createElement('div');mb.className='mb';
+      const mi=document.createElement('i');mi.style.background=m[3];mb.appendChild(mi);
+      const mv=document.createElement('span');mv.className='mv';
+      const rv=document.createElement('span');rv.className='rv';
+      const tv=document.createElement('span');tv.className='t';
+      mv.appendChild(rv);mv.appendChild(tv);
+      row.appendChild(mn);row.appendChild(mb);row.appendChild(mv);box.appendChild(row);
+      rows.push({m,mi,rv,tv,val:m[2],temp:40+i*2.4,phase:Math.random()*6.28});
+    }
+  });
+  /* 飞控状态（对接协议 fc 字段） */
+  const st={online:true,armed:true,mode:'定高',roll:-1.4,pitch:3.2,yaw:127.5,lat:30.987654,lon:120.123456,alt:52.4,vx:2.5,vy:2.0,vz:0.8,batt_v:367.2,batt_pct:0.85};
+  /* 地图飞行器 + 航迹 */
+  const ship={x:50,y:50,path:[]};
+  const TH=65,fmt=v=>(v>=0?'+':'')+v.toFixed(1);
+  /* 飞控告警历史（只读明细） */
+  const fcAlarms=[];let lastHot=false;
+  const armSvg='<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="15" r="1.5"/></svg>';
+  function tick(){
+    /* 电池（fc.batt_v/batt_pct）微动 */
+    st.batt_v=Math.max(360,Math.min(375,st.batt_v+(Math.random()-0.5)*0.3));
+    st.batt_pct=Math.max(0.8,Math.min(0.95,st.batt_pct+(Math.random()-0.5)*0.004));
+    /* 姿态（fc.roll/pitch/yaw） */
+    st.pitch=Math.max(-25,Math.min(25,st.pitch+(Math.random()-0.5)*0.5));
+    st.roll=Math.max(-30,Math.min(30,st.roll+(Math.random()-0.5)*0.4));
+    st.yaw=(st.yaw+(Math.random()-0.5)*0.8+360)%360;
+    $('fcAiBall').setAttribute('transform','rotate('+st.roll.toFixed(1)+' 105 105)');
+    $('fcAiPitch').setAttribute('transform','translate(0 '+Math.round(st.pitch*2.5)+')');
+    $('fcAttLbl').textContent='俯仰 '+fmt(st.pitch)+'° · 横滚 '+fmt(st.roll)+'° · 航向 '+st.yaw.toFixed(1)+'°';
+    /* 导航（fc.alt/vx/vy/vz/lat/lon）；地速=√(vx²+vy²)，升降率=vz */
+    st.alt=Math.max(0,st.alt+(Math.random()-0.5)*0.4);
+    st.vx=Math.max(-5,Math.min(5,st.vx+(Math.random()-0.5)*0.2));
+    st.vy=Math.max(-5,Math.min(5,st.vy+(Math.random()-0.5)*0.2));
+    st.vz=Math.max(-3,Math.min(3,st.vz+(Math.random()-0.5)*0.3));
+    st.lat+=(Math.random()-0.5)*1e-6; st.lon+=(Math.random()-0.5)*1e-6;
+    const gs=Math.hypot(st.vx,st.vy);
+    /* 地图悬浮窗（导航数据） */
+    $('fcOvlH').textContent=st.alt.toFixed(1)+' m';
+    $('fcOvlG').textContent=gs.toFixed(1)+' m/s';
+    $('fcOvlVx').textContent=fmt(st.vx)+' m/s';
+    $('fcOvlVy').textContent=fmt(st.vy)+' m/s';
+    $('fcOvlV').textContent=fmt(st.vz)+' m/s';
+    $('fcOvlY').textContent=st.yaw.toFixed(1)+'°';
+    $('fcOvlLon').textContent=st.lon.toFixed(6)+'°';
+    $('fcOvlLat').textContent=st.lat.toFixed(6)+'°';
+    /* 顶栏横幅（fc.online/mode/armed/batt） */
+    $('fcOnline').className='fc-pill'+(st.online?' ok':' off');
+    $('fcOnline').innerHTML='<span class="dot"></span>'+(st.online?'在线':'离线');
+    $('fcModeBar').textContent=st.mode;
+    $('fcArm').className='fc-pill arm'+(st.armed?'':' off');
+    $('fcArm').innerHTML=st.armed?armSvg.replace('<circle cx="12" cy="15" r="1.5"/>','')+'已解锁':armSvg+'已锁定';
+    $('fcBattPct').textContent=Math.round(st.batt_pct*100)+'%';
+    $('fcBattV').textContent=st.batt_v.toFixed(1)+' V';
+    /* 地图飞行器沿航向移动 + 航迹（yaw 定方向，地速定幅度） */
+    const rad=st.yaw*Math.PI/180,v=Math.max(0.15,Math.min(gs,0.8));
+    ship.x+=Math.sin(rad)*v; ship.y-=Math.cos(rad)*v;
+    if(ship.x<6){st.yaw=180-st.yaw;} if(ship.x>94){st.yaw=180-st.yaw;}
+    if(ship.y<6){st.yaw=-st.yaw;} if(ship.y>94){st.yaw=-st.yaw;}
+    ship.path.push([ship.x,ship.y]);
+    if(ship.path.length>180)ship.path.shift();
+    $('fcShip').setAttribute('transform','translate('+ship.x.toFixed(1)+','+ship.y.toFixed(1)+') rotate('+st.yaw.toFixed(1)+')');
+    $('fcTrack').setAttribute('d','M'+ship.path.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L'));
+    /* 电机：转速抖动 + 温度缓变（1 台周期抬升演示告警） */
+    let anyHot=false;
+    rows.forEach(r=>{
+      r.phase+=0.15;
+      const tgt=r.m[2]+Math.sin(r.phase)*r.m[1]*0.06;
+      r.val=Math.max(0,Math.min(r.m[1],r.val+(tgt-r.val)*0.2+(Math.random()-0.5)*20));
+      r.mi.style.width=Math.max(2,Math.round(r.val/r.m[1]*100))+'%';
+      r.temp+=(45+Math.sin(r.phase*0.4)*22-r.temp)*0.03+(Math.random()-0.5)*0.8;
+      if(r.temp>TH)anyHot=true;
+      r.rv.textContent=Math.round(r.val)+' rpm ';
+      r.tv.textContent=Math.round(r.temp)+'°C';
+      r.tv.className='t'+(r.temp>TH?' w':'');
+    });
+    /* 横幅 GPS / 告警（链路质量/数据率由全局状态栏展示） */
+    const gps=15+(Math.random()<0.3?1:0);
+    $('fcGpsBarV').textContent=gps+' 颗';
+    /* 告警（电机温度） */
+    const alarms=anyHot?1:0;
+    $('fcAlarmBar').className='fc-pill'+(alarms>0?' warn':' ok');
+    $('fcAlarmBarV').textContent=alarms;
+    /* 告警明细历史：温度超限边沿触发记录 */
+    const hotRow=rows.find(r=>r.temp>TH);
+    if(anyHot&&!lastHot&&hotRow){
+      const d=new Date(),p=n=>(n<10?'0'+n:n);
+      fcAlarms.unshift({t:p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()),lv:'w',msg:hotRow.m[0]+' 温度 '+Math.round(hotRow.temp)+'°C 超限'});
+      if(fcAlarms.length>8)fcAlarms.pop();
+    }
+    lastHot=anyHot;
+    $('fcAiTag').textContent='正常'; $('fcAiTag').className='tag g';
+  }
+  /* 电机折叠（只读展开/收起） */
+  $('fcMfoldH').addEventListener('click',()=>{$('fcMfold').classList.toggle('open');});
+  /* 告警明细弹窗（只读） */
+  $('fcAlarmBar').style.cursor='pointer';
+  $('fcAlarmBar').addEventListener('click',()=>{
+    const rows=fcAlarms.length?fcAlarms.map(a=>'<div class="fc-alarm-row"><span class="lv '+a.lv+'">'+(a.lv==='w'?'WARN':'CRIT')+'</span><span class="msg">'+a.msg+'</span><span class="tm">'+a.t+'</span></div>').join(''):'<div style="padding:14px 16px;font-size:13px;color:var(--text-2)">当前无告警</div>';
+    openModal('飞控告警明细', '<div style="max-height:320px;overflow:auto;padding:4px 0">'+rows+'</div>');
+  });
+  tick();setInterval(tick,1000);
 })();
 </script>
 <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>

@@ -61,6 +61,31 @@ Item {
         return root.fmt(bridge.value(dev,key), dp) + (unit||"")
     }
     function battStr() { void root.themeRoot.dataTick; return root.fmt(bridge.value("bms","soc"),0) + "%" }
+
+    // 空气囊气压：从 LoRa 压力节点取压力值（Pa），无压力节点返回 NaN
+    function airbagPressure() {
+        void root.themeRoot.dataTick
+        const nodes = root.loraNodes()
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].pressure !== 0 && !isNaN(nodes[i].pressure))
+                return nodes[i].pressure
+        }
+        return NaN
+    }
+    // 飞控横幅数据（带 dataTick 依赖）
+    function fcBanVal(key, dp) {
+        void root.themeRoot.dataTick
+        return root.fmt(bridge.value("fc", key), dp)
+    }
+    function fcBanMode() { void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
+    function fcBanArmed() { void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
+    // 飞控地速（水平合成）
+    function fcGroundSpeed() {
+        void root.themeRoot.dataTick
+        const vx = bridge.value("fc","vx"), vy = bridge.value("fc","vy")
+        if (isNaN(vx) || isNaN(vy)) return NaN
+        return Math.sqrt(vx*vx + vy*vy)
+    }
     function bkSoc() { void root.themeRoot.dataTick; return bridge.value("backup","soc") }
     function backupStr(fid, u) {
         void root.themeRoot.dataTick
@@ -222,15 +247,23 @@ Item {
                                 textFormat: Text.RichText
                             }
                             Text {
-                                text: "电池电量 <b>" + root.battStr() + "</b>"
+                                text: "模式 <b>" + (root.fcBanMode() || "—") + "</b>"
                                 font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
-                                text: "舱内温度 <b>" + root.toTemp(bridge.value("bms","max_t")) + " " + root.tempUnit() + "</b>"
+                                text: "解锁 <b>" + (root.fcBanArmed() ? "是" : "否") + "</b>"
                                 font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
-                                text: "舱内气压 <b>—</b>"
+                                text: "高度 <b>" + root.fcBanVal("alt",0) + " m</b>"
+                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                            }
+                            Text {
+                                text: "速度 <b>" + root.fmt(root.fcGroundSpeed(),1) + " m/s</b>"
+                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                            }
+                            Text {
+                                text: "空气囊气压 <b>" + root.presStr(root.airbagPressure()) + "</b>"
                                 font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                         }
