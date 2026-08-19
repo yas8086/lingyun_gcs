@@ -100,7 +100,15 @@ void ConfigManager::set(const char *key, const QJsonValue &v) {
 }
 
 QString ConfigManager::port() const {
-    return value("port").toString();
+    const QString p = value("port").toString();
+    if (!p.isEmpty())
+        return p;
+    // 无配置时按平台给合理默认串口：Linux 常见数传为 /dev/ttyUSB0，Windows 为 COM3
+#ifdef Q_OS_WIN
+    return QStringLiteral("COM3");
+#else
+    return QStringLiteral("/dev/ttyUSB0");
+#endif
 }
 
 qint32 ConfigManager::baud() const {

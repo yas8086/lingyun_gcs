@@ -9,6 +9,12 @@
 #include <QNetworkInterface>
 #include <QAbstractSocket>
 #include <limits>
+#ifdef Q_OS_WIN
+// Windows 网口物理链路检测依赖 IP Helper API（GetAdaptersAddresses 查 OperStatus）
+#include <winsock2.h>   // 必须最先包含，先于 windows.h
+#include <windows.h>
+#include <iphlpapi.h>
+#endif
 
 namespace lgs {
 
@@ -69,8 +75,10 @@ QStringList TelemetryBridge::ports() const {
     const auto infos = QSerialPortInfo::availablePorts();
     for (const auto &info : infos)
         list << info.portName();
+#ifndef Q_OS_WIN
     // 追加虚拟串口（如 socat 创建的 /tmp/gcs_pty*）：QSerialPortInfo 只枚举
     // /dev 下标准串口，不识别 /tmp 下的符号链接，此处手动补上便于本地模拟联调。
+    // Windows 下无 /tmp，联调用 com0com 等虚拟串口对工具，会自动出现在 COM 列表，无需此处补全。
     const auto entries = QDir("/tmp").entryList(QStringList() << "gcs_pty*",
                                                 QDir::AllEntries | QDir::NoDotAndDotDot,
                                                 QDir::Name);
@@ -79,6 +87,7 @@ QStringList TelemetryBridge::ports() const {
         if (!list.contains(path))
             list << path;
     }
+#endif
     return list;
 }
 bool TelemetryBridge::openSerial(const QString &port, int baud) {
@@ -315,10 +324,37 @@ int TelemetryBridge::uptimeSeconds() const {
 
 // ---- 网络接口状态（网口链路检测）----
 // 返回 QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>。
-// linkUp 为物理链路状态（Linux 读 /sys/class/net/<iface>/carrier，即网线是否插入）；
-// 无法读取（如回环/虚拟网卡无 carrier 文件）时为 null。
+// linkUp 为物理链路状态（网线是否插入）：
+//  - Windows：GetAdaptersAddresses 查适配器 OperStatus（IfOperStatusUp=已连接）；
+//  - Linux：读 /sys/class/net/<iface>/carrier（1=已插，0=未插/断开）；
+// 无法获取（如回环/虚拟网卡）时为 null。
 QVariant TelemetryBridge::netInterfaces() const {
     QVariantList list;
+#ifdef Q_OS_WIN
+    // 预取 物理地址(MAC) → 链路状态(OperStatus) 映射，供下方按 MAC 匹配
+    // （QNetworkInterface::allInterfaces 的 name 与 IP Helper 的 AdapterName 编码不一致，
+    //   用稳定的 MAC 关联最可靠）
+    QHash<QString, bool> macLinkUp;
+    ULONG bufLen = 0;
+    const ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+    ::GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, nullptr, &bufLen);
+    if (bufLen > 0) {
+        QByteArray buf(int(bufLen), Qt::Uninitialized);
+        auto *addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES *>(buf.data());
+        if (::GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, addrs, &bufLen) == NO_ERROR) {
+            for (auto *p = addrs; p; p = p->Next) {
+                QString mac;
+                for (ULONG i = 0; i < p->PhysicalAddressLength; ++i) {
+                    mac += QStringLiteral("%1").arg(p->PhysicalAddress[i], 2, 16, QLatin1Char('0')).toUpper();
+                    if (i + 1 < p->PhysicalAddressLength)
+                        mac += QLatin1Char(':');
+                }
+                if (!mac.isEmpty())
+                    macLinkUp[mac] = (p->OperStatus == IfOperStatusUp);
+            }
+        }
+    }
+#endif
     const auto ifaces = QNetworkInterface::allInterfaces();
     for (const auto &iface : ifaces) {
         if (iface.flags() & QNetworkInterface::IsLoopBack)
@@ -337,7 +373,11 @@ QVariant TelemetryBridge::netInterfaces() const {
             }
         }
         m["ip"] = ip;
-        // 物理链路状态：Linux 下读 carrier 文件（1=网线已插，0=未插/断开）
+        // 物理链路状态：Windows 用 IP Helper API，Linux 读 carrier 文件
+#ifdef Q_OS_WIN
+        // 统一转大写再匹配：Qt hardwareAddress() 与 IP Helper 的 MAC 大小写格式未必一致
+        m["linkUp"] = macLinkUp.value(iface.hardwareAddress().toUpper(), false);
+#else
         bool readable = false;
         bool linkUp = false;
         QFile f(QStringLiteral("/sys/class/net/%1/carrier").arg(iface.name()));
@@ -347,6 +387,7 @@ QVariant TelemetryBridge::netInterfaces() const {
             f.close();
         }
         m["linkUp"] = readable ? QVariant(linkUp) : QVariant();
+#endif
         list.append(m);
     }
     return list;

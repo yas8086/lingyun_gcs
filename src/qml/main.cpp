@@ -19,19 +19,34 @@
 // 用 QApplication（而非 QGuiApplication）：QtCharts 内部依赖 QWidgetTextControl。
 int main(int argc, char *argv[]) {
     // 必须在 QApplication 构造之前设置：
+#ifdef Q_OS_LINUX
     // 1. QSG_RENDER_LOOP=basic —— 强制 Qt Quick 在主线程渲染，
     //    避免 Intel Iris Xe + Mesa 驱动下 threaded 渲染线程死锁
     //    （症状：窗口显示创建瞬间屏幕残留像素、拖动窗口内容冻结不更新）。
-    // 2. 默认禁用 alpha 缓冲区，确保窗口背景始终不透明。
+    //    Windows 使用默认 threaded 渲染（更流畅），故仅对 Linux 生效。
     qputenv("QSG_RENDER_LOOP", "basic");
+#endif
+    // 2. 默认禁用 alpha 缓冲区，确保窗口背景始终不透明。
     QQuickWindow::setDefaultAlphaBuffer(false);
-
-    // GStreamer 初始化（RTSP 拉流，B 方案）；仅需一次
-    gst_init(nullptr, nullptr);
 
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("LingYun");
     QCoreApplication::setApplicationName("GroundStationQml");
+
+#ifdef Q_OS_WIN
+    // GStreamer 自包含部署：运行库与插件随 exe 打包到同级目录（见 packaging/pack_win.bat），
+    // 目标机无需安装 GStreamer。必须在 gst_init 之前设置：
+    //  - GST_PLUGIN_PATH：指定自带插件目录（exe 同级 gstreamer-1.0/）；
+    //  - GST_PLUGIN_SYSTEM_PATH：隔离系统 GStreamer，避免现场机器版本冲突；
+    //  - GST_PLUGIN_SCANNER：指定随包的插件扫描器（首次运行注册插件需要）。
+    const QString exeDir = QCoreApplication::applicationDirPath();
+    qputenv("GST_PLUGIN_PATH", (exeDir + QStringLiteral("/gstreamer-1.0")).toLocal8Bit());
+    qputenv("GST_PLUGIN_SYSTEM_PATH", (exeDir + QStringLiteral("/gstreamer-1.0")).toLocal8Bit());
+    qputenv("GST_PLUGIN_SCANNER", (exeDir + QStringLiteral("/gst-plugin-scanner.exe")).toLocal8Bit());
+#endif
+
+    // GStreamer 初始化（RTSP 拉流，B 方案）；仅需一次
+    gst_init(nullptr, nullptr);
 
     // 注册自定义元类型，支持跨线程 QueuedConnection
     qRegisterMetaType<lgs::TelemetryData>("lgs::TelemetryData");

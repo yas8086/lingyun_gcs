@@ -134,7 +134,7 @@ public:
     bool gimbalConnected() const;
     double gimbalPitch() const;
     // 网络接口状态（网口链路检测）：QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>
-    // linkUp 为物理链路状态（Linux 读 /sys/class/net/*/carrier，即网线是否连接）
+    // linkUp 为物理链路状态：Windows 查 OperStatus，Linux 读 /sys/class/net/*/carrier
     Q_INVOKABLE QVariant netInterfaces() const;
 
     // 告警列表与确认（决策 #20）

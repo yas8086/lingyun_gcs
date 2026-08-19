@@ -22,7 +22,7 @@ if(BUILD_TESTING)
 endif()
 
 # ===== QML 版地面站（复刻原型视觉，Qt Quick + QtCharts）=====
-add_executable(lingyun_gcs_qml
+add_executable(LingyunGCS
     src/qml/main.cpp
     src/model/telemetry_data.cpp
     src/comms/frame_parser.cpp
@@ -42,7 +42,7 @@ add_executable(lingyun_gcs_qml
     src/video/video_surface.cpp
 )
 
-qt_add_resources(lingyun_gcs_qml "qml_res"
+qt_add_resources(LingyunGCS "qml_res"
     PREFIX "/qml"
     BASE src/qml
     FILES src/qml/main.qml
@@ -60,11 +60,16 @@ qt_add_resources(lingyun_gcs_qml "qml_res"
           src/qml/img/flight-data.svg
 )
 
-target_link_libraries(lingyun_gcs_qml PRIVATE
+target_link_libraries(LingyunGCS PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Charts Qt6::SerialPort Qt6::Network
     PkgConfig::GST
 )
 
-target_include_directories(lingyun_gcs_qml PRIVATE
+# Windows：网口物理链路检测用 IP Helper API（GetAdaptersAddresses）
+if(WIN32)
+    target_link_libraries(LingyunGCS PRIVATE iphlpapi)
+endif()
+
+target_include_directories(LingyunGCS PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )

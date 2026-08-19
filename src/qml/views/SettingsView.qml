@@ -202,6 +202,10 @@ Item {
                                 // editable 下 contentItem 为 TextField，统一配色与字体
                                 // （callLater：themeRoot 由 Loader.onLoaded 注入，须等注入后再取色）
                                 if (contentItem) { contentItem.color = root.themeRoot.colText; contentItem.font = portCombo.font }
+                                // 无配置时给平台默认串口（bridge.port() 按平台返回默认值），
+                                // 便于首次使用直接点开串口，无需手动输入
+                                if (portCombo.editText === "")
+                                    portCombo.editText = bridge.port()
                             })
                         }
                         Button {
