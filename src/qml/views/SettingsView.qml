@@ -133,12 +133,22 @@ Item {
             border.width: 1
             border.color: ctrl.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
             color: ctrl.checked ? root.themeRoot.colPrimary : "transparent"
-            Text {
+            // 对号用 Canvas 精确居中绘制（Text "✓" 受字体基线影响会视觉偏移）
+            Canvas {
                 anchors.centerIn: parent
-                text: "✓"
+                width: 12; height: 12
                 visible: ctrl.checked
-                color: "white"
-                font.pixelSize: 12; font.bold: true
+                onPaint: {
+                    const ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.strokeStyle = "white"
+                    ctx.lineWidth = 2
+                    ctx.lineCap = "round"
+                    ctx.lineJoin = "round"
+                    ctx.beginPath()
+                    ctx.moveTo(2, 7); ctx.lineTo(5, 10); ctx.lineTo(10, 3)
+                    ctx.stroke()
+                }
             }
         }
     }
