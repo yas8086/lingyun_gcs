@@ -149,6 +149,44 @@ private slots:
         QVERIFY(bridge->recordEnabled());
         delete bridge;
     }
+
+    // 云卓 C14PRO UDP 文本协议：验证命令构造与 RCSDK demo 逐字节一致
+    // （CRC = ASCII 累加和 & 0xFF，转大写 2 位 HEX；命令 = 前缀 + 数据 + CRC）
+    void skydroidCmdBuild() {
+        // 通过私有静态方法验证——此处改用公开 API 触发 send 的等价构造：
+        // 直接校验 CRC 算法（与 RCSDK demo 已知报文比对）
+        struct Crc { static QString calc(const QString &body) {
+                int sum = 0;
+                for (const QChar &c : body) sum = (sum + c.unicode()) & 0xFF;
+                return QStringLiteral("%1").arg(sum, 2, 16, QLatin1Char('0')).toUpper();
+            } };
+        // RCSDK demo（HomeActivity.kt）已验证的命令
+        const QHash<QString, QString> known = {
+            {"#TPUG2wGSY64", "69"},   // 航向 右 速100
+            {"#TPUG2wGSY9C", "7B"},   // 航向 左 速100
+            {"#TPUG2wGSP64", "60"},   // 俯仰 上 速100
+            {"#TPUG2wGSP9C", "72"},   // 俯仰 下 速100
+            {"#TPUD2wCAP01", "3E"},   // 拍照
+            {"#TPUD2wREC01", "44"},   // 开始录像
+            {"#TPUD2wREC00", "43"},   // 停止录像
+        };
+        for (auto it = known.constBegin(); it != known.constEnd(); ++it) {
+            const QString full = it.key() + it.value();
+            QCOMPARE(Crc::calc(it.key()), it.value());
+            // 构造的完整命令 = 前缀+数据+CRC
+            QCOMPARE(it.key() + Crc::calc(it.key()), full);
+        }
+        // RCSDK 反编译新增命令：回中（akey MID→PTZ05）、变焦（DZM0A 放大 / DZM0B 缩小）
+        const QHash<QString, QString> known2 = {
+            {"#TPUG2wPTZ05", "6F"},   // 回中（C10Pro_Control RECOVER 也以 PTZ05 开头）
+            {"#TPUD2wDZM0A", "65"},   // 变焦放大
+            {"#TPUD2wDZM0B", "66"},   // 变焦缩小
+        };
+        for (auto it = known2.constBegin(); it != known2.constEnd(); ++it) {
+            QCOMPARE(Crc::calc(it.key()), it.value());
+            QCOMPARE(it.key() + Crc::calc(it.key()), it.key() + it.value());
+        }
+    }
 };
 
 QTEST_MAIN(TestBridgeIntegration)

@@ -24,6 +24,7 @@ Item {
     property real recStart: 0        // 录像开始时间戳（ms；须用 real，int 是 32 位会溢出 Date.now()）
     property int recElapsed: 0       // 已录制秒数（streamWatch 每秒刷新，供 REC 计时显示）
     property var recCamIds: []       // 实际在录的相机 id 集（仅选中且在线出帧的相机）
+    property bool recSkyOn: false    // 当前录像是否含云卓 C14PRO（相机本地录 TF 卡）
     property bool connBusy: false    // 重连中
     // 拉流设置草稿：弹窗内一切修改只改草稿，点「保存设置」才写回生效，点 ✕ 关闭即丢弃
     property var cfgDraft: []
@@ -35,17 +36,20 @@ Item {
     // 思翼云台（A2 mini）：持有其相机 IP，SDK 会话随页面启动（特征：RTSP 端口 8554）。
     // 用 IP 而非 id 判断：同相机仅改 IP 时也能正确重启 SDK 会话
     property string gimbalCamIp: ""
+    // 云卓云台相机（C14PRO，UDP 5000）：持有其相机 IP，会话随页面启动
+    property string skyGimbalIp: ""
     // 画面比例（对齐原型 camRatio）：16:9 / 4:3 / 1:1 / 填充，点击循环切换
     property var ratios: [["16:9","16:9"],["4:3","4:3"],["1:1","1:1"],["auto","填充"]]
     property int ratioIdx: 0
 
-    // ===== 默认相机配置（对齐原型 CAM_CFG_DEFAULT，ptz=云台相机标记）=====
-    // 前视相机 cam_0 为当前真实接入摄像头：rtsp://192.168.144.25:8554/main.264（无认证）
+    // ===== 默认相机配置（对齐原型 CAM_CFG_DEFAULT，ptz=云台相机标记，gimbal=云台协议类型）=====
+    // gimbal: "" 无云台 / "siyi" 思翼 A2 mini（UDP 37260）/ "skydroid" 云卓 C14PRO（UDP 5000）
+    // 前视相机 cam_0 为当前真实接入摄像头：rtsp://192.168.144.25:8554/main.264（无认证，思翼 A2 mini）
     property var camDefault: [
-        {id:"cam_0", name:"前视相机", enable:true,  ptz:true,  ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
-        {id:"cam_1", name:"后视相机", enable:true,  ptz:false, ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
-        {id:"cam_2", name:"吊舱相机", enable:false, ptz:true,  ip:"192.168.1.103", port:554, path:"/live/stream2", user:"admin", pass:"12345", stream:"主码流", transport:"UDP", fps:25},
-        {id:"cam_3", name:"地面相机", enable:true,  ptz:false, ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
+        {id:"cam_0", name:"前视相机", enable:true,  ptz:true,  gimbal:"siyi",     ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_1", name:"后视相机", enable:true,  ptz:false, gimbal:"",          ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_2", name:"吊舱相机", enable:false, ptz:true,  gimbal:"skydroid",  ip:"192.168.144.108", port:554, path:"/stream=1", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_3", name:"地面相机", enable:true,  ptz:false, gimbal:"",          ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
     ]
 
     function toast(msg, type) { root.showNote(msg, type || "ok") }
@@ -105,16 +109,27 @@ Item {
             s.url = c.ip ? root.camRtspUrl(i) : ""
             if (!c.ip) s.stop()
         }
-        // 思翼云台 IP 变更时重启 SDK 会话（用 IP 而非 id：同相机改 IP 也能正确重启）
-        var gb = ""
+        // 思翼云台（gimbal=siyi）IP 变更时重启 SDK 会话（用 IP 而非 id：同相机改 IP 也能正确重启）
+        var siyiIp = ""
         for (var j = 0; j < root.camCfg.length; j++) {
             var gj = root.camCfg[j]
-            if (gj && gj.ip && gj.port === 8554) { gb = gj.ip; break }
+            if (gj && gj.ip && gj.gimbal === "siyi") { siyiIp = gj.ip; break }
         }
-        if (gb !== root.gimbalCamIp) {
-            root.gimbalCamIp = gb
-            if (gb) bridge.startGimbal(gb)
+        if (siyiIp !== root.gimbalCamIp) {
+            root.gimbalCamIp = siyiIp
+            if (siyiIp) bridge.startGimbal(siyiIp)
             else bridge.stopGimbal()
+        }
+        // 云卓云台相机（gimbal=skydroid，如 C14PRO）IP 变更时重启会话
+        var skyIp = ""
+        for (var k = 0; k < root.camCfg.length; k++) {
+            var sk = root.camCfg[k]
+            if (sk && sk.ip && sk.gimbal === "skydroid") { skyIp = sk.ip; break }
+        }
+        if (skyIp !== root.skyGimbalIp) {
+            root.skyGimbalIp = skyIp
+            if (skyIp) bridge.startSkyGimbal(skyIp)
+            else bridge.stopSkyGimbal()
         }
         root.manageStreams()
     }
@@ -157,12 +172,19 @@ Item {
     function camIdxOf(id) {
         return root.camIdxIn(root.camCfg, id)
     }
-    // 判断某相机是否为当前云台相机（RTSP 端口 8554 且 IP 与云台会话一致）
+    // 判断某相机是否为当前思翼云台相机（gimbal=siyi 且 IP 与云台会话一致）
     function isGimbalCam(id) {
         const i = root.camIdxOf(id)
         if (i < 0 || !root.camCfg[i]) return false
         const c = root.camCfg[i]
-        return c.port === 8554 && c.ip === root.gimbalCamIp
+        return c.gimbal === "siyi" && c.ip === root.gimbalCamIp
+    }
+    // 判断某相机是否为当前云卓云台相机（gimbal=skydroid，如 C14PRO）
+    function isSkyCam(id) {
+        const i = root.camIdxOf(id)
+        if (i < 0 || !root.camCfg[i]) return false
+        const c = root.camCfg[i]
+        return c.gimbal === "skydroid" && c.ip === root.skyGimbalIp
     }
     function camIdxIn(arr, id) {   // 通用：在指定数组中找相机 id 索引
         for (var i = 0; i < (arr ? arr.length : 0); i++)
@@ -191,11 +213,13 @@ Item {
             root.camCfg = root.camDefault.map(function(c){ return Object.assign({}, c) })
             bridge.saveCameraConfigs(root.camCfg)
         } else {
-            // 旧配置迁移：无 ptz 字段的项按默认配置对应索引补齐（对齐原型迁移逻辑）
+            // 旧配置迁移：无 ptz/gimbal 字段的项按默认配置对应索引补齐（对齐原型迁移逻辑）
             root.camCfg = cfg.map(function(c, i) {
                 var o = Object.assign({}, c)
                 if (o.ptz === undefined)
                     o.ptz = (root.camDefault[i] && i < root.camDefault.length) ? !!root.camDefault[i].ptz : false
+                if (o.gimbal === undefined)
+                    o.gimbal = (root.camDefault[i] && i < root.camDefault.length) ? (root.camDefault[i].gimbal || "") : ""
                 return o
             })
         }
@@ -235,8 +259,9 @@ Item {
             var s = bridge.videoStream(c.id)
             if (s && s.started) s.stop()
         }
-        // 停止思翼云台会话（切出页面无需维持姿态轮询）
+        // 停止思翼/云卓云台会话（切出页面无需维持姿态轮询/连接）
         bridge.stopGimbal()
+        bridge.stopSkyGimbal()
     }
 
     Timer {
@@ -758,10 +783,21 @@ Item {
                                 border.width: 1
                                 implicitWidth: 172
                                 implicitHeight: root.ptzFolded ? 26 : ptzBodyCol.implicitHeight + 26
-                                // 方向按钮发出指令（yaw,pitch）：A2 mini 仅 pitch 生效；速度 40 中速
+                                // 方向按钮发出指令（yaw,pitch）：思翼 A2 mini 仅 pitch 生效；云卓 C14PRO 双轴
                                 function move(yaw, pitch) {
-                                    if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected)
+                                    if (root.isSkyCam(modelData.id)) {
+                                        bridge.skyGimbalCtrlMove(yaw, pitch)
+                                    } else if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected) {
                                         bridge.gimbalCtrlMove(yaw, pitch)
+                                    }
+                                }
+                                // 回中：云卓 #TPUG2wPTZ05；思翼 SDK 0x08
+                                function center() {
+                                    if (root.isSkyCam(modelData.id)) {
+                                        bridge.skyGimbalCenter()
+                                    } else if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected) {
+                                        bridge.gimbalCenter()
+                                    }
                                 }
                                 Column {
                                     id: ptzBodyCol
@@ -816,11 +852,12 @@ Item {
                                         Grid {
                                             columns: 3
                                             spacing: 3
-                                            // 按钮组件：按住连续触发（260ms），松手停止
+                                            // 按钮组件：方向键按住连续触发（260ms）松手停止；回中为点击触发
                                             component PtzBtn: Rectangle {
                                                 id: pb
                                                 property string glyph: ""
                                                 property bool isStop: false
+                                                property bool isCenter: false   // true=回中（点击触发，非按住连续）
                                                 property int mvYaw: 0
                                                 property int mvPitch: 0
                                                 property bool isMove: true     // false=停止按钮（发 0,0）
@@ -839,6 +876,7 @@ Item {
                                                     anchors.fill: parent
                                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onPressed: {
+                                                        if (pb.isCenter) { ptzPanel.center(); return }
                                                         ptzPanel.move(pb.mvYaw, pb.mvPitch)
                                                         repeatT.restart()
                                                     }
@@ -856,14 +894,14 @@ Item {
                                             PtzBtn { glyph: "▲"; mvYaw: 0;   mvPitch: 40 }    // 上（俯仰+）
                                             PtzBtn { glyph: "◥"; mvYaw: 40;  mvPitch: 40 }    // 右上
                                             PtzBtn { glyph: "◀"; mvYaw: -40; mvPitch: 0 }     // 左
-                                            PtzBtn { glyph: "●"; isStop: true; mvYaw: 0; mvPitch: 0 }  // 停止
+                                            PtzBtn { glyph: "◎"; isCenter: true }             // 回中（点击触发）
                                             PtzBtn { glyph: "▶"; mvYaw: 40;  mvPitch: 0 }     // 右
                                             PtzBtn { glyph: "◣"; mvYaw: -40; mvPitch: -40 }   // 左下
                                             PtzBtn { glyph: "▼"; mvYaw: 0;   mvPitch: -40 }   // 下（俯仰-）
                                             PtzBtn { glyph: "◢"; mvYaw: 40;  mvPitch: -40 }   // 右下
                                         }
 
-                                        // 变倍列（.ptz-zoom）：A2 mini 不支持变倍，点击提示
+                                        // 变倍列（.ptz-zoom）：云卓 C14PRO 支持变焦；思翼 A2 mini 不支持，点击提示
                                         Column {
                                             spacing: 3
                                             anchors.verticalCenter: parent.verticalCenter
@@ -876,7 +914,10 @@ Item {
                                                     id: zinMa
                                                     anchors.fill: parent
                                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                    onClicked: {
+                                                        if (root.isSkyCam(modelData.id)) bridge.skyGimbalZoom(1)
+                                                        else root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                    }
                                                 }
                                             }
                                             Rectangle {
@@ -888,7 +929,46 @@ Item {
                                                     id: zoutMa
                                                     anchors.fill: parent
                                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                    onClicked: {
+                                                        if (root.isSkyCam(modelData.id)) bridge.skyGimbalZoom(-1)
+                                                        else root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                    }
+                                                }
+                                            }
+                                            // 变焦档位切换（云卓 C14PRO：100 倍混合变焦 = 短焦 59x + 长焦 41x）
+                                            // 两档：1x（广角镜头）↔ 10x（长焦镜头）。点击切换，只显示档位文字。
+                                            // 两套云台相机均显示该按钮；思翼 A2 mini 不支持变焦，点击提示
+                                            Rectangle {
+                                                property bool isTele: false   // true=10x 长焦 / false=1x 广角
+                                                width: 36; height: 28; radius: 6
+                                                color: lensMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
+                                                border.width: 1; border.color: Qt.rgba(1,1,1,0.16)
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: parent.isTele ? "10x" : "1x"
+                                                    color: "#dbe6ff"; font.pixelSize: 11; font.weight: Font.Bold
+                                                }
+                                                ToolTip.visible: lensMa.containsMouse
+                                                ToolTip.text: parent.isTele ? "当前：长焦 10x · 点击切广角 1x" : "当前：广角 1x · 点击切长焦 10x"
+                                                ToolTip.delay: 400
+                                                MouseArea {
+                                                    id: lensMa
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (!root.isSkyCam(modelData.id)) {
+                                                            root.toast(modelData.name + " 不支持变焦档位切换", "err")
+                                                            return
+                                                        }
+                                                        parent.isTele = !parent.isTele
+                                                        if (parent.isTele) {
+                                                            bridge.skyGimbalSetLens(1)   // 长焦 → 10x
+                                                            root.toast(modelData.name + " 变焦 10x（长焦镜头）")
+                                                        } else {
+                                                            bridge.skyGimbalSetLens(0)   // 广角 → 1x
+                                                            root.toast(modelData.name + " 变焦 1x（广角镜头）")
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -913,10 +993,13 @@ Item {
                                     Text { text: root.osdClock; font.pixelSize: 11; font.family: "monospace"; color: "#ffffff"; font.weight: Font.Bold }
                                     Text { text: root.fmt2(bridge.value("fc","lat")) + "°N    " + root.fmt2(bridge.value("fc","lon")) + "°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
                                     Text { text: "ALT " + root.fmt0(bridge.value("fc","alt")) + "m    SPD " + root.fmt1(bridge.value("fc","vx")) + "m/s    HDG " + root.fmt0(bridge.value("fc","yaw")) + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
-                                    // 云台俯仰（思翼 SDK 实时回读，A2 mini 仅俯仰轴有效）
+                                    // 云台状态：思翼 SDK 实时回读俯仰角；云卓 C14PRO 无姿态回读，显示"已连接"
                                     Text {
-                                        visible: root.isGimbalCam(modelData.id) && bridge.gimbalConnected
-                                        text: "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
+                                        visible: (root.isGimbalCam(modelData.id) && bridge.gimbalConnected)
+                                                 || root.isSkyCam(modelData.id)
+                                        text: root.isGimbalCam(modelData.id)
+                                              ? "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
+                                              : "GIMBAL ONLINE"
                                         font.pixelSize: 11; font.family: "monospace"; color: "#ffd166"
                                     }
                                 }
@@ -950,16 +1033,25 @@ Item {
                                         id: ovShotMa
                                         anchors.fill: parent
                                         onClicked: {
-                                            if (!(vidSurf.stream && vidSurf.stream.online)) { root.toast("该相机无画面，截图失败", "err"); return }
+                                            // 双路保存：云卓 C14PRO → 相机本地拍照（存 TF 卡，原始分辨率）+ 本机截屏
+                                            var isSky = root.isSkyCam(modelData.id)
+                                            if (isSky) bridge.skyGimbalShot()
+                                            if (!(vidSurf.stream && vidSurf.stream.online)) {
+                                                if (isSky) root.toast("已触发 " + modelData.name + " 相机拍照（存 TF 卡）；无画面流，未存 PC 截图", "info")
+                                                else root.toast("该相机无画面，截图失败", "err")
+                                                return
+                                            }
                                             var dir = bridge.cameraDir()
                                             var name = "snapshot_" + modelData.name + "_" + Date.now() + ".png"
                                             // grabToImage().saveToFile 接收本地路径；file:// 前缀在含
                                             // 中文/空格的路径下会保存失败（QImage 会把它当相对文件名）
                                             viewItem.grabToImage(function(result) {
                                                 if (result.saveToFile(dir + "/" + name))
-                                                    root.toast("已保存截图 " + name)
+                                                    root.toast(isSky
+                                                               ? ("已触发相机拍照（存 TF 卡）+ 本机截图 " + name)
+                                                               : ("已保存截图 " + name))
                                                 else
-                                                    root.toast("截图保存失败")
+                                                    root.toast(isSky ? "相机拍照已触发（存 TF 卡），但本机截图保存失败" : "截图保存失败")
                                             })
                                         }
                                     }
@@ -994,27 +1086,40 @@ Item {
                     contentItem: Text { text: parent.text; color: root.themeRoot.colText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.fill: parent; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     onClicked: {
                         if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
-                        // 仅对"选中且在线出帧"的相机逐路截图（文件名带相机名防覆盖；IIFE 捕获每轮变量防闭包共享）
+                        // 双路保存：支持相机本地拍照的（云卓 C14PRO）→ 相机拍照存 TF 卡 + 本机截屏；
+                        // 其余相机 → 仅本机截屏到 PC。PC 截屏仅对"拉流成功且在线"的相机执行
                         var dir = bridge.cameraDir()
                         var ts = Date.now()
-                        var total = 0
+                        var snapCnt = 0   // PC 截屏成功路数
+                        var skyCnt = 0    // 相机本地拍照路数
                         for (var k = 0; k < root.selected.length; k++) {
+                            var cidx = root.selected[k]
+                            var cobj = root.camCfg[cidx]
+                            if (!cobj) continue
+                            var isSky = root.isSkyCam(cobj.id)
+                            if (isSky) {
+                                bridge.skyGimbalShot()   // 相机本地拍照（存 TF 卡，原始分辨率）
+                                skyCnt++
+                            }
                             (function(idx) {
                                 var st = bridge.videoStream(root.camCfg[idx].id)
                                 if (!st.online) return   // 无画面不截
                                 var it = camRep.itemAt(idx)
                                 if (!it) return
-                                total++
+                                snapCnt++
                                 var camNm = (root.camCfg[idx] && root.camCfg[idx].name) ? root.camCfg[idx].name : ("cam" + idx)
                                 var name = "snapshot_" + camNm + "_" + ts + ".png"
                                 it.grabToImage(function(result) {
                                     // 本地路径而非 file:// 前缀（中文/空格路径保存更可靠）
                                     result.saveToFile(dir + "/" + name)
                                 })
-                            })(root.selected[k])
+                            })(cidx)
                         }
-                        if (!total) { root.toast("选中相机均无画面，无法截图", "err"); return }
-                        root.toast("已保存截图（" + total + " 张，见 data/摄像头 目录）")
+                        if (!snapCnt && !skyCnt) { root.toast("选中相机均无画面，无法截图", "err"); return }
+                        var msg = []
+                        if (skyCnt) msg.push("已触发 " + skyCnt + " 路相机拍照（存 TF 卡）")
+                        if (snapCnt) msg.push(snapCnt + " 路已截屏到 PC")
+                        root.toast(msg.join("；") + "（PC 截图见 data/摄像头 目录）")
                     }
                 }
                 // 录像（.cam-btn rec，红色脉冲；图标：未录=圆圈+中心点，录制中=白色方块）
@@ -1063,27 +1168,40 @@ Item {
                     onClicked: {
                         if (!root.recOn) {
                             if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
-                            // 仅对"选中且在线出帧"的相机并行开录（离线/未出帧的跳过）
-                            var okCnt = 0
+                            // 双路保存：支持相机本地录像的（云卓 C14PRO）→ 相机本地录像存 TF 卡 + PC 拉流录制；
+                            // 其余相机 → 仅 PC 拉流录制。PC 录制仅对"拉流成功且在线"的相机执行
+                            var pcCnt = 0    // PC 拉流录制路数
+                            var skyCnt = 0   // 相机本地录像路数
                             var ids = []
                             for (var k = 0; k < root.selected.length; k++) {
                                 var ci = root.camCfg[root.selected[k]]
                                 if (!ci || !ci.ip) continue
+                                var isSky = root.isSkyCam(ci.id)
+                                if (isSky) {
+                                    bridge.skyGimbalRecord(true)   // 相机本地录像（存 TF 卡，不依赖画面流）
+                                    skyCnt++
+                                }
                                 var st = bridge.videoStream(ci.id)
-                                if (!st.online) continue   // 无画面不录
-                                if (bridge.startCameraRecord(ci.id)) { okCnt++; ids.push(ci.id) }
+                                if (!st.online) continue   // 无画面不 PC 录制
+                                if (bridge.startCameraRecord(ci.id)) { pcCnt++; ids.push(ci.id) }
                             }
-                            if (!okCnt) { root.toast("选中相机均无画面，无法录像", "err"); return }
+                            if (!pcCnt && !skyCnt) { root.toast("选中相机均无画面，无法录像", "err"); return }
                             root.recCamIds = ids
+                            root.recSkyOn = skyCnt > 0
                             root.recOn = true
                             root.recStart = bridge.cameraRecStart()
                             root.recElapsed = 0
-                            root.toast("开始录像（" + okCnt + " 路）")
+                            var msg = []
+                            if (skyCnt) msg.push(skyCnt + " 路相机本地录像（存 TF 卡）")
+                            if (pcCnt) msg.push(pcCnt + " 路 PC 录制")
+                            root.toast("开始录像：" + msg.join("；"))
                         } else {
                             root.recOn = false
                             root.recCamIds = []
                             var dur = Math.max(1, Math.round((Date.now() - root.recStart) / 1000))
+                            if (root.recSkyOn) bridge.skyGimbalRecord(false)
                             var ok = bridge.stopCameraRecord()
+                            root.recSkyOn = false
                             root.toast(ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败", ok ? "ok" : "err")
                         }
                     }
@@ -1483,55 +1601,14 @@ Item {
                                 onClicked: cfgEnableBox.checked = !cfgEnableBox.checked
                             }
                         }
-                        // 云台控制（对齐原型 cfgPtz：该相机支持 PTZ 转动/变倍）
-                        Item {
-                            id: cfgPtzBox
-                            property bool checked: false
-                            implicitHeight: 20
-                            implicitWidth: ptzEnableRow.implicitWidth
-                            Row {
-                                id: ptzEnableRow
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 6
-                                Rectangle {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 13; height: 13; radius: 3
-                                    border.width: 1
-                                    border.color: cfgPtzBox.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                                    color: cfgPtzBox.checked ? root.themeRoot.colPrimary : "transparent"
-                                    Behavior on color { ColorAnimation { duration: 120 } }
-                                    Canvas {
-                                        anchors.fill: parent
-                                        anchors.margins: 2
-                                        visible: cfgPtzBox.checked
-                                        onVisibleChanged: if (visible) requestPaint()
-                                        onPaint: {
-                                            var ctx = getContext("2d")
-                                            ctx.clearRect(0, 0, width, height)
-                                            ctx.strokeStyle = "white"
-                                            ctx.lineWidth = 1.6
-                                            ctx.lineCap = "round"
-                                            ctx.lineJoin = "round"
-                                            ctx.beginPath()
-                                            ctx.moveTo(width * 0.12, height * 0.55)
-                                            ctx.lineTo(width * 0.38, height * 0.82)
-                                            ctx.lineTo(width * 0.88, height * 0.18)
-                                            ctx.stroke()
-                                        }
-                                    }
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "云台控制（该相机支持 PTZ 转动 / 变倍）"
-                                    font.pixelSize: 12; font.weight: Font.DemiBold
-                                    color: root.themeRoot.colText
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: cfgPtzBox.checked = !cfgPtzBox.checked
+                        // 云台类型（对齐原型 cfgPtz：无/思翼 A2 mini/云卓 C14PRO）
+                        ColumnLayout { Layout.fillWidth: true; spacing: 4
+                            Text { text: "云台类型"; font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText2 }
+                            CFSelect {
+                                id: cfgGimbalCombo
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 35
+                                model: ["无云台", "思翼 A2 mini", "云卓 C14PRO"]
                             }
                         }
                         // IP / 端口（.cf-row 各自独立一行，对齐原型竖排）
@@ -1738,7 +1815,8 @@ Item {
         cfgCamCombo.currentIndex = i
         cfgNameInput.text = c.name
         cfgEnableBox.checked = c.enable
-        cfgPtzBox.checked = c.ptz === true
+        // 云台类型 → 下拉（无/思翼/云卓）
+        cfgGimbalCombo.currentIndex = c.gimbal === "siyi" ? 1 : c.gimbal === "skydroid" ? 2 : 0
         cfgIpInput.text = c.ip
         cfgPortInput.text = "" + c.port
         cfgPathInput.text = c.path
@@ -1768,7 +1846,9 @@ Item {
         var c = root.cfgDraft[i]
         c.name = cfgNameInput.text.trim() || c.name
         c.enable = cfgEnableBox.checked
-        c.ptz = cfgPtzBox.checked
+        // 下拉 → 云台类型（同时维护 ptz 兼容旧逻辑）
+        c.gimbal = cfgGimbalCombo.currentIndex === 1 ? "siyi" : cfgGimbalCombo.currentIndex === 2 ? "skydroid" : ""
+        c.ptz = c.gimbal !== ""
         c.ip = cfgIpInput.text.trim()
         c.port = parseInt(cfgPortInput.text) || 554
         c.path = cfgPathInput.text.trim()
@@ -1781,7 +1861,7 @@ Item {
     // 添加相机（操作草稿：自动命名，默认停用；保存设置后才真正生效）
     function addCam() {
         var n = root.cfgDraft.length + 1
-        var nc = {id: "cam_" + (root.camSeq++), name: "新相机" + n, enable: false, ptz: false, ip: "", port: 554,
+        var nc = {id: "cam_" + (root.camSeq++), name: "新相机" + n, enable: false, gimbal: "", ptz: false, ip: "", port: 554,
                   path: "", user: "", pass: "", stream: "主码流", transport: "TCP", fps: 25}
         root.cfgDraft = root.cfgDraft.concat([nc])
         root.cfgDraftSel = nc.id

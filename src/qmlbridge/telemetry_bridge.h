@@ -24,6 +24,7 @@ class AlarmEngine;
 class RtspStream;
 class RtspRecorder;
 class SiyiSdkClient;
+class SkydroidSdkClient;
 
 // 桥接层：把 C++ 后端（遥测/链路/就绪度/告警/串口/配置）暴露给 QML 前端。
 // 采用 context 属性注入，QML 通过 Q_INVOKABLE 方法与信号交互。
@@ -144,6 +145,17 @@ public:
     Q_INVOKABLE void gimbalCenter();
     bool gimbalConnected() const;
     double gimbalPitch() const;
+    // 云卓云台相机（C14PRO，UDP 5000 文本协议）控制：
+    // startSkyGimbal(ip) 启动会话；skyGimbalCtrlMove(yaw,pitch) 速度控制 -100~100；
+    // skyGimbalCenter 一键回中；skyGimbalZoom(dir) 变焦 ±1；skyGimbalShot 拍照；skyGimbalRecord(on) 录像开关
+    Q_INVOKABLE void startSkyGimbal(const QString &ip);
+    Q_INVOKABLE void stopSkyGimbal();
+    Q_INVOKABLE void skyGimbalCtrlMove(int yaw, int pitch);
+    Q_INVOKABLE void skyGimbalCenter();
+    Q_INVOKABLE void skyGimbalZoom(int dir);
+    Q_INVOKABLE void skyGimbalSetLens(int lens);   // 0=广角 1=长焦
+    Q_INVOKABLE void skyGimbalShot();
+    Q_INVOKABLE void skyGimbalRecord(bool on);
     // 网络接口状态（网口链路检测）：QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>
     // linkUp 为物理链路状态：Windows 查 OperStatus，Linux 读 /sys/class/net/*/carrier
     Q_INVOKABLE QVariant netInterfaces() const;
@@ -209,6 +221,7 @@ private:
     bool camRecOn_ = false;                   // 当前是否正在录像（跨页保留）
     qint64 camRecStart_ = 0;                  // 录像开始时间戳(ms)，跨页保留
     SiyiSdkClient *gimbal_ = nullptr;        // 思翼云台 SDK 客户端（随桥接层销毁）
+    SkydroidSdkClient *skyGimbal_ = nullptr; // 云卓 C14PRO 云台 SDK 客户端（随桥接层销毁）
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;

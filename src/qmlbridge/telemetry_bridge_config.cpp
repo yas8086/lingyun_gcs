@@ -3,6 +3,7 @@
 #include "qmlbridge/telemetry_bridge.h"
 #include "core/config_manager.h"
 #include "video/siyi_sdk_client.h"
+#include "video/skydroid_sdk_client.h"
 #include "video/rtsp_stream.h"
 #include <QSet>
 #include <QFile>
@@ -75,6 +76,8 @@ QVariantList TelemetryBridge::cameraConfigs() const {
         m["id"] = o.value("id").toString();
         m["name"] = o.value("name").toString();
         m["enable"] = o.value("enable").toBool(false);
+        m["gimbal"] = o.value("gimbal").toString();   // 云台协议类型："" / siyi / skydroid
+        m["ptz"] = o.value("ptz").toBool(false);      // 兼容旧逻辑：是否支持云台控制
         m["ip"] = o.value("ip").toString();
         m["port"] = o.value("port").toInt(554);
         m["path"] = o.value("path").toString();
@@ -97,6 +100,8 @@ void TelemetryBridge::saveCameraConfigs(const QVariant &list) {
         o["id"] = m.value("id").toString();
         o["name"] = m.value("name").toString();
         o["enable"] = m.value("enable").toBool();
+        o["gimbal"] = m.value("gimbal").toString();
+        o["ptz"] = m.value("ptz").toBool();
         o["ip"] = m.value("ip").toString();
         o["port"] = m.contains("port") ? m.value("port").toInt() : 554;
         o["path"] = m.value("path").toString();
@@ -186,6 +191,63 @@ void TelemetryBridge::gimbalCtrlMove(int yaw, int pitch) {
 void TelemetryBridge::gimbalCenter() {
     if (gimbal_)
         gimbal_->center();
+}
+
+// ---- 云卓云台相机（C14PRO，UDP 5000 文本协议）----
+void TelemetryBridge::startSkyGimbal(const QString &ip) {
+    if (ip.isEmpty())
+        return;
+    if (!skyGimbal_) {
+        skyGimbal_ = new SkydroidSdkClient(this);
+        // 云卓协议无姿态回读，仅转发连接状态
+        connect(skyGimbal_, &SkydroidSdkClient::connectedChanged,
+                this, &TelemetryBridge::gimbalConnectedChanged);
+    }
+    skyGimbal_->start(ip, 5000);
+}
+
+void TelemetryBridge::stopSkyGimbal() {
+    if (skyGimbal_)
+        skyGimbal_->stop();
+}
+
+void TelemetryBridge::skyGimbalCtrlMove(int yaw, int pitch) {
+    if (skyGimbal_)
+        skyGimbal_->ctrlMove(yaw, pitch);
+}
+
+void TelemetryBridge::skyGimbalCenter() {
+    // 一键回中（RCSDK AKey.MID → #TPUG2wPTZ05）
+    if (skyGimbal_)
+        skyGimbal_->center();
+}
+
+void TelemetryBridge::skyGimbalZoom(int dir) {
+    if (skyGimbal_)
+        skyGimbal_->zoom(dir);
+}
+
+void TelemetryBridge::skyGimbalSetLens(int lens) {
+    if (!skyGimbal_)
+        return;
+    if (lens == 1)
+        skyGimbal_->setTeleLens();
+    else
+        skyGimbal_->setWideLens();
+}
+
+void TelemetryBridge::skyGimbalShot() {
+    if (skyGimbal_)
+        skyGimbal_->takePicture();
+}
+
+void TelemetryBridge::skyGimbalRecord(bool on) {
+    if (!skyGimbal_)
+        return;
+    if (on)
+        skyGimbal_->startRecordVideo();
+    else
+        skyGimbal_->stopRecordVideo();
 }
 
 bool TelemetryBridge::gimbalConnected() const {

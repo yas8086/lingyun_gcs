@@ -39,6 +39,7 @@ add_executable(LingyunGCS
     src/video/rtsp_stream.cpp
     src/video/rtsp_recorder.cpp
     src/video/siyi_sdk_client.cpp
+    src/video/skydroid_sdk_client.cpp
     src/video/video_surface.cpp
 )
 
