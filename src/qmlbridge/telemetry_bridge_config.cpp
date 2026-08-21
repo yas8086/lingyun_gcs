@@ -152,6 +152,8 @@ QObject *TelemetryBridge::videoStream(const QString &camId) {
 }
 
 void TelemetryBridge::releaseStream(const QString &camId) {
+    // P2-5：删除相机时同步清理该相机的"选错云台"标记，避免 id 复用误带旧状态
+    skyWrongIds_.remove(camId);
     auto it = streams_.find(camId);
     if (it == streams_.end())
         return;
@@ -197,11 +199,19 @@ void TelemetryBridge::gimbalCenter() {
 void TelemetryBridge::startSkyGimbal(const QString &ip) {
     if (ip.isEmpty())
         return;
+    skyGimbalTargetIp_ = ip;   // 记录会话主 IP（供无参版本查询默认使用）
     if (!skyGimbal_) {
         skyGimbal_ = new SkydroidSdkClient(this);
-        // 云卓协议无姿态回读，仅转发连接状态
-        connect(skyGimbal_, &SkydroidSdkClient::connectedChanged,
-                this, &TelemetryBridge::gimbalConnectedChanged);
+        // P1-2：云卓 SDK 的连接状态（start/stop）与思翼的 gimbalConnected 语义无关，
+        // 不应转发到 gimbalConnectedChanged（避免云卓启停触发思翼属性的无效重算）；
+        // 云卓设备存在与否由 probeFinished → skyGimbalDeviceOkChanged 通道驱动。
+        connect(skyGimbal_, &SkydroidSdkClient::probeFinished,
+                this, &TelemetryBridge::skyGimbalDeviceOkChanged);
+        // 姿态回读 / 激光测距结果转发给 QML（协议 v1.1.5 GAA/GAC/SLR）
+        connect(skyGimbal_, &SkydroidSdkClient::attitudeChanged,
+                this, &TelemetryBridge::skyGimbalAttitudeChanged);
+        connect(skyGimbal_, &SkydroidSdkClient::rangingChanged,
+                this, &TelemetryBridge::skyGimbalRangingChanged);
     }
     skyGimbal_->start(ip, 5000);
 }
@@ -209,45 +219,87 @@ void TelemetryBridge::startSkyGimbal(const QString &ip) {
 void TelemetryBridge::stopSkyGimbal() {
     if (skyGimbal_)
         skyGimbal_->stop();
+    skyGimbalTargetIp_.clear();
 }
 
-void TelemetryBridge::skyGimbalCtrlMove(int yaw, int pitch) {
+void TelemetryBridge::skyGimbalCtrlMove(const QString &ip, int yaw, int pitch) {
     if (skyGimbal_)
-        skyGimbal_->ctrlMove(yaw, pitch);
+        skyGimbal_->ctrlMove(ip, yaw, pitch);
 }
 
-void TelemetryBridge::skyGimbalCenter() {
+void TelemetryBridge::skyGimbalCenter(const QString &ip) {
     // 一键回中（RCSDK AKey.MID → #TPUG2wPTZ05）
     if (skyGimbal_)
-        skyGimbal_->center();
+        skyGimbal_->center(ip);
 }
 
-void TelemetryBridge::skyGimbalZoom(int dir) {
+void TelemetryBridge::skyGimbalZoom(const QString &ip, int dir) {
     if (skyGimbal_)
-        skyGimbal_->zoom(dir);
+        skyGimbal_->zoom(ip, dir);
 }
 
-void TelemetryBridge::skyGimbalSetLens(int lens) {
+void TelemetryBridge::skyGimbalSetLens(const QString &ip, int lens) {
     if (!skyGimbal_)
         return;
     if (lens == 1)
-        skyGimbal_->setTeleLens();
+        skyGimbal_->setTeleLens(ip);
     else
-        skyGimbal_->setWideLens();
+        skyGimbal_->setWideLens(ip);
 }
 
-void TelemetryBridge::skyGimbalShot() {
+void TelemetryBridge::skyGimbalShot(const QString &ip) {
     if (skyGimbal_)
-        skyGimbal_->takePicture();
+        skyGimbal_->takePicture(ip);
 }
 
-void TelemetryBridge::skyGimbalRecord(bool on) {
+void TelemetryBridge::skyGimbalRecord(const QString &ip, bool on) {
     if (!skyGimbal_)
         return;
     if (on)
-        skyGimbal_->startRecordVideo();
+        skyGimbal_->startRecordVideo(ip);
     else
-        skyGimbal_->stopRecordVideo();
+        skyGimbal_->stopRecordVideo(ip);
+}
+
+void TelemetryBridge::skyGimbalSetAttitudeReport(const QString &ip, bool on) {
+    if (skyGimbal_)
+        skyGimbal_->setAttitudeReport(ip, on);
+}
+
+void TelemetryBridge::skyGimbalRequestRanging(const QString &ip) {
+    if (skyGimbal_)
+        skyGimbal_->requestRanging(ip);
+}
+
+bool TelemetryBridge::skyGimbalDevicePresent() const {
+    // 未启动会话视为不存在（无设备可控制）；启动后返回探测结果
+    return skyGimbal_ && skyGimbal_->devicePresent();
+}
+
+bool TelemetryBridge::skyGimbalAttitudeAlive() const {
+    // 兼容 Q_PROPERTY 绑定：无参版本查"会话主 skyGimbalIp"对应的状态（全局单值语义，保持向后兼容）
+    if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return false;
+    return skyGimbal_->attitudeAlive(skyGimbalTargetIp_);
+}
+
+double TelemetryBridge::skyGimbalYaw() const {
+    if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return 0.0;
+    return skyGimbal_->yaw(skyGimbalTargetIp_);
+}
+
+double TelemetryBridge::skyGimbalPitch() const {
+    if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return 0.0;
+    return skyGimbal_->pitch(skyGimbalTargetIp_);
+}
+
+double TelemetryBridge::skyGimbalRoll() const {
+    if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return 0.0;
+    return skyGimbal_->roll(skyGimbalTargetIp_);
+}
+
+double TelemetryBridge::skyGimbalRanging() const {
+    if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return 0.0;
+    return skyGimbal_->ranging(skyGimbalTargetIp_);
 }
 
 bool TelemetryBridge::gimbalConnected() const {
@@ -256,6 +308,50 @@ bool TelemetryBridge::gimbalConnected() const {
 
 double TelemetryBridge::gimbalPitch() const {
     return gimbal_ ? gimbal_->pitch() : 0.0;
+}
+
+// ---- 云卓 C14PRO：按 IP 查询姿态/测距（支持多相机独立判断）----
+bool TelemetryBridge::skyGimbalAttitudeAliveOf(const QString &ip)
+{
+    return skyGimbal_ && skyGimbal_->attitudeAlive(ip);
+}
+double TelemetryBridge::skyGimbalYawOf(const QString &ip)
+{
+    return skyGimbal_ ? skyGimbal_->yaw(ip) : 0.0;
+}
+double TelemetryBridge::skyGimbalPitchOf(const QString &ip)
+{
+    return skyGimbal_ ? skyGimbal_->pitch(ip) : 0.0;
+}
+double TelemetryBridge::skyGimbalRollOf(const QString &ip)
+{
+    return skyGimbal_ ? skyGimbal_->roll(ip) : 0.0;
+}
+double TelemetryBridge::skyGimbalRangingOf(const QString &ip)
+{
+    return skyGimbal_ ? skyGimbal_->ranging(ip) : 0.0;
+}
+bool TelemetryBridge::skyGimbalProtocolAliveOf(const QString &ip)
+{
+    return skyGimbal_ && skyGimbal_->protocolAlive(ip);
+}
+// ---- 云卓"选错云台类型"标记（按 camId 存，跨页面持久化，CameraView 切页销毁也不丢失）----
+void TelemetryBridge::markSkyGimbalWrong(const QString &camId, bool wrong)
+{
+    if (camId.isEmpty()) return;
+    auto it = skyWrongIds_.find(camId);
+    bool cur = (it != skyWrongIds_.end()) ? it.value() : false;
+    if (cur == wrong) return;
+    if (wrong) skyWrongIds_[camId] = true;
+    else if (it != skyWrongIds_.end()) skyWrongIds_.erase(it);
+    emit skyGimbalWrongChanged(camId);
+    emit stateChanged();   // 驱动前端绑定重算（页面上的红字提示等）
+}
+bool TelemetryBridge::isSkyGimbalWrong(const QString &camId)
+{
+    if (camId.isEmpty()) return false;
+    auto it = skyWrongIds_.constFind(camId);
+    return it != skyWrongIds_.constEnd() && it.value();
 }
 
 // ---- 配置导入导出（决策：跨设备快速配置）----

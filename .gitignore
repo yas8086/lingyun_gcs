@@ -9,6 +9,9 @@ build/
 # Subagent-Driven 工作台账（scratch，不入库）
 .superpowers/
 
+# Trae 工作台账（spec/checklist/tasks，不入库）
+.trae/
+
 # Python 运行缓存
 __pycache__/
 *.pyc

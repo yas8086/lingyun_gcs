@@ -33,6 +33,15 @@ class TelemetryBridge : public QObject {
     // 思翼云台（A2 mini UDP SDK）：连接状态与俯仰角（度）实时暴露给 QML
     Q_PROPERTY(bool gimbalConnected READ gimbalConnected NOTIFY gimbalConnectedChanged)
     Q_PROPERTY(double gimbalPitch READ gimbalPitch NOTIFY gimbalAttitudeChanged)
+    // 云卓云台（C14PRO UDP 5000）：设备探测结果（false=IP:5000 无服务，多为误配）
+    Q_PROPERTY(bool skyGimbalDeviceOk READ skyGimbalDevicePresent NOTIFY skyGimbalDeviceOkChanged)
+    // 云卓云台姿态回读（协议 v1.1.5 GAA/GAC）：yaw/pitch/roll 度 + 是否收到过姿态帧
+    Q_PROPERTY(double skyGimbalYaw READ skyGimbalYaw NOTIFY skyGimbalAttitudeChanged)
+    Q_PROPERTY(double skyGimbalPitch READ skyGimbalPitch NOTIFY skyGimbalAttitudeChanged)
+    Q_PROPERTY(double skyGimbalRoll READ skyGimbalRoll NOTIFY skyGimbalAttitudeChanged)
+    Q_PROPERTY(bool skyGimbalAttitudeAlive READ skyGimbalAttitudeAlive NOTIFY skyGimbalAttitudeChanged)
+    // 云卓激光测距（协议 v1.1.5 SLR）：最近一次单次测距结果（米）
+    Q_PROPERTY(double skyGimbalRanging READ skyGimbalRanging NOTIFY skyGimbalRangingChanged)
 public:
     explicit TelemetryBridge(QObject *parent = nullptr);
 
@@ -138,24 +147,54 @@ public:
     Q_INVOKABLE qint64 cameraRecStart() const { return camRecStart_; }  // 开始时间戳(ms)
     // 思翼云台控制（A2 mini，UDP 37260）：startGimbal(ip) 启动会话并 200ms 轮询姿态；
     // gimbalCtrlMove(yaw,pitch) 组合速度控制 -100~100（A2 mini 仅俯仰轴生效，松手发 0,0）；
-    // gimbalCenter 一键回中
+    // gimbalCenter 一键回中；gimbalSetPitchAngle(deg) 设置俯仰目标角度（0x0E，自定义回中角）
     Q_INVOKABLE void startGimbal(const QString &ip);
     Q_INVOKABLE void stopGimbal();
     Q_INVOKABLE void gimbalCtrlMove(int yaw, int pitch);
     Q_INVOKABLE void gimbalCenter();
+    Q_INVOKABLE void gimbalSetPitchAngle(double pitchDeg);   // 单位度，A2 mini 范围 -90~+25
     bool gimbalConnected() const;
     double gimbalPitch() const;
     // 云卓云台相机（C14PRO，UDP 5000 文本协议）控制：
-    // startSkyGimbal(ip) 启动会话；skyGimbalCtrlMove(yaw,pitch) 速度控制 -100~100；
-    // skyGimbalCenter 一键回中；skyGimbalZoom(dir) 变焦 ±1；skyGimbalShot 拍照；skyGimbalRecord(on) 录像开关
+    // startSkyGimbal(ip) 启动会话；skyGimbalCtrlMove(ip,yaw,pitch) 速度控制 -100~100；
+    // skyGimbalCenter(ip) 一键回中；skyGimbalZoom(ip,dir) 变焦 ±1；skyGimbalShot(ip) 拍照；skyGimbalRecord(ip,on) 录像开关
+    // 注：各方法均带 ip 目标参数——支持多个相机配置成 skydroid 时各自向自己的 IP 发送
     Q_INVOKABLE void startSkyGimbal(const QString &ip);
     Q_INVOKABLE void stopSkyGimbal();
-    Q_INVOKABLE void skyGimbalCtrlMove(int yaw, int pitch);
-    Q_INVOKABLE void skyGimbalCenter();
-    Q_INVOKABLE void skyGimbalZoom(int dir);
-    Q_INVOKABLE void skyGimbalSetLens(int lens);   // 0=广角 1=长焦
-    Q_INVOKABLE void skyGimbalShot();
-    Q_INVOKABLE void skyGimbalRecord(bool on);
+    Q_INVOKABLE void skyGimbalCtrlMove(const QString &ip, int yaw, int pitch);
+    Q_INVOKABLE void skyGimbalCenter(const QString &ip);
+    Q_INVOKABLE void skyGimbalZoom(const QString &ip, int dir);
+    Q_INVOKABLE void skyGimbalSetLens(const QString &ip, int lens);   // 0=广角 1=长焦
+    Q_INVOKABLE void skyGimbalShot(const QString &ip);
+    Q_INVOKABLE void skyGimbalRecord(const QString &ip, bool on);
+    // 云卓姿态回读（GAA/GAC）：on=true 使能主动送出（1Hz）
+    Q_INVOKABLE void skyGimbalSetAttitudeReport(const QString &ip, bool on);
+    // 云卓单次激光测距（SLR）：结果经 skyGimbalRanging 属性读取
+    Q_INVOKABLE void skyGimbalRequestRanging(const QString &ip);
+    // 目标 IP:5000 是否确认存在云卓设备（false=探测到端口无服务，如思翼相机误配为云卓）
+    // 探测在 startSkyGimbal 时异步进行，返回 true 表示在线或尚未确认
+    Q_INVOKABLE bool skyGimbalDevicePresent() const;
+    // 云卓姿态/测距读取（全局单值版本，兼容 Q_PROPERTY 绑定）
+    bool skyGimbalAttitudeAlive() const;
+    double skyGimbalYaw() const;
+    double skyGimbalPitch() const;
+    double skyGimbalRoll() const;
+    double skyGimbalRanging() const;
+    // 云卓姿态/测距读取（按相机 IP 查询，支持多 skydroid 相机独立判断）。
+    // 注意：方法名必须与上面的 Q_PROPERTY 属性名不同（QML 同名时解析为属性而非函数）——
+    // 带参版本统一加 "Of" 后缀，QML 侧用 bridge.skyGimbalYawOf(ip) 等调用
+    Q_INVOKABLE bool skyGimbalAttitudeAliveOf(const QString &ip);
+    Q_INVOKABLE double skyGimbalYawOf(const QString &ip);
+    Q_INVOKABLE double skyGimbalPitchOf(const QString &ip);
+    Q_INVOKABLE double skyGimbalRollOf(const QString &ip);
+    Q_INVOKABLE double skyGimbalRangingOf(const QString &ip);
+    // 该 IP 是否收到过云卓协议帧（#TP 前缀）："确为云卓设备"的最可靠判据
+    Q_INVOKABLE bool skyGimbalProtocolAliveOf(const QString &ip);
+    // 云卓云台"选错类型"标记（按 camId 存，跨页面持久化；
+    //   true=思翼等相机被误配为 skydroid，姿态回读超时无应答即判定选错；
+    //   切换到正确云台类型或真实收到姿态帧时需清除）
+    Q_INVOKABLE void markSkyGimbalWrong(const QString &camId, bool wrong);
+    Q_INVOKABLE bool isSkyGimbalWrong(const QString &camId);
     // 网络接口状态（网口链路检测）：QVariantList<QVariantMap{name,ip,mac,linkUp,isUp}>
     // linkUp 为物理链路状态：Windows 查 OperStatus，Linux 读 /sys/class/net/*/carrier
     Q_INVOKABLE QVariant netInterfaces() const;
@@ -206,6 +245,10 @@ signals:
     void configImported();                   // 配置导入成功，前端需刷新各设置控件
     void gimbalConnectedChanged();
     void gimbalAttitudeChanged();
+    void skyGimbalDeviceOkChanged();   // 云卓设备探测完成（在线 / 端口无服务）
+    void skyGimbalAttitudeChanged();   // 云卓姿态回读更新（yaw/pitch/roll/存活）
+    void skyGimbalRangingChanged();    // 云卓激光测距结果更新
+    void skyGimbalWrongChanged(const QString &camId);  // 某相机"选错云台类型"标记变化
 
 private:
     lgs::TelemetryData last_;
@@ -222,6 +265,8 @@ private:
     qint64 camRecStart_ = 0;                  // 录像开始时间戳(ms)，跨页保留
     SiyiSdkClient *gimbal_ = nullptr;        // 思翼云台 SDK 客户端（随桥接层销毁）
     SkydroidSdkClient *skyGimbal_ = nullptr; // 云卓 C14PRO 云台 SDK 客户端（随桥接层销毁）
+    QString skyGimbalTargetIp_;              // 云卓 SDK 会话的主目标IP（无参版本查询默认用该IP）
+    QHash<QString, bool> skyWrongIds_;       // 云卓"选错云台类型"标记（camId→bool，跨页持久化）
     QString lastSerialError_;  // 最近一次 openSerial 失败的具体原因（供 QML 透出）
     QList<QVariantMap> alarmList_;
     int unconfirmed_ = 0;

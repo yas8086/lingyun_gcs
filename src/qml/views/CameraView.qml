@@ -49,7 +49,8 @@ Item {
         {id:"cam_0", name:"前视相机", enable:true,  ptz:true,  gimbal:"siyi",     ip:"192.168.144.25", port:8554, path:"/main.264", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
         {id:"cam_1", name:"后视相机", enable:true,  ptz:false, gimbal:"",          ip:"192.168.1.102", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
         {id:"cam_2", name:"吊舱相机", enable:false, ptz:true,  gimbal:"skydroid",  ip:"192.168.144.108", port:554, path:"/stream=1", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25},
-        {id:"cam_3", name:"地面相机", enable:true,  ptz:false, gimbal:"",          ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25}
+        {id:"cam_3", name:"地面相机", enable:true,  ptz:false, gimbal:"",          ip:"192.168.1.104", port:554, path:"/live/stream1", user:"admin", pass:"12345", stream:"主码流", transport:"TCP", fps:25},
+        {id:"cam_4", name:"热成像", enable:false, ptz:false, gimbal:"",            ip:"192.168.144.108", port:555, path:"/stream=2", user:"", pass:"", stream:"主码流", transport:"TCP", fps:25}
     ]
 
     function toast(msg, type) { root.showNote(msg, type || "ok") }
@@ -70,8 +71,45 @@ Item {
         function p(n) { return n < 10 ? "0" + n : "" + n }
         return (h > 0 ? h + ":" : "") + p(m) + ":" + p(sec)
     }
+    // ===== OSD 飞控数据（带 dataTick 依赖：QML 绑定方法调用只求值一次，
+    //       必须依赖 themeRoot.dataTick 才能在遥测更新时重算，否则恒为 "--"）=====
+    function fcD(k) { void root.themeRoot.dataTick; return bridge.value("fc", k) }   // 原始值（NaN=无数据）
+    function osdLat() { void root.themeRoot.dataTick; const v = bridge.value("fc","lat"); return isNaN(v) ? "--" : v.toFixed(6) }
+    function osdLon() { void root.themeRoot.dataTick; const v = bridge.value("fc","lon"); return isNaN(v) ? "--" : v.toFixed(6) }
+    function osdAlt() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","alt")) ? "--" : Math.round(bridge.value("fc","alt")) }
+    function osdSpd() { // 地速 = sqrt(vx²+vy²)（ENU 东/北向）
+        void root.themeRoot.dataTick
+        const vx = bridge.value("fc","vx"), vy = bridge.value("fc","vy")
+        if (isNaN(vx) || isNaN(vy)) return "--"
+        return Math.sqrt(vx*vx + vy*vy).toFixed(1)
+    }
+    function osdHdg() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","yaw")) ? "--" : Math.round(bridge.value("fc","yaw")) }
+    // 云卓姿态/测距（GAA/GAC/SLR，带 osdTick 依赖每秒刷新——姿态回读状态变化
+    // 不依赖串口遥测，必须由本页定时器驱动重算，否则切换云台类型后提示不刷新）
+    // 所有方法均按相机 IP 查询（Of 后缀版本：与 Q_PROPERTY 属性区分，避免同名解析为属性）
+    function skyYaw(ip)    { void root.osdTick; void root.themeRoot.dataTick; return root.fmt1(bridge.skyGimbalYawOf(ip)) }
+    function skyPitch(ip)  { void root.osdTick; void root.themeRoot.dataTick; return root.fmt1(bridge.skyGimbalPitchOf(ip)) }
+    function skyRoll(ip)   { void root.osdTick; void root.themeRoot.dataTick; return root.fmt1(bridge.skyGimbalRollOf(ip)) }
+    function skyRng(ip)    { void root.osdTick; void root.themeRoot.dataTick; return root.fmt1(bridge.skyGimbalRangingOf(ip)) + "m" }
+    // 云卓姿态回读存活：true=该 IP 收到过 GAC 帧（设备真实应答）；false=未应答→可能选错云台类型
+    function skyAttAlive(ip){ void root.osdTick; void root.themeRoot.dataTick; return bridge.skyGimbalAttitudeAliveOf(ip) }
+    // 云台类型配置错误统一文案（右上角 toast + 右下角横幅共用）
+    // 按相机当前云台类型区分：gimbal=skydroid 却连不上→实际非云卓；gimbal=siyi 连不上→实际非思翼
+    function gimbalWrongMsg(camId, camName) {
+        if (root.isSkyCam(camId))
+            return "⚠ " + camName + " 云台类型配置错误 · 实际不是云卓云台，请在拉流设置中切换到正确的云台类型"
+        if (root.isGimbalCam(camId))
+            return "⚠ " + camName + " 云台类型配置错误 · 实际不是思翼云台，请在拉流设置中切换到正确的云台类型"
+        return "⚠ " + camName + " 云台类型配置错误 · 请在拉流设置中检查"
+    }
     // OSD 本地时钟（由定时器每秒刷新）
     property string osdClock: root.fmtTs(Date.now())
+    // OSD 刷新节拍（每秒递增）：驱动姿态回读/测距等非串口数据的绑定重算
+    property int osdTick: 0
+    // 测距等待状态：点测距后记录相机 id 与请求时间，streamWatch 每秒检查——
+    // 3 秒内收到测距回包则清空；超时无回包则提示"设备可能不支持激光测距"
+    property string rangingWaitCam: ""
+    property real rangingReqAt: 0
     // 网口连接状态：有线网口物理链路（网线是否插入）决定"网口已连接/未连接"
     property bool netOk: false
     // 任一有线网口（非回环/无线/虚拟网桥）carrier=1 即视为网口已连接
@@ -108,6 +146,9 @@ Item {
             var s = bridge.videoStream(c.id)
             s.url = c.ip ? root.camRtspUrl(i) : ""
             if (!c.ip) s.stop()
+            // 该相机无云台（用户在拉流设置中改回"无云台"）→ 清除旧的 wrong 标记
+            if (!c.gimbal || c.gimbal === "")
+                bridge.markSkyGimbalWrong(c.id, false)
         }
         // 思翼云台（gimbal=siyi）IP 变更时重启 SDK 会话（用 IP 而非 id：同相机改 IP 也能正确重启）
         var siyiIp = ""
@@ -131,7 +172,97 @@ Item {
             if (skyIp) bridge.startSkyGimbal(skyIp)
             else bridge.stopSkyGimbal()
         }
+        // 云台类型配置错误检测（统一 markSkyGimbalWrong 标记，camId 维度）：
+        //   - gimbal=skydroid：仅对会话主 IP（root.skyGimbalIp）做 UDP 设备探测判定
+        //     （ICMP 端口不可达=目标 5000 无服务=非云卓设备，如思翼误配云卓）。
+        //     注意：不再用"GAA/GAC 姿态超时"判定——真云卓可能不支持 GAA 协议，
+        //     会导致正确配置的云卓相机被误判 wrong，进而把测距等按钮全堵死。
+        //   - gimbal=siyi：对会话主 IP（root.gimbalCamIp）做思翼 SDK 连接判定
+        //     （3 秒连不上=目标 37260 无服务=非思翼设备，如云卓误配思翼）。
+        // 由 gimbalProbeWatch 每 500ms 统一检查，探测完成后按结果标记/清除。
+        for (var g = 0; g < root.camCfg.length; g++) {
+            var gc = root.camCfg[g]
+            if (!gc) continue
+            if (gc.gimbal === "skydroid") {
+                // 仍使能姿态回读（能回读更好，但不作为"选错"判据）
+                bridge.skyGimbalSetAttitudeReport(gc.ip, true)
+                // 仅对会话主 IP 相机记录探测（protoAlive 只对会话主 IP 有意义）。
+                // 记录探测时先清除旧 wrong：gimbal 从别的类型改成 skydroid 时，
+                // 若不清除会残留旧标记导致红框"改成云卓反而出来"
+                if (gc.ip === root.skyGimbalIp && root.skyGimbalIp) {
+                    root.gimbalProbeStart[gc.id] = Date.now()
+                    bridge.markSkyGimbalWrong(gc.id, false)
+                }
+            } else if (gc.gimbal === "siyi") {
+                // 所有 siyi 相机都记录探测：会话主 IP（gimbalCamIp）按思翼 SDK 连接判定；
+                // 非会话主的 siyi（思翼 SDK 单例不会服务它，多为云卓误配思翼）由
+                // gimbalProbeWatch 直接判 wrong。先清除旧 wrong 再重新判定。
+                root.gimbalProbeStart[gc.id] = Date.now()
+                bridge.markSkyGimbalWrong(gc.id, false)
+            } else {
+                // 无云台/其它类型 → 清除 wrong
+                bridge.markSkyGimbalWrong(gc.id, false)
+            }
+        }
         root.manageStreams()
+    }
+    // 云台类型配置错误探测（静态 Timer + 时间戳）：
+    //   skydroid：UDP 设备探测完成（~2.5s）后 devicePresent=false → 判 wrong（非云卓设备）
+    //   siyi：3s 内 gimbalConnected 仍为 false → 判 wrong（非思翼设备）
+    property var gimbalProbeStart: ({})   // camId → 探测开始时间戳(ms)；0/undefined=未在探测
+    Timer {
+        id: gimbalProbeWatch
+        interval: 500
+        repeat: true
+        running: false   // 由 Component.onCompleted 启动
+        onTriggered: {
+            if (!root.camCfg) return
+            var now = Date.now()
+            for (var i = 0; i < root.camCfg.length; i++) {
+                var c = root.camCfg[i]
+                if (!c || !c.gimbal || c.gimbal === "") continue
+                var camId = c.id
+                var t0 = root.gimbalProbeStart[camId]
+                if (t0 === undefined || t0 === 0) continue   // 未在探测
+                if (c.gimbal === "skydroid" && c.ip === root.skyGimbalIp) {
+                    if (bridge.skyGimbalAttitudeAliveOf(c.ip) || bridge.skyGimbalProtocolAliveOf(c.ip)) {
+                        // 收到 GAC 姿态帧或任何云卓协议帧（#TP 前缀）→ 确为云卓设备。
+                        // 这是最可靠判据：思翼设备即使 5000 端口有杂散 UDP 回包也不含 #TP
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, false)
+                    } else if (now - t0 >= 3000) {
+                        // 探测超时仍无任何云卓协议帧 → 非云卓设备（如思翼误配云卓）
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, true)
+                        // 只弹当前选中的相机问题：后台未选中的相机只标记（红框在未选中画面里看不到），
+                        // 不弹窗，避免刚切页时未选中的错误相机弹窗造成误解
+                        if (root.selected.indexOf(i) >= 0)
+                            root.toast(root.gimbalWrongMsg(c.id, c.name || camId), "err")
+                    }
+                } else if (c.gimbal === "siyi") {
+                    if (c.ip !== root.gimbalCamIp) {
+                        // 非思翼会话主 IP 的 siyi 相机：思翼 SDK 单例只连接 gimbalCamIp，
+                        // 不会服务此相机（多为云卓误配思翼，或多余的思翼配置）→ 控制无效 → 判 wrong
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, true)
+                        if (root.selected.indexOf(i) >= 0)
+                            root.toast(root.gimbalWrongMsg(c.id, c.name || camId), "err")
+                    } else if (bridge.gimbalConnected) {
+                        // 思翼 SDK 已连接=设备存在（正确配置）
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, false)
+                    } else if (now - t0 >= 3000) {
+                        // 3 秒仍连不上 → 非思翼设备（如云卓误配思翼）
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, true)
+                        if (root.selected.indexOf(i) >= 0)
+                            root.toast(root.gimbalWrongMsg(c.id, c.name || camId), "err")
+                    }
+                } else {
+                    root.gimbalProbeStart[camId] = 0   // 非会话主 IP 的相机不判定
+                }
+            }
+        }
     }
 
     // ===== 相机配置工具（对齐原型 JS）=====
@@ -172,19 +303,29 @@ Item {
     function camIdxOf(id) {
         return root.camIdxIn(root.camCfg, id)
     }
-    // 判断某相机是否为当前思翼云台相机（gimbal=siyi 且 IP 与云台会话一致）
+    // 判断某相机是否为思翼云台相机（gimbal=siyi）。
+    // 注意：不再依赖 gimbalCamIp——思翼 SDK 是单例只服务会话主 IP（gimbalCamIp），
+    // 若多台相机配成 siyi，非会话主的那台必然控制无效（多为云卓误配思翼），
+    // 由 gimbalProbeWatch 判 wrong 提示，此处仅按 gimbal 字段识别
     function isGimbalCam(id) {
         const i = root.camIdxOf(id)
         if (i < 0 || !root.camCfg[i]) return false
-        const c = root.camCfg[i]
-        return c.gimbal === "siyi" && c.ip === root.gimbalCamIp
+        return root.camCfg[i].gimbal === "siyi"
     }
-    // 判断某相机是否为当前云卓云台相机（gimbal=skydroid，如 C14PRO）
+    // 判断某相机是否为云卓云台相机（gimbal=skydroid，如 C14PRO）。
+    // 注意：仅看 gimbal 字段，不再依赖全局 skyGimbalIp——支持多个相机都配置成 skydroid 时各自控制
     function isSkyCam(id) {
         const i = root.camIdxOf(id)
         if (i < 0 || !root.camCfg[i]) return false
         const c = root.camCfg[i]
-        return c.gimbal === "skydroid" && c.ip === root.skyGimbalIp
+        return c.gimbal === "skydroid"
+    }
+    // 云卓云台设备是否确认存在（协议级判定：收到 GAC 姿态帧 或 任何 #TP 云卓协议帧 → 设备在。
+    // 思翼等设备即使 5000 端口有杂散 UDP 回包也不含 #TP，不会被误判为云卓设备）
+    function skyCamReady(id) {
+        if (!root.isSkyCam(id)) return false
+        var c = root.camCfg[root.camIdxOf(id)]
+        return c && (bridge.skyGimbalProtocolAliveOf(c.ip) || bridge.skyGimbalAttitudeAliveOf(c.ip))
     }
     function camIdxIn(arr, id) {   // 通用：在指定数组中找相机 id 索引
         for (var i = 0; i < (arr ? arr.length : 0); i++)
@@ -233,7 +374,15 @@ Item {
         root.layMode = bridge.cameraLay()
         root.camCfgSel = root.camCfg.length ? root.camCfg[0].id : ""
         root.selected = root.defaultSelected(root.layMode)
-        root.syncStreams()   // 首次拉流（仅选中启用的相机）；云台会话启动也在此完成
+        // 首次拉流（仅选中启用的相机）；云台会话启动也在此完成。
+        // 用 try-catch 保护：即使真机上 syncStreams 内部某步抛异常（如桥接调用/配置异常），
+        // 也绝不能让后续 streamWatch/gimbalProbeWatch 启动被中断——否则网口监测与拉流补拉全停，
+        // 表现为"刚进页面未连接无画面，切一下 tab 才恢复"。
+        try {
+            root.syncStreams()
+        } catch (e) {
+            console.log("[CameraView] syncStreams 异常:", e)
+        }
         // 录像状态恢复：录制器挂在 bridge（跨页存活），切出本页再回来时
         // recOn/recCamIds/recStart 都是页面本地值已重置，须从 bridge 读回，
         // 否则 UI 会显示"未录像"，用户也无法正常停止真正仍在录制的视频。
@@ -243,6 +392,8 @@ Item {
         root.recElapsed = root.recOn ? Math.floor((Date.now() - root.recStart) / 1000) : 0
         // 周期刷新：OSD 时钟 / 网口状态 / 断流后按需补拉
         streamWatch.start()
+        // 云台类型配置错误探测（静态 Timer，无运行时创建风险）
+        gimbalProbeWatch.start()
     }
 
     // 切出页面时释放资源：停掉"未在录像"的预览流。
@@ -270,9 +421,41 @@ Item {
         repeat: true
         onTriggered: {
             root.osdClock = root.fmtTs(Date.now())
+            root.osdTick++   // 驱动姿态回读/测距等非串口数据刷新
             root.netOk = root.netLinkUp()
             root.recElapsed = root.recOn ? Math.floor((Date.now() - root.recStart) / 1000) : 0
             root.manageStreams()   // 断流后重连尝试由 RtspStream 自身退避处理，这里保持启停正确
+            // 每秒巡检：对之前已判定"选错云台"的相机，一旦条件满足（skydroid 收到姿态帧/
+            // siyi 连接成功/用户改了配置），立即清除 wrong 标记，避免红横幅一直挂着不自动消失。
+            if (root.camCfg) {
+                for (var i = 0; i < root.camCfg.length; i++) {
+                    var c = root.camCfg[i]
+                    if (!c) continue
+                    var camId = c.id
+                    if (!bridge.isSkyGimbalWrong(camId)) continue
+                    // 已改回无云台 → 清除
+                    if (!c.gimbal || c.gimbal === "") { bridge.markSkyGimbalWrong(camId, false); continue }
+                    if (c.gimbal === "skydroid" && (bridge.skyGimbalAttitudeAliveOf(c.ip) || bridge.skyGimbalProtocolAliveOf(c.ip))) {
+                        bridge.markSkyGimbalWrong(camId, false)
+                    } else if (c.gimbal === "siyi" && c.ip === root.gimbalCamIp && bridge.gimbalConnected) {
+                        // 思翼 SDK 会话主相机连接上了（用户换了思翼设备或网络恢复）
+                        // 注意：仅会话主（c.ip===gimbalCamIp）才可能因 connected 恢复；
+                        // 非会话主的 siyi（云卓误配思翼）不受 gimbalConnected 影响，保持 wrong
+                        bridge.markSkyGimbalWrong(camId, false)
+                    }
+                }
+                // 测距等待超时检查：3 秒内无测距回包 → 明确提示（设备可能不支持激光测距）
+                if (root.rangingWaitCam) {
+                    var rw = root.camCfg[root.camIdxOf(root.rangingWaitCam)]
+                    if (rw && bridge.skyGimbalRangingOf(rw.ip) > 0) {
+                        root.rangingWaitCam = ""   // 已收到测距结果
+                    } else if (Date.now() - root.rangingReqAt > 3000) {
+                        root.toast((rw ? rw.name : root.rangingWaitCam)
+                                   + " 未收到测距回包（设备可能不支持激光测距）", "warn")
+                        root.rangingWaitCam = ""
+                    }
+                }
+            }
         }
     }
 
@@ -583,19 +766,25 @@ Item {
                 }
             }
 
-            // 网格：整体按所选比例计算尺寸并居中（对齐原型 fitCam，扣除 16px 内边距）
+            // 网格：整体按"单格比例 × 行列数"计算尺寸并居中（对齐原型 fitCam，扣除 16px 内边距）。
+            // 比例按钮控制的是每个画面格的比例：多路时格子按所选比例保持，不再被均分打乱。
             GridLayout {
                 id: grid
                 visible: root.selected.length > 0
                 property bool fillStage: root.ratios[root.ratioIdx][0] === "auto"
-                property real ratio: root.ratios[root.ratioIdx][0] === "16:9" ? 16/9
-                                   : root.ratios[root.ratioIdx][0] === "4:3" ? 4/3 : 1
+                property real cellRatio: root.ratios[root.ratioIdx][0] === "16:9" ? 16/9
+                                       : root.ratios[root.ratioIdx][0] === "4:3" ? 4/3 : 1
+                // 网格行列数：列数 = gridCols()，行数按选中数向上取整（全档均分）
+                property int cols: root.gridCols()
+                property int rows: Math.max(1, Math.ceil(root.selected.length / Math.max(1, root.gridCols())))
+                // 网格整体宽高比 = 列数 × 单格比例 / 行数（保证每个格子保持 cellRatio）
+                property real gridRatio: cols * cellRatio / rows
                 property real availW: parent.width - 16
                 property real availH: parent.height - 16
-                width: fillStage ? parent.width : Math.min(availW, availH * ratio)
-                height: fillStage ? parent.height : width / ratio
+                width: fillStage ? parent.width : Math.min(availW, availH * gridRatio)
+                height: fillStage ? parent.height : width / gridRatio
                 anchors.centerIn: parent
-                columns: root.gridCols()
+                columns: cols
                 columnSpacing: 10
                 rowSpacing: 10
 
@@ -783,20 +972,71 @@ Item {
                                 border.width: 1
                                 implicitWidth: 172
                                 implicitHeight: root.ptzFolded ? 26 : ptzBodyCol.implicitHeight + 26
+                                // 思翼 A2 mini 自定义回中俯仰角（度，-90~+25；0=固定默认回中）
+                                property real siyiCenterPitch: 0
+                                // 当前相机名/id（嵌套 Repeater 会遮蔽外层 modelData，供预设按钮 toast/拦截用）
+                                property string camName: modelData.name || "相机"
+                                property string camId: modelData.id || ""
+                                // 选错提示去重时间戳：方向键 onPressed 与 onReleased 会各调一次 move()，
+                                // 若 wrong 每次都弹会"点一下弹两个"；1 秒窗口内只弹一次
+                                property double lastWrongToast: 0
                                 // 方向按钮发出指令（yaw,pitch）：思翼 A2 mini 仅 pitch 生效；云卓 C14PRO 双轴
+                                // **选错类型拦截**：若 bridge.isSkyGimbalWrong(camId)=true，右上角弹一个选错提示并拦截
                                 function move(yaw, pitch) {
                                     if (root.isSkyCam(modelData.id)) {
-                                        bridge.skyGimbalCtrlMove(yaw, pitch)
-                                    } else if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected) {
-                                        bridge.gimbalCtrlMove(yaw, pitch)
+                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                            ptzPanel.notifyWrong()
+                                            return
+                                        }
+                                        bridge.skyGimbalCtrlMove(modelData.ip, yaw, pitch)
+                                    } else if (root.isGimbalCam(modelData.id)) {
+                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                            ptzPanel.notifyWrong()
+                                            return
+                                        }
+                                        if (bridge.gimbalConnected) bridge.gimbalCtrlMove(yaw, pitch)
                                     }
                                 }
-                                // 回中：云卓 #TPUG2wPTZ05；思翼 SDK 0x08
+                                // 选错提示（1 秒去重，避免按下+松开双触发弹两个）
+                                function notifyWrong() {
+                                    var now = Date.now()
+                                    if (now - ptzPanel.lastWrongToast < 1000) return
+                                    ptzPanel.lastWrongToast = now
+                                    root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                }
+                                // 回中：云卓 #TPUG2wPTZ05；思翼若设了自定义回中角则 0x0E 设俯仰角，否则 0x08 默认回中
                                 function center() {
                                     if (root.isSkyCam(modelData.id)) {
-                                        bridge.skyGimbalCenter()
-                                    } else if (root.isGimbalCam(modelData.id) && bridge.gimbalConnected) {
-                                        bridge.gimbalCenter()
+                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                            root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                            return
+                                        }
+                                        bridge.skyGimbalCenter(modelData.ip)
+                                    } else if (root.isGimbalCam(modelData.id)) {
+                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                            root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                            return
+                                        }
+                                        if (bridge.gimbalConnected) {
+                                            if (ptzPanel.siyiCenterPitch !== 0)
+                                                bridge.gimbalSetPitchAngle(ptzPanel.siyiCenterPitch)
+                                            else
+                                                bridge.gimbalCenter()
+                                        }
+                                    }
+                                }
+                                // 激光测距（云卓 C14PRO：#TPUD2rSLR00 单次测距，结果入 OSD RNG）
+                                function range() {
+                                    if (root.isSkyCam(modelData.id)) {
+                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                            root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                            return
+                                        }
+                                        bridge.skyGimbalRequestRanging(modelData.ip)
+                                        // 记录测距等待：3 秒内无测距回包则提示（设备可能不支持）
+                                        root.rangingWaitCam = modelData.id
+                                        root.rangingReqAt = Date.now()
+                                        root.toast(modelData.name + " 已请求激光测距…")
                                     }
                                 }
                                 Column {
@@ -842,6 +1082,8 @@ Item {
                                     }
 
                                     // 主体（.ptz-body）：方向九宫格 + 变倍列
+                                    // 注意：Row 是 positioner，子项不能用 anchors（会导致布局错乱）。
+                                    // 变倍列 Column 移除 anchors.verticalCenter，用 implicitHeight 自然参与 Row 布局。
                                     Row {
                                         visible: !root.ptzFolded
                                         leftPadding: 8; rightPadding: 8
@@ -901,10 +1143,12 @@ Item {
                                             PtzBtn { glyph: "◢"; mvYaw: 40;  mvPitch: -40 }   // 右下
                                         }
 
-                                        // 变倍列（.ptz-zoom）：云卓 C14PRO 支持变焦；思翼 A2 mini 不支持，点击提示
+                                        // 变倍列（.ptz-zoom）：仅云卓 C14PRO 显示（变焦＋/－/倍率）；思翼 A2 mini 无变焦功能不显示
+                                        // 注意：Column 是 Row 子项，不能用 anchors（否则布局错乱跑到方向键下方），
+                                        // 用隐式高度自然参与 Row 布局。
                                         Column {
+                                            visible: root.isSkyCam(modelData.id)
                                             spacing: 3
-                                            anchors.verticalCenter: parent.verticalCenter
                                             Rectangle {
                                                 width: 28; height: 28; radius: 6
                                                 color: zinMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
@@ -915,8 +1159,15 @@ Item {
                                                     anchors.fill: parent
                                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
-                                                        if (root.isSkyCam(modelData.id)) bridge.skyGimbalZoom(1)
-                                                        else root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                        if (root.isSkyCam(modelData.id)) {
+                                                            if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                                                root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                                                return
+                                                            }
+                                                            bridge.skyGimbalZoom(modelData.ip, 1)
+                                                            if (!root.skyCamReady(modelData.id))
+                                                                root.toast(modelData.name + " 已发送变焦指令（⚠ 未检测到云卓设备，请检查云台类型配置）", "warn")
+                                                        } else root.toast(modelData.name + " 不支持变倍控制", "err")
                                                     }
                                                 }
                                             }
@@ -930,8 +1181,15 @@ Item {
                                                     anchors.fill: parent
                                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
-                                                        if (root.isSkyCam(modelData.id)) bridge.skyGimbalZoom(-1)
-                                                        else root.toast(modelData.name + " 不支持变倍控制", "err")
+                                                        if (root.isSkyCam(modelData.id)) {
+                                                            if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                                                root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                                                return
+                                                            }
+                                                            bridge.skyGimbalZoom(modelData.ip, -1)
+                                                            if (!root.skyCamReady(modelData.id))
+                                                                root.toast(modelData.name + " 已发送变焦指令（⚠ 未检测到云卓设备，请检查云台类型配置）", "warn")
+                                                        } else root.toast(modelData.name + " 不支持变倍控制", "err")
                                                     }
                                                 }
                                             }
@@ -960,28 +1218,231 @@ Item {
                                                             root.toast(modelData.name + " 不支持变焦档位切换", "err")
                                                             return
                                                         }
+                                                        if (bridge.isSkyGimbalWrong(modelData.id)) {
+                                                            root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
+                                                            return
+                                                        }
                                                         parent.isTele = !parent.isTele
                                                         if (parent.isTele) {
-                                                            bridge.skyGimbalSetLens(1)   // 长焦 → 10x
-                                                            root.toast(modelData.name + " 变焦 10x（长焦镜头）")
+                                                            bridge.skyGimbalSetLens(modelData.ip, 1)   // 长焦 → 10x
+                                                            root.toast(root.skyCamReady(modelData.id)
+                                                                       ? (modelData.name + " 变焦 10x（长焦镜头）")
+                                                                       : (modelData.name + " 已发送变焦指令（⚠ 未检测到云卓设备，请检查云台类型配置）"), root.skyCamReady(modelData.id) ? "ok" : "warn")
                                                         } else {
-                                                            bridge.skyGimbalSetLens(0)   // 广角 → 1x
-                                                            root.toast(modelData.name + " 变焦 1x（广角镜头）")
+                                                            bridge.skyGimbalSetLens(modelData.ip, 0)   // 广角 → 1x
+                                                            root.toast(root.skyCamReady(modelData.id)
+                                                                       ? (modelData.name + " 变焦 1x（广角镜头）")
+                                                                       : (modelData.name + " 已发送变焦指令（⚠ 未检测到云卓设备，请检查云台类型配置）"), root.skyCamReady(modelData.id) ? "ok" : "warn")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        // 回中角度列（仅思翼 A2 mini：0x0E 设俯仰角，自定义回中俯仰角）。
+                                        // 三排：标签"回中角度"→ 0°/+10° → +25°/-45°。点击即设 siyiCenterPitch 并立即执行
+                                        Column {
+                                            visible: root.isGimbalCam(modelData.id)
+                                            spacing: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            // 第一排：标签（不可点击）
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: "回中角度"
+                                                color: "#8aa0bf"; font.pixelSize: 9
+                                            }
+                                            // 第二排：0° +10°
+                                            Row {
+                                                spacing: 3
+                                                Repeater {
+                                                    model: [0, 10]
+                                                    Rectangle {
+                                                        property bool sel: ptzPanel.siyiCenterPitch === modelData
+                                                        width: 30; height: 22; radius: 4
+                                                        color: presMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
+                                                        border.width: 1
+                                                        border.color: sel ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.16)
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: modelData === 0 ? "0°" : "+" + modelData + "°"
+                                                            color: sel ? "#ffffff" : "#dbe6ff"
+                                                            font.pixelSize: 9; font.weight: sel ? Font.Bold : Font.Normal
+                                                        }
+                                                        ToolTip.visible: presMa.containsMouse
+                                                        ToolTip.text: modelData === 0 ? "默认回中（俯仰 0°）" : ("回中俯仰角 +" + modelData + "°")
+                                                        ToolTip.delay: 400
+                                                        MouseArea {
+                                                            id: presMa
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                            onClicked: {
+                                                                ptzPanel.siyiCenterPitch = modelData
+                                                                // 选错类型拦截（云卓误配思翼：思翼 SDK 连不上 → wrong）
+                                                                if (bridge.isSkyGimbalWrong(ptzPanel.camId)) {
+                                                                    root.toast(root.gimbalWrongMsg(ptzPanel.camId, ptzPanel.camName), "err")
+                                                                    return
+                                                                }
+                                                                if (bridge.gimbalConnected) {
+                                                                    if (modelData !== 0) {
+                                                                        bridge.gimbalSetPitchAngle(modelData)
+                                                                        root.toast(ptzPanel.camName + " 云台俯仰 → " + modelData + "°")
+                                                                    } else {
+                                                                        bridge.gimbalCenter()
+                                                                        root.toast(ptzPanel.camName + " 云台默认回中（俯仰 0°）")
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            // 第三排：+25° -45°
+                                            Row {
+                                                spacing: 3
+                                                Repeater {
+                                                    model: [25, -45]
+                                                    Rectangle {
+                                                        property bool sel: ptzPanel.siyiCenterPitch === modelData
+                                                        width: 30; height: 22; radius: 4
+                                                        color: presMa2.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
+                                                        border.width: 1
+                                                        border.color: sel ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.16)
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: (modelData > 0 ? "+" : "") + modelData + "°"
+                                                            color: sel ? "#ffffff" : "#dbe6ff"
+                                                            font.pixelSize: 9; font.weight: sel ? Font.Bold : Font.Normal
+                                                        }
+                                                        ToolTip.visible: presMa2.containsMouse
+                                                        ToolTip.text: "回中俯仰角 " + (modelData > 0 ? "+" : "") + modelData + "°"
+                                                        ToolTip.delay: 400
+                                                        MouseArea {
+                                                            id: presMa2
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                            onClicked: {
+                                                                ptzPanel.siyiCenterPitch = modelData
+                                                                // 选错类型拦截（云卓误配思翼：思翼 SDK 连不上 → wrong）
+                                                                if (bridge.isSkyGimbalWrong(ptzPanel.camId)) {
+                                                                    root.toast(root.gimbalWrongMsg(ptzPanel.camId, ptzPanel.camName), "err")
+                                                                    return
+                                                                }
+                                                                if (bridge.gimbalConnected) {
+                                                                    bridge.gimbalSetPitchAngle(modelData)
+                                                                    root.toast(ptzPanel.camName + " 云台俯仰 → " + modelData + "°")
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
                                     }
+                                    // 激光测距小横条（仅云卓 C14PRO：单次测距，结果见画面右下角 OSD RNG）。
+                                    // 左对齐并与方向键左侧间距一致（主体 Row 内 leftPadding=8）
+                                    Item {
+                                        visible: !root.ptzFolded && root.isSkyCam(modelData.id)
+                                        width: parent.width
+                                        height: 22
+                                        Row {
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: 8
+                                            spacing: 6
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: "激光测距"
+                                                color: "#8aa0bf"; font.pixelSize: 9
+                                            }
+                                            Rectangle {
+                                                width: 52; height: 22; radius: 4
+                                                color: rngMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.10)
+                                                border.width: 1; border.color: Qt.rgba(1,1,1,0.18)
+                                                Text { anchors.centerIn: parent; text: "测距"; color: "#dbe6ff"; font.pixelSize: 9 }
+                                                MouseArea {
+                                                    id: rngMa
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: ptzPanel.range()
+                                                }
+                                            }
+                                            // 测距值：必须显式依赖 root.osdTick（同 OSD 测距行）——
+                                            // skyGimbalRangingOf 是方法调用，函数内部的 void osdTick 不被绑定引擎追踪，
+                                            // 不显式依赖则测距后不刷新、一直显示 "--"
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: (void root.osdTick,
+                                                       bridge.skyGimbalRangingOf(modelData.ip) > 0)
+                                                      ? (root.skyRng(modelData.ip)) : "--"
+                                                color: "#f472b6"; font.pixelSize: 11; font.weight: Font.Bold
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ===== 选错云台类型 · 醒目的右下角红色横幅 =====
+                            // 存 bridge.markSkyGimbalWrong(camId)，跨页面（Component销毁再重建）不丢失
+                            //   → 切到地图/飞控/设置页再切回来、或切到别的相机tab再切回，依然显示。
+                            // 对称逻辑：思翼误配云卓 与 云卓误配思翼 都会触发此横幅。
+                            // 注意：visible 必须依赖 osdTick——isSkyGimbalWrong 是方法调用，
+                            // QML 绑定无法自动追踪其变化，靠 osdTick 每秒重算才能"markSkyGimbalWrong 后红框自动出现/消失"
+                            Rectangle {
+                                id: skyWrongBanner
+                                visible: root.osdTick >= 0
+                                         && (root.isSkyCam(modelData.id) || root.isGimbalCam(modelData.id))
+                                         && bridge.isSkyGimbalWrong(modelData.id)
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.rightMargin: 8
+                                anchors.bottomMargin: 8
+                                radius: 8
+                                color: Qt.rgba(220/255, 38/255, 38/255, 0.92)
+                                border.color: "#fecaca"
+                                border.width: 1
+                                implicitWidth: wrongRow.implicitWidth + 22
+                                implicitHeight: wrongRow.implicitHeight + 10
+                                z: 50
+                                Row {
+                                    id: wrongRow
+                                    anchors.centerIn: parent
+                                    spacing: 8
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "⚠"
+                                        color: "#ffffff"
+                                        font.pixelSize: 15
+                                        font.weight: Font.Bold
+                                    }
+                                    Column {
+                                        spacing: 1
+                                        Text {
+                                            text: "选错云台类型"
+                                            color: "#ffffff"
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                        }
+                                        Text {
+                                            text: root.isSkyCam(modelData.id)
+                                                  ? ((modelData.name || modelData.id) + " 实际不是云卓云台 · 请在拉流设置中切换")
+                                                  : ((modelData.name || modelData.id) + " 实际不是思翼云台 · 请在拉流设置中切换")
+                                            color: "#fee2e2"
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                TapHandler {
+                                    onTapped: root.toast(root.gimbalWrongMsg(modelData.id, modelData.name || modelData.id), "err")
                                 }
                             }
 
                             // OSD 参数叠加（.cam-osd 右下角，绑定实时遥测与本地时钟）
+                            // 位置：放在"选错云台红色横幅"正上方（bottom 推高 12px），避免被横幅遮挡
                             Rectangle {
                                 visible: root.osdOn && viewItem.live
                                 anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                anchors.margins: 10
+                                anchors.bottom: skyWrongBanner.visible ? skyWrongBanner.top : parent.bottom
+                                anchors.rightMargin: 10
+                                anchors.bottomMargin: skyWrongBanner.visible ? 4 : 10
                                 width: osdCol.implicitWidth + 20
                                 height: osdCol.implicitHeight + 12
                                 radius: 6
@@ -991,16 +1452,48 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 2
                                     Text { text: root.osdClock; font.pixelSize: 11; font.family: "monospace"; color: "#ffffff"; font.weight: Font.Bold }
-                                    Text { text: root.fmt2(bridge.value("fc","lat")) + "°N    " + root.fmt2(bridge.value("fc","lon")) + "°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
-                                    Text { text: "ALT " + root.fmt0(bridge.value("fc","alt")) + "m    SPD " + root.fmt1(bridge.value("fc","vx")) + "m/s    HDG " + root.fmt0(bridge.value("fc","yaw")) + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
-                                    // 云台状态：思翼 SDK 实时回读俯仰角；云卓 C14PRO 无姿态回读，显示"已连接"
+                                    Text { text: root.osdLat() + "°N    " + root.osdLon() + "°E"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
+                                    Text { text: "ALT " + root.osdAlt() + "m    SPD " + root.osdSpd() + "m/s    HDG " + root.osdHdg() + "°"; font.pixelSize: 11; font.family: "monospace"; color: "#cfe0ff" }
+                                    // 云台状态：思翼 SDK 实时回读俯仰角；云卓 v1.1.5 GAA/GAC 姿态回读（按IP独立判断）。
+                                    // 状态判断基于"选错类型"标记（bridge.isSkyGimbalWrong）而非 GAA 超时：
+                                    //   - wrong=true → 红字"选错云台类型"
+                                    //   - 云卓收到 GAC → 绿字显示 Y/P/R；设备在线但不回姿态 → 黄字"在线（无姿态回读）"
+                                    //   - 思翼连接 → 黄字显示俯仰角；未连接 → 黄字"未连接"
+                                    // 注意：isSkyGimbalWrong 是方法调用，绑定无法自动追踪其变化（如换回思翼后
+                                    // wrong 被清除但 gimbalConnected 未再变化时 text 不重算→一直显示"选错"）。
+                                    // 必须加 root.osdTick 依赖，靠每秒重算刷新状态显示。
                                     Text {
-                                        visible: (root.isGimbalCam(modelData.id) && bridge.gimbalConnected)
-                                                 || root.isSkyCam(modelData.id)
-                                        text: root.isGimbalCam(modelData.id)
-                                              ? "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
-                                              : "GIMBAL ONLINE"
-                                        font.pixelSize: 11; font.family: "monospace"; color: "#ffd166"
+                                        visible: root.osdTick >= 0
+                                                 && ((root.isGimbalCam(modelData.id) && (bridge.gimbalConnected || root.gimbalCamIp !== ""))
+                                                     || root.isSkyCam(modelData.id))
+                                        text: (void root.osdTick,
+                                               bridge.isSkyGimbalWrong(modelData.id))
+                                              ? "GIMBAL 选错云台类型"
+                                              : (root.isGimbalCam(modelData.id)
+                                                 ? (bridge.gimbalConnected
+                                                    ? "GIMBAL " + root.fmt1(bridge.gimbalPitch) + "°"
+                                                    : "GIMBAL 未连接")
+                                                 : (root.skyAttAlive(modelData.ip)
+                                                    ? ("Y " + root.skyYaw(modelData.ip) + "°  P " + root.skyPitch(modelData.ip) + "°  R " + root.skyRoll(modelData.ip) + "°")
+                                                    : "GIMBAL 在线（无姿态回读）"))
+                                        color: (void root.osdTick,
+                                                bridge.isSkyGimbalWrong(modelData.id))
+                                               ? "#f87171"
+                                               : (root.isGimbalCam(modelData.id)
+                                                  ? (bridge.gimbalConnected ? "#ffd166" : "#f87171")
+                                                  : (root.skyAttAlive(modelData.ip) ? "#4ade80" : "#ffd166"))
+                                        font.pixelSize: 11; font.family: "monospace"
+                                    }
+                                    // 云卓激光测距（SLR，按IP独立查询）：始终显示该行；未测距显示"--"，测距后显示距离
+                                    // 注意：text 必须显式依赖 root.osdTick——skyRng() 函数内部的 void osdTick
+                                    // 不会被绑定引擎追踪，导致 text 只求值一次、测距后不刷新（一直显示 --）
+                                    Text {
+                                        visible: root.isSkyCam(modelData.id)
+                                        text: (void root.osdTick,
+                                               bridge.skyGimbalRangingOf(modelData.ip) > 0)
+                                              ? ("RNG " + root.skyRng(modelData.ip))
+                                              : "RNG --"
+                                        font.pixelSize: 11; font.family: "monospace"; color: "#f472b6"
                                     }
                                 }
                             }
@@ -1015,17 +1508,6 @@ Item {
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Rectangle {
                                     width: 26; height: 26; radius: 6
-                                    color: ovZoomMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(0,0,0,0.5)
-                                    Text { anchors.centerIn: parent; text: "⛶"; color: "#ffffff"; font.pixelSize: 12 }
-                                    MouseArea {
-                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        id: ovZoomMa
-                                        anchors.fill: parent
-                                        onClicked: root.toast("已放大 " + modelData.name + "（占位）")
-                                    }
-                                }
-                                Rectangle {
-                                    width: 26; height: 26; radius: 6
                                     color: ovShotMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(0,0,0,0.5)
                                     Text { anchors.centerIn: parent; text: "📷"; color: "#ffffff"; font.pixelSize: 12 }
                                     MouseArea {
@@ -1034,8 +1516,14 @@ Item {
                                         anchors.fill: parent
                                         onClicked: {
                                             // 双路保存：云卓 C14PRO → 相机本地拍照（存 TF 卡，原始分辨率）+ 本机截屏
+                                            // 仅警告不拦截：设备未确认也照常触发相机拍照（不因探测误判阻断真设备）
                                             var isSky = root.isSkyCam(modelData.id)
-                                            if (isSky) bridge.skyGimbalShot()
+                                            var skyOk = root.skyCamReady(modelData.id)
+                                            if (isSky) {
+                                                bridge.skyGimbalShot(modelData.ip)
+                                                if (!skyOk)
+                                                    root.toast("已发送拍照指令（⚠ 未检测到云卓设备，请检查云台类型配置）", "warn")
+                                            }
                                             if (!(vidSurf.stream && vidSurf.stream.online)) {
                                                 if (isSky) root.toast("已触发 " + modelData.name + " 相机拍照（存 TF 卡）；无画面流，未存 PC 截图", "info")
                                                 else root.toast("该相机无画面，截图失败", "err")
@@ -1088,18 +1576,21 @@ Item {
                         if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
                         // 双路保存：支持相机本地拍照的（云卓 C14PRO）→ 相机拍照存 TF 卡 + 本机截屏；
                         // 其余相机 → 仅本机截屏到 PC。PC 截屏仅对"拉流成功且在线"的相机执行
+                        // 仅警告不拦截：设备未确认也照常触发相机拍照，仅提示警告
                         var dir = bridge.cameraDir()
                         var ts = Date.now()
                         var snapCnt = 0   // PC 截屏成功路数
                         var skyCnt = 0    // 相机本地拍照路数
+                        var skyMiss = 0   // 云卓设备未确认（IP:5000 无服务）路数
                         for (var k = 0; k < root.selected.length; k++) {
                             var cidx = root.selected[k]
                             var cobj = root.camCfg[cidx]
                             if (!cobj) continue
                             var isSky = root.isSkyCam(cobj.id)
                             if (isSky) {
-                                bridge.skyGimbalShot()   // 相机本地拍照（存 TF 卡，原始分辨率）
+                                bridge.skyGimbalShot(cobj.ip)   // 相机本地拍照（存 TF 卡，原始分辨率）
                                 skyCnt++
+                                if (!root.skyCamReady(cobj.id)) skyMiss++
                             }
                             (function(idx) {
                                 var st = bridge.videoStream(root.camCfg[idx].id)
@@ -1119,6 +1610,7 @@ Item {
                         var msg = []
                         if (skyCnt) msg.push("已触发 " + skyCnt + " 路相机拍照（存 TF 卡）")
                         if (snapCnt) msg.push(snapCnt + " 路已截屏到 PC")
+                        if (skyMiss) msg.push(skyMiss + " 路⚠ 未检测到云卓设备，请检查云台类型配置")
                         root.toast(msg.join("；") + "（PC 截图见 data/摄像头 目录）")
                     }
                 }
@@ -1170,16 +1662,19 @@ Item {
                             if (!root.selected.length) { root.toast("请先选择相机", "err"); return }
                             // 双路保存：支持相机本地录像的（云卓 C14PRO）→ 相机本地录像存 TF 卡 + PC 拉流录制；
                             // 其余相机 → 仅 PC 拉流录制。PC 录制仅对"拉流成功且在线"的相机执行
+                            // 仅警告不拦截：设备未确认也照常触发相机录像，仅提示警告
                             var pcCnt = 0    // PC 拉流录制路数
                             var skyCnt = 0   // 相机本地录像路数
+                            var skyMiss = 0  // 云卓设备未确认（IP:5000 无服务）路数
                             var ids = []
                             for (var k = 0; k < root.selected.length; k++) {
                                 var ci = root.camCfg[root.selected[k]]
                                 if (!ci || !ci.ip) continue
                                 var isSky = root.isSkyCam(ci.id)
                                 if (isSky) {
-                                    bridge.skyGimbalRecord(true)   // 相机本地录像（存 TF 卡，不依赖画面流）
+                                    bridge.skyGimbalRecord(ci.ip, true)   // 相机本地录像（存 TF 卡，不依赖画面流）
                                     skyCnt++
+                                    if (!root.skyCamReady(ci.id)) skyMiss++
                                 }
                                 var st = bridge.videoStream(ci.id)
                                 if (!st.online) continue   // 无画面不 PC 录制
@@ -1194,12 +1689,20 @@ Item {
                             var msg = []
                             if (skyCnt) msg.push(skyCnt + " 路相机本地录像（存 TF 卡）")
                             if (pcCnt) msg.push(pcCnt + " 路 PC 录制")
+                            if (skyMiss) msg.push(skyMiss + " 路⚠ 未检测到云卓设备，请检查云台类型配置")
                             root.toast("开始录像：" + msg.join("；"))
                         } else {
                             root.recOn = false
                             root.recCamIds = []
                             var dur = Math.max(1, Math.round((Date.now() - root.recStart) / 1000))
-                            if (root.recSkyOn) bridge.skyGimbalRecord(false)
+                            // 停止云卓相机本地录像（TF 卡）：遍历所有 skydroid 相机**无条件**发送停止命令。
+                            // P1-1：不依赖 recSkyOn——recSkyOn 是页面本地状态，录像中切页再切回时
+                            // onCompleted 未恢复它（保持 false），若依赖它判断则切页后无法停止 TF 卡录制；
+                            // 无条件发送对未录制的相机无副作用。
+                            for (var sk = 0; sk < root.camCfg.length; sk++) {
+                                var skc = root.camCfg[sk]
+                                if (skc && root.isSkyCam(skc.id)) bridge.skyGimbalRecord(skc.ip, false)
+                            }
                             var ok = bridge.stopCameraRecord()
                             root.recSkyOn = false
                             root.toast(ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败", ok ? "ok" : "err")
@@ -1281,14 +1784,25 @@ Item {
                             // 校验真实恢复：至少一路选中且启用的流已在线才提示成功，
                             // 避免盲目提示"已恢复"误导（断流时重连仍在退避中）
                             var ok = false
+                            var errs = []
                             for (var i = 0; i < root.camCfg.length; i++) {
                                 var c = root.camCfg[i]
                                 if (c.enable && c.ip && root.selected.indexOf(i) >= 0) {
                                     var st = bridge.videoStream(c.id)
                                     if (st && st.online) { ok = true; break }
+                                    if (st && st.lastError) {
+                                        var e = st.lastError
+                                        if (errs.indexOf(e) < 0) errs.push(e)
+                                    }
                                 }
                             }
-                            root.toast(ok ? "网口视频流已恢复" : "重连中，请稍候…（仍在尝试）", ok ? "ok" : "info")
+                            // 断流主动引导：给出最近一次失败的具体原因（认证/连接/地址）
+                            if (ok)
+                                root.toast("网口视频流已恢复", "ok")
+                            else if (errs.length)
+                                root.toast("重连中…" + errs[0] + "，可检查拉流设置", "err")
+                            else
+                                root.toast("重连中，请稍候…（仍在尝试）", "info")
                         }
                     }
                 }
@@ -1448,9 +1962,11 @@ Item {
                                     }
                                     Text { text: modelData.name; font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText }
                                     // 云台徽章（.cl-ptz：10px 绿边绿字圆角4）
+                                    // 注意：RowLayout 的 positioner 子项禁止用 anchors（会破坏整行布局），
+                                    // 垂直居中用 Layout.alignment
                                     Rectangle {
                                         visible: modelData.ptz === true
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        Layout.alignment: Qt.AlignVCenter
                                         width: ptzBadgeText.implicitWidth + 8; height: 16
                                         radius: 4
                                         border.width: 1
@@ -1649,7 +2165,9 @@ Item {
                         Layout.topMargin: 10
                         Layout.bottomMargin: 4
                         spacing: 14
-                        DashLine { Layout.fillWidth: true }
+                        // P2-4：DashLine 是 Column（positioner）子项，Layout.fillWidth 对其无效
+                        //（只对 ColumnLayout 直接子项生效）→ 显式用 parent.width 撑满
+                        DashLine { width: parent.width }
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
@@ -1770,7 +2288,8 @@ Item {
                 Column {
                     Layout.fillWidth: true
                     spacing: 12
-                    DashLine { Layout.fillWidth: true }
+                    // P2-4：DashLine 是 Column（positioner）子项，Layout.fillWidth 无效 → 用 parent.width
+                    DashLine { width: parent.width }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignRight
@@ -1932,7 +2451,13 @@ Item {
         root.selected = ns.length ? ns : root.defaultSelected(root.layMode)
         // 云台焦点索引越界修正（删除相机后）
         if (root.focusIdx >= root.camCfg.length) root.focusIdx = Math.max(0, root.camCfg.length - 1)
-        root.saveAll()
+        // 持久化 + 拉流同步。用 try-catch 保护：即使 syncStreams 内部某步抛异常，
+        // 也绝不能让弹窗卡死不关闭（否则表现为"保存设置没反应"）
+        try {
+            root.saveAll()
+        } catch (e) {
+            console.log("[CameraView] saveAll 异常:", e)
+        }
         camCfgDlg.close()
         root.toast("拉流设置已保存")
     }

@@ -48,6 +48,8 @@ PREFIX = {
     "REC": "#TPUD2wREC",   # 录像（0x01=开始 0x00=停止）
     "DZM": "#TPUD2wDZM",   # 变焦（0x0A=放大 0x0B=缩小，RCSDK addZoomRatios/subtractZoomRatios）
     "PTZ": "#TPUG2wPTZ",   # 云台动作（0x05=回中，RCSDK AKey.MID；0x01=朝上 0x02=朝下 0x03=朝左 0x04=朝右）
+    "SLR": "#TPUD2rSLR",   # 单次激光测距（0x00 触发；回包 #TPUD4rSLR X0X1X2X3 CC，数据=分米）
+    "GAA": "#TPUG2wGAA",   # 姿态回读开关（0x01=1Hz 主动送出 / 0x00=关闭；回包 #TPUGCrGAC ...）
 }
 
 
@@ -58,19 +60,24 @@ class C14ProController:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(timeout)
 
-    def send(self, cmd: str, label: str = "") -> str:
-        """发送 UDP 文本命令，返回接收到的响应（可能为空）"""
+    def send(self, cmd: str, label: str = "", recv_count: int = 1) -> str:
+        """发送 UDP 文本命令，返回接收到的响应（可能为空）。
+        recv_count>1：连续接收多个回包（测距/姿态等命令可能先回确认帧，稍后回结果帧）"""
         data = cmd.encode("utf-8")
         self.sock.sendto(data, (self.ip, self.port))
         print(f"[TX] {cmd}  {label}")
-        try:
-            resp, addr = self.sock.recvfrom(1024)
-            text = resp.decode("utf-8", errors="replace")
-            print(f"[RX] {text}")
-            return text
-        except socket.timeout:
-            print("     (无响应/超时)")
-            return ""
+        got = ""
+        for _ in range(recv_count):
+            try:
+                resp, addr = self.sock.recvfrom(1024)
+                text = resp.decode("utf-8", errors="replace")
+                print(f"[RX] {text}")
+                if not got:
+                    got = text
+            except socket.timeout:
+                print("     (无响应/超时)")
+                break
+        return got
 
     def close(self):
         self.sock.close()
@@ -89,6 +96,9 @@ def interactive(ctrl: C14ProController):
         ("拍照", build_cmd(PREFIX["CAP"], "01")),
         ("开始录像", build_cmd(PREFIX["REC"], "01")),
         ("停止录像", build_cmd(PREFIX["REC"], "00")),
+        ("激光测距", build_cmd(PREFIX["SLR"], "00")),
+        ("使能姿态回读1Hz", build_cmd(PREFIX["GAA"], "01")),
+        ("关闭姿态回读", build_cmd(PREFIX["GAA"], "00")),
     ]
     while True:
         print("\n===== C14PRO UDP 控制 =====")
@@ -103,7 +113,11 @@ def interactive(ctrl: C14ProController):
             break
         if choice.isdigit() and 1 <= int(choice) <= len(menu):
             desc, cmd = menu[int(choice) - 1]
-            ctrl.send(cmd, desc)
+            # 激光测距：可能先回确认帧、稍后回测距结果帧，多收几个回包
+            if desc == "激光测距":
+                ctrl.send(cmd, desc, recv_count=4)
+            else:
+                ctrl.send(cmd, desc)
         else:
             print("无效选择")
 
