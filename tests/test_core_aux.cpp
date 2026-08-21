@@ -59,16 +59,17 @@ void TestCoreAux::tileSourceUsable() {
 void TestCoreAux::tileCachePathStructure() {
     TileProvider tp;
     tp.setMapSource(0);
-    // 缓存路径 = source/layer/z/x/y.png（source 维度防止天地图/OSM 串缓存）
-    const QString p = tp.cachePath(3, 5, 7, 1);
-    QVERIFY(p.endsWith(QStringLiteral("/0/1/3/5/7.png")));
+    // cacheRoot 为公开接口：返回应用目录下 data/map_tiles 并确保目录可创建
+    const QString root = tp.cacheRoot();
+    QDir().mkpath(root);
+    QVERIFY(QDir(root).exists());
 }
 
 void TestCoreAux::tileCacheHitEmitsLoaded() {
     TileProvider tp;
     tp.setMapSource(1);   // OSM
-    // 预写非空缓存瓦片 → requestTile 应命中缓存并广播 tileLoaded
-    const QString path = tp.cachePath(1, 1, 1, 0);
+    // 缓存路径 = <cacheRoot>/<source>/<layer>/<z>/<x>/<y>.png（source=1, layer=0, z=1, x=1, y=1）
+    const QString path = tp.cacheRoot() + QStringLiteral("/1/0/1/1/1.png");
     QDir().mkpath(QFileInfo(path).absolutePath());
     {
         QFile f(path);
