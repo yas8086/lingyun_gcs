@@ -32,7 +32,7 @@ add_qt_test(test_video_protocol tests/test_video_protocol.cpp src/video/siyi_sdk
 target_link_libraries(test_video_protocol PRIVATE Qt6::Network)
 
 # 数据总线 / 瓦片缓存 / 串口辅助测试（无头可运行）
-add_qt_test(test_core_aux tests/test_core_aux.cpp src/core/data_bus.cpp src/map/tile_provider.cpp src/comms/serial_manager.cpp src/model/telemetry_data.cpp)
+add_qt_test(test_core_aux tests/test_core_aux.cpp src/core/data_bus.cpp src/map/tile_provider.cpp src/comms/serial_manager.cpp src/comms/frame_parser.cpp src/comms/json_decoder.cpp src/model/telemetry_data.cpp)
 target_link_libraries(test_core_aux PRIVATE Qt6::SerialPort Qt6::Network)
 
 # C3：QApplication 类测试在无头/CI 环境需 offscreen 平台插件（无 DISPLAY 时 QTEST_MAIN 启动失败）
