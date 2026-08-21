@@ -50,6 +50,8 @@ public:
     void setSerialManager(SerialManager *serial);
     void setConfigManager(ConfigManager *config);
     void setAlarmEngine(AlarmEngine *engine);
+    // B3：串口异常（ResourceError 拔线等）时同步缓存状态，避免 isSerialOpen 长期跨线程阻塞
+    void markSerialGone();
 
     // 串口控制
     Q_INVOKABLE QStringList ports() const;
@@ -69,6 +71,9 @@ public:
     Q_INVOKABLE QString fcStringField(const QString &key) const;
     // 就绪度状态：0 待自检 / 1 就绪可飞 / 2 起飞受限 / 3 不可起飞
     Q_INVOKABLE int readinessState() const;
+    // 就绪度明细（B4：与 readinessState() 阈值单一来源，QML 弹窗单源消费，避免阈值漂移）：
+    // QVariantList<QVariantMap{name, ok, val}>
+    Q_INVOKABLE QVariant readinessDetail() const;
     // LoRa 节点概要（多行文本）
     Q_INVOKABLE QString loraSummary() const;
     // LoRa 节点结构化数据：QVariantList<QVariantMap{id,temp,pressure,alarm,isTemp}>
@@ -226,10 +231,6 @@ public:
     Q_INVOKABLE QVariant defaultProbeMapping() const;
     Q_INVOKABLE void resetProbeMapping();                 // 恢复默认布局（写回默认并持久化）
 
-    // 设备卡显示字段配置（决策 #？）：每设备可见字段 key 列表
-    Q_INVOKABLE QStringList fieldConfig(const QString &device) const;
-    Q_INVOKABLE void setFieldConfig(const QString &device, const QVariant &list);
-
     // 运行时长（决策：状态栏）
     Q_INVOKABLE int uptimeSeconds() const;
 
@@ -239,7 +240,6 @@ signals:
     void telemetryChanged();                 // 有新遥测
     void linkChanged(bool online);
     void stateChanged();                     // 串口开关 / 配置变更（模块可见性等），前端据此刷新 UI
-    void alarmRaised(const QString &msg, const QString &level);
     void alarmsChanged();                    // 告警列表/计数变化
     void rulesChanged();                     // 告警规则变化
     void configImported();                   // 配置导入成功，前端需刷新各设置控件
@@ -254,7 +254,9 @@ private:
     lgs::TelemetryData last_;
     void startRecording();
     void stopRecording();
+    void onRecorderFinalized();   // 录制器收尾完成（EOS 写完）后移除并释放
     bool linkOnline_ = false;
+    bool serialOpen_ = false;     // B3：串口打开状态缓存（避免 isSerialOpen 高频跨线程阻塞）
     SerialManager *serial_ = nullptr;
     ConfigManager *config_ = nullptr;
     AlarmEngine *engine_ = nullptr;
@@ -281,5 +283,8 @@ private:
     QTimer flushTimer_;   // 定时批量落盘，避免每帧 flush 阻塞 GUI 线程
     bool recordEnabled_ = true; // 运行时开关状态（初始化取自 config，默认开）
 };
+
+// 温度探头映射文件路径（决策 #27）：供 rules/config 两个拆分部共用（配置导入导出需合并该文件，B8）
+QString probesFilePath();
 
 } // namespace lgs

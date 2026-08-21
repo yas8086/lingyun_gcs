@@ -195,6 +195,11 @@ void TelemetryBridge::gimbalCenter() {
         gimbal_->center();
 }
 
+void TelemetryBridge::gimbalSetPitchAngle(double pitchDeg) {
+    if (gimbal_)
+        gimbal_->setPitchAngle(pitchDeg);
+}
+
 // ---- 云卓云台相机（C14PRO，UDP 5000 文本协议）----
 void TelemetryBridge::startSkyGimbal(const QString &ip) {
     if (ip.isEmpty())
@@ -366,11 +371,28 @@ bool TelemetryBridge::exportConfig(const QString &path) const {
         return false;
     const QByteArray data = src.readAll();
     src.close();
+    // B8：把温度探头映射（temp_probes.json）合并进导出包（tempProbes 键），
+    // 否则跨设备导入配置会丢失探头布局，需手动重建
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(data, &err);
+    QJsonObject obj = (err.error == QJsonParseError::NoError && doc.isObject())
+                          ? doc.object()
+                          : QJsonObject();
+    QFile pf(probesFilePath());
+    if (pf.open(QIODevice::ReadOnly)) {
+        const QJsonDocument pdoc = QJsonDocument::fromJson(pf.readAll());
+        pf.close();
+        if (pdoc.isArray())
+            obj[QLatin1String("tempProbes")] = pdoc.array();
+    }
     QDir().mkpath(QFileInfo(path).absolutePath());
     QFile dst(path);
-    if (!dst.open(QIODevice::WriteOnly))
+    if (!dst.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
-    dst.write(data);
+    QTextStream out(&dst);
+    out.setGenerateByteOrderMark(true); // BOM，便于 Windows
+    out << QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+    out.flush();
     dst.close();
     return true;
 }
@@ -386,6 +408,10 @@ bool TelemetryBridge::importConfig(const QString &path) {
     const QJsonDocument doc = QJsonDocument::fromJson(data, &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject())
         return false;
+    // B8：导入包含探头映射（tempProbes 数组）时一并写回 temp_probes.json，跨设备迁移不丢
+    const QJsonValue tp = doc.object().value(QLatin1String("tempProbes"));
+    if (tp.isArray() && !tp.toArray().isEmpty())
+        saveProbeMapping(tp.toArray().toVariantList());
     // 写回当前配置文件（含 BOM，便于 Windows 记事本打开）
     QDir().mkpath(QFileInfo(config_->filePath()).absolutePath());
     QFile dst(config_->filePath());

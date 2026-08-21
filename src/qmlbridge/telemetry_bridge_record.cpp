@@ -66,12 +66,18 @@ QString TelemetryBridge::startCameraRecord(const QString &camId) {
     RtspRecorder *rec = recorders_.value(camId, nullptr);
     if (!rec) {
         rec = new RtspRecorder(this);
+        // P0-3：收尾完成（finalized 信号）后再释放，避免过早 deleteLater 中断 EOS 写索引
+        connect(rec, &RtspRecorder::finalized, this, &TelemetryBridge::onRecorderFinalized);
         recorders_.insert(camId, rec);
     }
     const QString name = QStringLiteral("rec_%1_%2.mkv")
                              .arg(camId).arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
-    if (!rec->start(url, cameraDir() + "/" + name))
+    if (!rec->start(url, cameraDir() + "/" + name)) {
+        // P2-6：启动失败（如拉流地址无效），移除并释放，避免死对象驻留 recorders_
+        recorders_.remove(camId);
+        rec->deleteLater();
         return QString();
+    }
     // 维护跨页录像运行时状态（CameraView 切出销毁后依据此恢复）
     if (!camCamIds_.contains(camId))
         camCamIds_.append(camId);
@@ -83,24 +89,41 @@ QString TelemetryBridge::startCameraRecord(const QString &camId) {
 
 bool TelemetryBridge::stopCameraRecord() {
     bool any = false;
+    QStringList toRemove;
     for (auto it = recorders_.begin(); it != recorders_.end(); ++it) {
-        if (it.value()->recording()) {
-            it.value()->stop();
+        RtspRecorder *rec = it.value();
+        if (rec->recording()) {
+            // P0-3：异步收尾（发 EOS + 等 mux 写完索引），finalized 时
+            // onRecorderFinalized 从 recorders_ 移除并 deleteLater——不在此过早销毁，
+            // 否则析构会强制中断收尾导致 .mkv 文件尾索引缺失（不可拖/不可播）。
+            rec->stop();
             any = true;
+        } else {
+            // 未在录（启动失败或已收尾）：立即移除+释放
+            toRemove.append(it.key());
+            rec->deleteLater();
         }
     }
-    // 释放全部录制器对象（next frame 前 stop() 已完成异步收尾入队）。
-    // 原实现 recorders_ 只增不减：反复开关录像会在哈希表累积已停止的
-    // RtspRecorder 对象（长期运行资源泄漏）。录制器 stop 后不再可复用，
-    // 下次 startCameraRecord 会重建新实例。
-    for (auto it = recorders_.begin(); it != recorders_.end(); ++it)
-        it.value()->deleteLater();
-    recorders_.clear();
+    for (const QString &id : toRemove)
+        recorders_.remove(id);
     // 无论是否有路已录，都复位运行时状态（切页后 UI 依据此值恢复）
     camCamIds_.clear();
     camRecOn_ = false;
     camRecStart_ = 0;
     return any;
+}
+
+// P0-3：录制器收尾完成（EOS/mux 索引已写完）后安全释放
+void TelemetryBridge::onRecorderFinalized() {
+    auto *rec = qobject_cast<RtspRecorder *>(sender());
+    if (!rec) return;
+    for (auto it = recorders_.begin(); it != recorders_.end(); ++it) {
+        if (it.value() == rec) {
+            recorders_.erase(it);
+            break;
+        }
+    }
+    rec->deleteLater();
 }
 
 QVariantList TelemetryBridge::cameraRecordingCams() const {

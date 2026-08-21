@@ -21,6 +21,9 @@ public:
     bool start(const QString &url, const QString &filePath);
     // 停止并收尾文件（发 EOS + 异步等待 mux 写完索引，不阻塞调用线程）
     void stop();
+    // 收尾完成（EOS 写完索引或 3s 超时兜底）：停止方收到该信号后再 deleteLater，
+    // 避免过早析构中断 matroskamux 写文件尾与索引（否则 .mkv 不可拖/不可播）。
+    Q_SIGNAL void finalized();
     bool recording() const { return pipeline_ != nullptr; }
     QString fileName() const { return fileName_; }   // 当前输出文件名（未录制为空）
 

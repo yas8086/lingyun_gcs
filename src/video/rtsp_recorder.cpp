@@ -156,6 +156,8 @@ void RtspRecorder::finishFinalize()
     }
     finalizing_ = false;
     qInfo() << "[RtspRecorder] 录制已停止，文件已收尾:" << fileName_;
+    // P0-3：通知停止方收尾完成，可在此时安全 deleteLater（EOS/mux 索引已写完）
+    emit finalized();
 }
 
 void RtspRecorder::onPadAdded(GstElement *, GstPad *newPad, gpointer user_data)
@@ -183,24 +185,21 @@ void RtspRecorder::onPadAdded(GstElement *, GstPad *newPad, gpointer user_data)
     if (!isVideo)
         return;
 
-    // parsebin 的 sink 是静态 pad；matroskamux 需请求 video_%u pad（返回引用归 mux 所有，无需 unref）
+    // parsebin 的 sink 是静态 pad；matroskamux 需请求 video_%u pad
+    // P2-7：get_static_pad / request_pad_simple 返回的 pad 均为调用者持有 +1 引用，
+    // 链接完成后必须统一 unref 释放（pad 所有权归元素），否则每次录制泄漏一个引用。
     GstPad *sinkPad = gst_element_get_static_pad(next, "sink");
-    bool borrowed = false;
-    if (!sinkPad) {
+    if (!sinkPad)
         sinkPad = gst_element_request_pad_simple(next, "video_%u");
-        borrowed = true;
-    }
     if (!sinkPad)
         return;
     if (gst_pad_is_linked(sinkPad)) {
-        if (!borrowed)
-            gst_object_unref(sinkPad);
+        gst_object_unref(sinkPad);
         return;
     }
     if (GST_PAD_LINK_FAILED(gst_pad_link(newPad, sinkPad)))
         qWarning() << "[RtspRecorder] 动态 pad 链接失败";
-    if (!borrowed)
-        gst_object_unref(sinkPad);
+    gst_object_unref(sinkPad);
 }
 
 GstBusSyncReply RtspRecorder::onBusSync(GstBus *, GstMessage *msg, gpointer)

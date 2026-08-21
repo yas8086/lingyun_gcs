@@ -46,7 +46,9 @@ void TelemetryBridge::onTelemetry(const lgs::TelemetryData &data) {
             // 列名用 Txx（pid 主键），与 QWidget 版对齐
             const QString key = QStringLiteral("T%1")
                                     .arg(QString::number(s.id).rightJustified(2, QLatin1Char('0')));
-            round[key] = s.temp != 0.0 ? s.temp : s.pressure;
+            // B7：以 pressure!=0 判定压力节点（pressure 恒非 0）——原 temp==0 判定会把
+            // 真实温度恰为 0℃ 的温度节点误判为压力节点，使该列填入 pressure（0）丢失温度
+            round[key] = s.pressure != 0.0 ? s.pressure : s.temp;
         }
         loraHistory_.append(round);
         if (loraHistory_.size() > 200)
@@ -56,6 +58,9 @@ void TelemetryBridge::onTelemetry(const lgs::TelemetryData &data) {
 }
 
 void TelemetryBridge::setLinkOnline(bool online) {
+    // B3：链路在线 ⇒ 端口已打开（open 成功或 ResourceError 后自动重连成功），
+    // 同步缓存，避免 ResourceError 后 serialOpen_ 残留 false 导致 UI 链路灯失真
+    if (online) serialOpen_ = true;
     if (linkOnline_ != online) {
         linkOnline_ = online;
         emit linkChanged(online);
@@ -98,6 +103,7 @@ bool TelemetryBridge::openSerial(const QString &port, int baud) {
                               Q_RETURN_ARG(bool, ok),
                               Q_ARG(QString, port),
                               Q_ARG(qint32, qint32(baud)));
+    serialOpen_ = ok; // B3：同步缓存（失败/成功都更新）
     if (ok) {
         lastSerialError_.clear();
         stopRecording();
@@ -123,6 +129,7 @@ void TelemetryBridge::closeSerial() {
     stopRecording();
     // 串口关闭：停止运行时长计时（再次打开会从 0 重新开始）
     uptimeStarted_ = false;
+    serialOpen_ = false; // B3：同步缓存
     if (!serial_) return;
     // 跨线程异步调用 SerialManager::close（QueuedConnection）
     QMetaObject::invokeMethod(serial_, "close", Qt::QueuedConnection);
@@ -130,11 +137,15 @@ void TelemetryBridge::closeSerial() {
     emit stateChanged();
 }
 bool TelemetryBridge::isSerialOpen() const {
-    if (!serial_) return false;
-    bool open = false;
-    QMetaObject::invokeMethod(serial_, "isOpen", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, open));
-    return open;
+    // B3：返回缓存状态——不再每次跨线程 BlockingQueued 同步调用，
+    // 消除状态栏/顶栏高频绑定下的 GUI 线程阻塞隐患
+    return serialOpen_;
+}
+
+// B3：串口异常（ResourceError 拔线等）时同步缓存并刷新 UI
+void TelemetryBridge::markSerialGone() {
+    serialOpen_ = false;
+    emit stateChanged();
 }
 
 bool TelemetryBridge::online(const QString &device) const {
@@ -249,6 +260,47 @@ int TelemetryBridge::readinessState() const {
     return 3;
 }
 
+// B4：就绪度明细——与 readinessState() 使用完全相同的判定与阈值（单一来源），
+// QML 就绪度弹窗直接消费本列表，不再重复硬编码阈值（避免两处漂移）。
+QVariant TelemetryBridge::readinessDetail() const {
+    QVariantList list;
+    const auto add = [&list](const QString &name, bool ok, const QString &val) {
+        QVariantMap m;
+        m["name"] = name;
+        m["ok"] = ok;
+        m["val"] = val;
+        list.append(m);
+    };
+    const auto f1 = [](double v) { return QString::number(v, 'f', 1); };
+    const auto f3 = [](double v) { return QString::number(v, 'f', 3); };
+    // 主电池 BMS：在线 + 总压 360~380 + SOC>30 + 最高温<50 + 压差<0.05
+    add(QStringLiteral("主电池 BMS 在线"), last_.bms.has_value(),
+        last_.bms ? f1(last_.bms->pack_v) + QStringLiteral("V") : QStringLiteral("离线"));
+    add(QStringLiteral("主电池 总压范围"), last_.bms && last_.bms->pack_v > 360 && last_.bms->pack_v < 380,
+        last_.bms ? f1(last_.bms->pack_v) + QStringLiteral("V (360-380)") : QStringLiteral("离线"));
+    add(QStringLiteral("主电池 SOC 充足"), last_.bms && last_.bms->soc > 30,
+        last_.bms ? QString::number(last_.bms->soc) + QStringLiteral("% (>30)") : QStringLiteral("离线"));
+    add(QStringLiteral("主电池 温度正常"), last_.bms && last_.bms->max_t < 50,
+        last_.bms ? f1(last_.bms->max_t) + QStringLiteral("℃ (<50)") : QStringLiteral("离线"));
+    add(QStringLiteral("主电池 压差正常"), last_.bms && last_.bms->diff_v < 0.05,
+        last_.bms ? f3(last_.bms->diff_v) + QStringLiteral("V (<0.05)") : QStringLiteral("离线"));
+    // MPPT：在线 + 光伏电压 20~120 + 充电电流>0
+    add(QStringLiteral("MPPT 光伏在线"), last_.mppt.has_value(),
+        last_.mppt ? QString::number(last_.mppt->pv_p, 'f', 0) + QStringLiteral("W") : QStringLiteral("离线"));
+    add(QStringLiteral("MPPT 光伏电压"), last_.mppt && last_.mppt->pv_v > 20 && last_.mppt->pv_v < 120,
+        last_.mppt ? f1(last_.mppt->pv_v) + QStringLiteral("V (20-120)") : QStringLiteral("离线"));
+    add(QStringLiteral("MPPT 充电电流"), last_.mppt && last_.mppt->charge_i > 0,
+        last_.mppt ? f1(last_.mppt->charge_i) + QStringLiteral("A (>0)") : QStringLiteral("离线"));
+    // DCDC：在线 + 输出电压 40~60 + 散热温度<45
+    add(QStringLiteral("DCDC 输出在线"), last_.dcdc.has_value(),
+        last_.dcdc ? QString::number(last_.dcdc->out_p, 'f', 0) + QStringLiteral("W") : QStringLiteral("离线"));
+    add(QStringLiteral("DCDC 输出电压"), last_.dcdc && last_.dcdc->out_v > 40 && last_.dcdc->out_v < 60,
+        last_.dcdc ? f1(last_.dcdc->out_v) + QStringLiteral("V (40-60)") : QStringLiteral("离线"));
+    add(QStringLiteral("DCDC 散热温度"), last_.dcdc && last_.dcdc->temp < 45,
+        last_.dcdc ? f1(last_.dcdc->temp) + QStringLiteral("℃ (<45)") : QStringLiteral("离线"));
+    return list;
+}
+
 int TelemetryBridge::addAlarm(const QString &msg, const QString &level,
                               const QString &source, const QString &ruleId) {
     QVariantMap entry;
@@ -264,6 +316,10 @@ int TelemetryBridge::addAlarm(const QString &msg, const QString &level,
     ++unconfirmed_;
     // 环形上限（决策 #33）：告警 200 条
     while (alarmList_.size() > 200) {
+        // P1-5：被裁剪的最旧条目若仍为"未确认"，unconfirmed_ 需同步递减，否则计数虚高
+        const auto &last = alarmList_.last();
+        if (last.value("state").toString() == QStringLiteral("未确认"))
+            --unconfirmed_;
         alarmList_.pop_back();
     }
     emit alarmsChanged();
@@ -332,7 +388,7 @@ QString TelemetryBridge::loraSummary() const {
     QStringList rows;
     for (const auto &s : last_.lora->nodes) {
         QString line;
-        if (s.temp != 0.0)
+        if (s.pressure == 0.0)  // B7：pressure==0 ⇒ 温度节点（0℃ 真实温度也能正确识别）
             line = QStringLiteral("#%1 %2℃").arg(s.id).arg(s.temp, 0, 'f', 1);
         else {
             QString suffix;
@@ -364,7 +420,7 @@ QVariant TelemetryBridge::loraNodes() const {
         m["temp"] = s.temp;
         m["pressure"] = s.pressure;
         m["alarm"] = s.alarm;
-        m["isTemp"] = s.temp != 0.0;
+        m["isTemp"] = s.pressure == 0.0; // B7：pressure==0 ⇒ 温度节点（与 loraSummary/历史列判定统一）
         list.append(m);
     }
     return list;

@@ -13,13 +13,13 @@
 
 namespace lgs {
 
-namespace {
-// 温度探头映射文件路径（决策 #27）
+// 温度探头映射文件路径（决策 #27，B8：跨 rules/config 拆分共用，配置导入导出需合并该文件）
 QString probesFilePath() {
     return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
            + QStringLiteral("/temp_probes.json");
 }
 
+namespace {
 AlarmRule ruleFromMap(const QVariantMap &m) {
     AlarmRule r;
     r.id = m.value("id").toString();
@@ -222,24 +222,6 @@ void TelemetryBridge::saveProbeMapping(const QVariant &list) {
 
 void TelemetryBridge::resetProbeMapping() {
     saveProbeMapping(defaultProbeMapping());
-}
-
-// ---- 设备卡显示字段配置（原型：更多字段可勾选隐藏）----
-QStringList TelemetryBridge::fieldConfig(const QString &device) const {
-    // 运行时由 QML 维护缓存，这里仅提供默认全部字段
-    QStringList def;
-    if (device == "bms")
-        def = {"pack_v", "pack_i", "max_t", "max_v", "min_v", "diff_v"};
-    else if (device == "mppt")
-        def = {"charge_i", "today", "fault_m", "pv_v", "total"};
-    else if (device == "dcdc")
-        def = {"out_i", "temp", "fault_d", "in_v", "enabled"};
-    return def;
-}
-
-void TelemetryBridge::setFieldConfig(const QString &device, const QVariant &list) {
-    // 字段配置为纯前端展示状态，由 QML 侧按需持久化到 ConfigManager；此处空实现保持接口一致
-    Q_UNUSED(device); Q_UNUSED(list);
 }
 
 // ---- 温度历史与通用文本导出（决策 #28）----

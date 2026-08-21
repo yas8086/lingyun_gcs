@@ -55,6 +55,11 @@ void SiyiSdkClient::stop()
     alive_->stop();
     if (sock_->state() == QAbstractSocket::BoundState)
         sock_->close();
+    // P2-3：清零姿态值并通知，避免 QML 离线后仍显示残留旧角度
+    if (pitch_ != 0 || yaw_ != 0 || roll_ != 0) {
+        pitch_ = yaw_ = roll_ = 0;
+        emit attitudeChanged();
+    }
     setConnected(false);
 }
 
@@ -103,11 +108,12 @@ void SiyiSdkClient::ctrlMove(int yaw, int pitch)
 {
     const int y = qBound(-100, yaw, 100);
     const int p = qBound(-100, pitch, 100);
-    // 0x07：turn_yaw(int8) + turn_pitch(int8) + reserved(uint8)
+    // 0x07：turn_yaw(int8) + turn_pitch(int8)——严格 2 字节数据（与手册示例
+    // 报文 55 66 01 02 00 00 00 07 64 64 3d cf 一致；多余的保留字节会导致
+    // A2 mini 固件解析异常：松手发 0 后云台不停止反而自动回中往下照）
     QByteArray d;
     d.append(char(qint8(y)));
     d.append(char(qint8(p)));
-    d.append(char(0));
     send(0x07, d);
 }
 
@@ -116,6 +122,19 @@ void SiyiSdkClient::center()
     QByteArray d;
     d.append(char(1));   // center_pos=1 触发回中
     send(0x08, d);
+}
+
+void SiyiSdkClient::setPitchAngle(double pitchDeg)
+{
+    // 0x0E 设置云台控制角度：yaw(int16 LE) + pitch(int16 LE)，值为 角度×10（精度 0.1°）
+    // A2 mini 仅 pitch 有效（范围 -90.0~+25.0），yaw 不支持，填 0。
+    const int yaw10 = 0;
+    const int pitch10 = qBound(-900, qRound(pitchDeg * 10.0), 250);   // -90.0~+25.0 → -900~250
+    QByteArray d;
+    d.append(char(yaw10 & 0xFF)); d.append(char((yaw10 >> 8) & 0xFF));
+    d.append(char(pitch10 & 0xFF)); d.append(char((pitch10 >> 8) & 0xFF));
+    send(0x0E, d);
+    qInfo() << "[SiyiSdk] 设置俯仰角度:" << pitchDeg << "° (0x0E pitch10=" << pitch10 << ")";
 }
 
 void SiyiSdkClient::onReadyRead()

@@ -1,5 +1,5 @@
 #include "video/rtsp_stream.h"
-
+#include <QPointer>
 #include <QTimer>
 #include <QDebug>
 #include <gst/gst.h>
@@ -212,6 +212,13 @@ void RtspStream::setOnline(bool on)
     emit onlineChanged();
 }
 
+void RtspStream::setLastError(const QString &e)
+{
+    if (lastError_ == e) return;
+    lastError_ = e;
+    emit lastErrorChanged();
+}
+
 void RtspStream::scheduleReconnect()
 {
     setOnline(false);
@@ -311,6 +318,9 @@ GstBusSyncReply RtspStream::onBusSync(GstBus *, GstMessage *msg, gpointer user_d
     auto *self = static_cast<RtspStream *>(user_data);
     if (!self || !msg)
         return GST_BUS_PASS;
+    // P0-2：QPointer 保护——GST 线程排队 lambda 可能在对象被 deleteLater 销毁后才执行，
+    // 裸指针访问会 use-after-free；QPointer 自动置空判空。
+    QPointer<RtspStream> guard(self);
     switch (GST_MESSAGE_TYPE(msg)) {
     case GST_MESSAGE_ERROR: {
         GError *err = nullptr;
@@ -318,18 +328,46 @@ GstBusSyncReply RtspStream::onBusSync(GstBus *, GstMessage *msg, gpointer user_d
         gst_message_parse_error(msg, &err, &dbg);
         qWarning() << "[RtspStream] 管道错误:" << (err ? err->message : "unknown")
                    << "|" << (dbg ? dbg : "");
+        // 分类记录可读原因（供 QML 断流引导提示）
+        const QString em = err ? QString::fromUtf8(err->message) : QString();
+        QString reason;
+        if (em.contains("Unauthorized", Qt::CaseInsensitive)
+            || em.contains("401", Qt::CaseInsensitive)
+            || em.contains("Authentication", Qt::CaseInsensitive)
+            || em.contains("authorization", Qt::CaseInsensitive))
+            reason = "认证失败：用户名/密码错误，请检查拉流设置";
+        else if (em.contains("Could not open", Qt::CaseInsensitive)
+                 || em.contains("Connection refused", Qt::CaseInsensitive)
+                 || em.contains("Connection timed out", Qt::CaseInsensitive)
+                 || em.contains("timed out", Qt::CaseInsensitive)
+                 || em.contains("timeout", Qt::CaseInsensitive))
+            reason = "连接失败：相机 IP 不可达或端口未开放，请检查网口/相机地址";
+        else if (em.contains("404", Qt::CaseInsensitive)
+                 || em.contains("Not Found", Qt::CaseInsensitive)
+                 || em.contains("stream", Qt::CaseInsensitive))
+            reason = "拉流地址无效：RTSP 路径/码流参数错误，请检查拉流设置";
+        else
+            reason = "拉流失败：" + em;
         if (err)
             g_error_free(err);
         if (dbg)
             g_free(dbg);
-        QMetaObject::invokeMethod(self, [self]() { self->scheduleReconnect(); },
-                                  Qt::QueuedConnection);
+        // P0-2：用 QPointer 保护（guard 在函数开头声明）——GST 线程排队 lambda 可能在
+        // 对象被 deleteLater 销毁后才执行，裸指针访问会 use-after-free；QPointer 自动置空判空。
+        QMetaObject::invokeMethod(self, [guard, reason]() {
+            if (guard) {
+                guard->setLastError(reason);
+                guard->scheduleReconnect();
+            }
+        }, Qt::QueuedConnection);
         break;
     }
     case GST_MESSAGE_EOS:
         qWarning() << "[RtspStream] 流结束(EOS)";
-        QMetaObject::invokeMethod(self, [self]() { self->scheduleReconnect(); },
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(self, [guard]() {
+            if (guard)
+                guard->scheduleReconnect();
+        }, Qt::QueuedConnection);
         break;
     default:
         break;

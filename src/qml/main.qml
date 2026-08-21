@@ -272,7 +272,13 @@ ApplicationWindow {
                                     text: "灵云01 飞艇地面站"; font.pixelSize: 17; font.bold: true; color: root.colText
                                 }
                             }
-                            Text { text: "电源系统监控 · 串口数传 115200 · 5Hz"; font.pixelSize: 11; color: root.colText2 }
+                            Text {
+                                // 波特率/串口名联动配置（B9/B14）：不再硬编码 115200，链路在线时显示实际配置
+                                text: { void root.dataTick; bridge.isSerialOpen()
+                                        ? "电源系统监控 · 串口数传 " + bridge.port() + " " + bridge.baud() + " · 5Hz"
+                                        : "电源系统监控 · 串口未连接" }
+                                font.pixelSize: 11; color: root.colText2
+                            }
                         }
                         Item { Layout.fillWidth: true }
                         // 设备灯（点击弹状态详情，再次点击关闭）
@@ -590,7 +596,8 @@ ApplicationWindow {
                             visible: !root.isModuleHidden("alarm")
                             text: { void root.dataTick; "告警 " + bridge.unconfirmedCount() }
                             font.pixelSize: 12; font.bold: true
-                            color: bridge.unconfirmedCount() > 0 ? root.colErr : root.colOk
+                            // B1：color 必须同样依赖 dataTick，否则仅首次求值、出现告警后颜色不刷新
+                            color: { void root.dataTick; bridge.unconfirmedCount() > 0 ? root.colErr : root.colOk }
                         }
                         Text {
                             visible: !root.isModuleHidden("uptime")
@@ -678,29 +685,9 @@ ApplicationWindow {
     }
 
     function openReadPop(sourceItem) {
-        const list = []
-        // 就绪度明细：与 SelfCheckView 相同的 11 项自检
-        list.push(root.readItem("主电池 BMS 在线", bridge.online("bms"),
-            bridge.online("bms") ? root.fmt(bridge.value("bms","pack_v"),1)+"V" : "离线"))
-        list.push(root.readItem("主电池 总压范围", root.rpass("bms","pack_v",360,380),
-            root.fmt(bridge.value("bms","pack_v"),1)+"V (360-380)"))
-        list.push(root.readItem("主电池 SOC 充足", bridge.online("bms") ? bridge.value("bms","soc") > 30 : false,
-            root.fmt(bridge.value("bms","soc"),0)+"% (>30)"))
-        list.push(root.readItem("主电池 温度正常", bridge.online("bms") ? bridge.value("bms","max_t") < 50 : false,
-            root.fmt(bridge.value("bms","max_t"),1)+"℃ (<50)"))
-        list.push(root.readItem("主电池 压差正常", bridge.online("bms") ? bridge.value("bms","diff_v") < 0.05 : false,
-            root.fmt(bridge.value("bms","diff_v"),3)+"V (<0.05)"))
-        list.push(root.readItem("备用电源 在线", bridge.online("backup"),
-            bridge.online("backup") ? root.fmt(bridge.value("backup","pack_v"),1)+"V" : "离线"))
-        list.push(root.readItem("MPPT 光伏在线", bridge.online("mppt"),
-            bridge.online("mppt") ? root.fmt(bridge.value("mppt","pv_p"),0)+"W" : "离线"))
-        list.push(root.readItem("MPPT 光伏电压", root.rpass("mppt","pv_v",20,120),
-            root.fmt(bridge.value("mppt","pv_v"),1)+"V (20-120)"))
-        list.push(root.readItem("DCDC 输出在线", bridge.online("dcdc"),
-            bridge.online("dcdc") ? root.fmt(bridge.value("dcdc","out_p"),0)+"W" : "离线"))
-        list.push(root.readItem("DCDC 输出电压", root.rpass("dcdc","out_v",40,60),
-            root.fmt(bridge.value("dcdc","out_v"),1)+"V (40-60)"))
-        root.readItems = list
+        // 就绪度明细：单源消费 C++ readinessDetail()（与 readinessState() 阈值一致，
+        // 消除 QML 侧重复硬编码导致的阈值漂移，B4）
+        root.readItems = bridge.readinessDetail()
         // 相对窗口定位，水平居中于胶囊，紧贴按钮下方 2px，并做屏幕边界钳制防止右侧溢出
         if (sourceItem) {
             var pt = sourceItem.mapToItem(null, 0, sourceItem.height + 2)
@@ -709,12 +696,6 @@ ApplicationWindow {
             readPop.y = pt.y
         }
         readPop.open()
-    }
-    function readItem(name, ok, val) { return {name:name, ok:ok, val:val} }
-    function rpass(dev, key, lo, hi) {
-        if (!bridge.online(dev)) return false
-        const v = bridge.value(dev, key)
-        return v > lo && v < hi
     }
 
     // 应用恢复到前台时重触发曲线同步：Qt 的 ChartView 在窗口不可见时暂停渲染，
@@ -1061,7 +1042,7 @@ ApplicationWindow {
     }
 
     // ===== 全局快捷键（与设置页提示一致）=====
-    // 1-7 切换视图 · 空格 暂停曲线 · T 主题 · D 密度
+    // 1-6 切换视图 · 空格 暂停曲线 · T 主题 · D 密度
     Shortcut { sequence: "1"; onActivated: root.currentNav = 0 }
     Shortcut { sequence: "2"; onActivated: root.currentNav = 1 }
     Shortcut { sequence: "3"; onActivated: root.currentNav = 2 }

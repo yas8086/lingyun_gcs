@@ -72,10 +72,7 @@ std::optional<double> ruleValue(const QString &device, const QString &field,
 }
 
 AlarmEngine::AlarmEngine(QObject *parent) : QObject(parent) {
-    if (!clockStarted_) {
-        clock_.start();
-        clockStarted_ = true;
-    }
+    clock_.start(); // 启动运行计时（设备离线判定基准，B13：移除无效的 clockStarted_ 防呆）
     // 独立定时巡检，保证链路整段断连（onTelemetry 不再被调用）时仍能触发离线告警
     timer_.setInterval(500);
     connect(&timer_, &QTimer::timeout, this, &AlarmEngine::scanOffline);
@@ -170,7 +167,9 @@ void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     if (data.lora) {
         for (const auto &s : data.lora->nodes) {
             activeNodeIds.insert(s.id);
-            if (s.temp == 0.0) // 压力节点恒 0，跳过
+            // B6：以 pressure!=0 判定压力节点（pressure 恒非 0）——原 temp==0 判定会把
+            // 真实温度恰为 0℃ 的温度节点误判为压力节点而跳过告警检查（0 是合法温度）
+            if (s.pressure != 0.0) // 压力节点：无告警位，跳过
                 continue;
             const QString nid = QString("lora:node%1:alarm").arg(s.id);
             if (s.alarm != 0) {

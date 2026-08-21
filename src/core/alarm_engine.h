@@ -67,7 +67,6 @@ private:
     int offlineTimeoutMs_ = 3000;
     bool soundOn_ = false;
     QElapsedTimer clock_;
-    bool clockStarted_ = false;
     QTimer timer_;
     QMap<QString, qint64> lastSeen_; // device id -> ms
     QMap<QString, bool> alarmActive_; // rule id -> active

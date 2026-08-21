@@ -18,6 +18,7 @@ class RtspStream : public QObject {
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(bool started READ started NOTIFY startedChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 public:
     explicit RtspStream(QObject *parent = nullptr);
     ~RtspStream() override;
@@ -27,6 +28,8 @@ public:
     bool online() const;
     bool busy() const;
     bool started() const;
+    // 最近一次拉流失败原因（如 DNS 解析失败 / 连接拒绝 / 认证失败 / 超时 / 插件缺失）
+    QString lastError() const { return lastError_; }
 
     // 拉流控制（QML 调用）
     Q_INVOKABLE void start();
@@ -42,6 +45,7 @@ signals:
     void busyChanged();
     void startedChanged();
     void frameChanged();
+    void lastErrorChanged();
 
 private:
     static GstFlowReturn onNewSample(GstAppSink *sink, gpointer user_data);
@@ -50,6 +54,8 @@ private:
     void onSample(GstAppSink *sink);
     void setOnline(bool on);
     void setStarted(bool on);
+    // 设置最近错误原因并广播（跨线程安全：由 bus 回调排队到主线程）
+    void setLastError(const QString &e);
     void teardown();
     void scheduleReconnect();
 
@@ -67,6 +73,7 @@ private:
     QTimer *watchdog_ = nullptr;
     QTimer *reconnect_ = nullptr;
     int reconnectAttempt_ = 0;
+    QString lastError_;          // 最近拉流失败原因（主线程写读）
 };
 
 } // namespace lgs

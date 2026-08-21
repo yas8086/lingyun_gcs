@@ -87,6 +87,8 @@ int main(int argc, char *argv[]) {
     QObject::connect(serial, &lgs::SerialManager::errorOccurred,
                      &bridge, [&bridge](const QString &msg) {
         bridge.addAlarm(msg, "严重", "链路");
+        // B3：ResourceError（拔线等）同步 serialOpen_ 缓存，避免 UI 链路灯失真
+        bridge.markSerialGone();
     }, Qt::QueuedConnection);
     QObject::connect(&alarm, &lgs::AlarmEngine::alarmTriggered,
                      &bridge, [&bridge](const lgs::AlarmEvent &e) {

@@ -64,10 +64,10 @@ void TileProvider::requestTile(int z, int x, int y, int layer) {
         emit tileLoaded(z, x, y, layer, path);
         return;
     }
-    // 进行中则去重，避免推动地图时重复请求同一瓦片
+    // 进行中则去重：在途请求完成时会广播 tileLoaded/tileFailed（信号广播语义，
+    // 所有监听者都会收到），无需重复排队，避免同一 key 大量请求导致 pending_ 膨胀（B12）
     const QString key = tileKey(z, x, y, layer);
     if (inflightKeys_.contains(key)) {
-        pending_.enqueue({z, x, y, layer});
         return;
     }
     if (inFlight_ >= kMaxConcurrent) {

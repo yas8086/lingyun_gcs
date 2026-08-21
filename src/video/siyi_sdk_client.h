@@ -35,8 +35,12 @@ public:
 public slots:
     // 云台转向（0x07）：yaw/pitch 各 -100~100（A2 mini 仅俯仰轴生效），松手发 0 停止
     void ctrlMove(int yaw, int pitch);
-    // 一键回中
+    // 一键回中（0x08）：触发默认回中（俯仰 0°）
     void center();
+    // 设置云台俯仰角度（0x0E）：A2 mini 仅 pitch 有效，yaw 忽略；
+    // pitchDeg 单位度，范围 -90.0~+25.0，精度 0.1°。用于自定义回中俯仰角。
+    // 注：该命令实际是"设置目标角度"而非"回中"，但 ACK 返回的是当前角度而非新设角度值
+    void setPitchAngle(double pitchDeg);
 
 signals:
     void connectedChanged();

@@ -45,7 +45,7 @@ public:
     void setPressureUnit(int unit);
     bool alarmSoundEnabled() const;          // 默认关闭（决策 #19）
     void setAlarmSoundEnabled(bool on);
-    int chartWindowSecs() const;             // 20/10/5
+    int chartWindowSecs() const;             // 10/20/30（B10：注释与实现合法集合对齐）
     void setChartWindowSecs(int secs);
 
     // 模块可见性（决策 #30）：默认全可见；返回"被隐藏"的模块键集合
