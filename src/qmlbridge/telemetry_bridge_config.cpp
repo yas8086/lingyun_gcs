@@ -281,6 +281,12 @@ bool TelemetryBridge::skyGimbalDevicePresent() const {
     return skyGimbal_ && skyGimbal_->devicePresent();
 }
 
+bool TelemetryBridge::skyGimbalPortClosed() const {
+    // 探测到"IP 在线但 5000 端口无云卓服务"→ 确为非云卓设备（选错云台）；
+    // 设备没通电/没联网（仅超时无响应）时 portClosed=false，用于区分"选错云台"与"设备离线"
+    return skyGimbal_ && skyGimbal_->portClosed();
+}
+
 bool TelemetryBridge::skyGimbalAttitudeAlive() const {
     // 兼容 Q_PROPERTY 绑定：无参版本查"会话主 skyGimbalIp"对应的状态（全局单值语义，保持向后兼容）
     if (!skyGimbal_ || skyGimbalTargetIp_.isEmpty()) return false;

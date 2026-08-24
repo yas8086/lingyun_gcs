@@ -57,6 +57,7 @@ void SkydroidSdkClient::stop()
     started_ = false;
     devicePresent_ = false;   // 下次 start 重新探测（探测完成前视为不存在，由结果决定）
     gotReply_ = false;
+    portClosed_ = false;      // 重置：下次探测按新结果判定（区分"选错云台"vs"设备没通电"）
     states_.clear();         // 清空所有 IP 的姿态/测距状态
     knownIps_.clear();       // 清空已发送过命令的 IP 集合（避免跨会话旧 IP 残留影响归属判断）
     emit connectedChanged();
@@ -125,6 +126,7 @@ void SkydroidSdkClient::onProbeError(QAbstractSocket::SocketError err)
         return;
     probeTimer_.stop();
     devicePresent_ = false;
+    portClosed_ = true;   // 明确"设备 IP 在线但 5000 端口无云卓服务"→ 可用作"选错云台类型"判据
     qWarning() << "[SkydroidSdk] 设备探测：目标" << target_.toString() << ":" << port_
                << "端口无服务（非云卓设备？请检查云台类型配置）";
     emit probeFinished();

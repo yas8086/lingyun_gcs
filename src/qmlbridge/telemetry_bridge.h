@@ -179,6 +179,10 @@ public:
     // 目标 IP:5000 是否确认存在云卓设备（false=探测到端口无服务，如思翼相机误配为云卓）
     // 探测在 startSkyGimbal 时异步进行，返回 true 表示在线或尚未确认
     Q_INVOKABLE bool skyGimbalDevicePresent() const;
+    // 云卓设备探测结论：true=设备 IP 在线但 5000 端口无云卓 UDP 服务（ICMP port unreachable）
+    // → 确为"非云卓设备/选错云台"；false=设备在线或有回包、或仅超时无响应（可能没通电/没联网）。
+    // 与 skyGimbalDevicePresent 区别：本方法只响应"端口明确无服务"，不把"设备没通电"误判为选错云台
+    Q_INVOKABLE bool skyGimbalPortClosed() const;
     // 云卓姿态/测距读取（全局单值版本，兼容 Q_PROPERTY 绑定）
     bool skyGimbalAttitudeAlive() const;
     double skyGimbalYaw() const;

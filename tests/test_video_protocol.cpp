@@ -49,6 +49,8 @@ private slots:
     void skySlrParsing();
     // 云卓：CRC 校验失败的帧被丢弃
     void skyBadCrcDropped();
+    // 云卓：设备端口有 UDP 服务时，探测结论应为"设备存在"且 portClosed=false（不误判选错云台）
+    void skyProbePresentKeepsPortClosedFalse();
     // 思翼：ACK 姿态帧解析
     void siyiAckParsing();
 };
@@ -188,6 +190,24 @@ void TestVideoProtocol::skyBadCrcDropped() {
     QTest::qWait(100);
     QVERIFY(!client.attitudeAlive(QStringLiteral("127.0.0.1")));
     QVERIFY(!client.protocolAlive(QStringLiteral("127.0.0.1")));
+
+    client.stop();
+}
+
+void TestVideoProtocol::skyProbePresentKeepsPortClosedFalse() {
+    QUdpSocket device;   // 模拟云卓设备：绑定端口 = 有 UDP 服务
+    QVERIFY(device.bind(QHostAddress::LocalHost, 0));
+    const quint16 dport = device.localPort();
+
+    SkydroidSdkClient client;
+    QSignalSpy probeDone(&client, &SkydroidSdkClient::probeFinished);
+    client.start(QStringLiteral("127.0.0.1"), dport);
+    QVERIFY(client.started());
+    // 等待设备探测完成
+    QTRY_VERIFY_WITH_TIMEOUT(probeDone.count() >= 1, 2000);
+    // 端口有监听服务 → 不会产生 ICMP port unreachable → portClosed 必须为 false。
+    // 即使设备未回包（超时判定"无响应"），也不得误判为"选错云台"（portClosed=false）
+    QVERIFY(!client.portClosed());
 
     client.stop();
 }

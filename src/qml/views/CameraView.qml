@@ -93,6 +93,9 @@ Item {
     function skyRng(ip)    { void root.osdTick; void root.themeRoot.dataTick; return root.fmt1(bridge.skyGimbalRangingOf(ip)) + "m" }
     // 云卓姿态回读存活：true=该 IP 收到过 GAC 帧（设备真实应答）；false=未应答→可能选错云台类型
     function skyAttAlive(ip){ void root.osdTick; void root.themeRoot.dataTick; return bridge.skyGimbalAttitudeAliveOf(ip) }
+    // 云卓设备"确在线"：该 IP 收到过任何云卓协议回包（#TP：GAC 姿态 / SLR 测距 / 命令 ACK 等）。
+    // 用于 OSD 三态区分——设备在线但无姿态回读(protocolAlive=true) vs 设备没通电/无响应(false)
+    function skyProtoAlive(ip){ void root.osdTick; void root.themeRoot.dataTick; return bridge.skyGimbalProtocolAliveOf(ip) }
     // 云台类型配置错误统一文案（右上角 toast + 右下角横幅共用）
     // 按相机当前云台类型区分：gimbal=skydroid 却连不上→实际非云卓；gimbal=siyi 连不上→实际非思翼
     function gimbalWrongMsg(camId, camName) {
@@ -230,14 +233,19 @@ Item {
                         // 这是最可靠判据：思翼设备即使 5000 端口有杂散 UDP 回包也不含 #TP
                         root.gimbalProbeStart[camId] = 0
                         bridge.markSkyGimbalWrong(camId, false)
-                    } else if (now - t0 >= 3000) {
-                        // 探测超时仍无任何云卓协议帧 → 非云卓设备（如思翼误配云卓）
+                    } else if (bridge.skyGimbalPortClosed()) {
+                        // 设备 IP 在线但 5000 端口无云卓 UDP 服务（ICMP port unreachable）→ 确为非云卓设备（选错云台）
                         root.gimbalProbeStart[camId] = 0
                         bridge.markSkyGimbalWrong(camId, true)
-                        // 只弹当前选中的相机问题：后台未选中的相机只标记（红框在未选中画面里看不到），
-                        // 不弹窗，避免刚切页时未选中的错误相机弹窗造成误解
                         if (root.selected.indexOf(i) >= 0)
                             root.toast(root.gimbalWrongMsg(c.id, c.name || camId), "err")
+                    } else if (now - t0 >= 3000) {
+                        // 探测超时仍无任何云卓协议帧、且未探测到"端口明确无服务"：
+                        // 多为设备没通电/没联网（IP 无响应）→ 不判"选错云台"，清除误报，提示检查供电/网络
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, false)
+                        if (root.selected.indexOf(i) >= 0)
+                            root.toast("⚠ " + (c.name || camId) + " 云卓设备无响应，请检查供电与网线连接", "err")
                     }
                 } else if (c.gimbal === "siyi") {
                     if (c.ip !== root.gimbalCamIp) {
@@ -1466,6 +1474,8 @@ Item {
                                         visible: root.osdTick >= 0
                                                  && ((root.isGimbalCam(modelData.id) && (bridge.gimbalConnected || root.gimbalCamIp !== ""))
                                                      || root.isSkyCam(modelData.id))
+                                        // 云卓三态：收到 GAC 姿态→角度；收到云卓协议帧但无姿态→在线（无姿态回读）；
+                                        //           完全无响应（设备没通电/没联网）→ GIMBAL 无响应
                                         text: (void root.osdTick,
                                                bridge.isSkyGimbalWrong(modelData.id))
                                               ? "GIMBAL 选错云台类型"
@@ -1475,13 +1485,17 @@ Item {
                                                     : "GIMBAL 未连接")
                                                  : (root.skyAttAlive(modelData.ip)
                                                     ? ("Y " + root.skyYaw(modelData.ip) + "°  P " + root.skyPitch(modelData.ip) + "°  R " + root.skyRoll(modelData.ip) + "°")
-                                                    : "GIMBAL 在线（无姿态回读）"))
+                                                    : (root.skyProtoAlive(modelData.ip)
+                                                       ? "GIMBAL 在线（无姿态回读）"
+                                                       : "GIMBAL 无响应")))
                                         color: (void root.osdTick,
                                                 bridge.isSkyGimbalWrong(modelData.id))
                                                ? "#f87171"
                                                : (root.isGimbalCam(modelData.id)
                                                   ? (bridge.gimbalConnected ? "#ffd166" : "#f87171")
-                                                  : (root.skyAttAlive(modelData.ip) ? "#4ade80" : "#ffd166"))
+                                                  : (root.skyAttAlive(modelData.ip)
+                                                     ? "#4ade80"
+                                                     : (root.skyProtoAlive(modelData.ip) ? "#ffd166" : "#f87171")))
                                         font.pixelSize: 11; font.family: "monospace"
                                     }
                                     // 云卓激光测距（SLR，按IP独立查询）：始终显示该行；未测距显示"--"，测距后显示距离

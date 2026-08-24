@@ -36,6 +36,9 @@ public:
     void stop();
     // 目标 IP:5000 是否确认存在云卓设备（true=确认在线或未确认；false=确认端口无服务）
     bool devicePresent() const { return devicePresent_; }
+    // 探测结论：设备 IP 在线但 5000 端口无云卓 UDP 服务（收到 ICMP port unreachable）
+    // → 确为"非云卓设备"（选错云台类型）。用于与"设备没通电/未联网"（仅超时无响应，portClosed=false）区分。
+    bool portClosed() const { return portClosed_; }
     // 当前绑定端口是否可发送（start 已成功）
     bool started() const { return started_; }
 
@@ -119,6 +122,7 @@ private:
     // 注：devicePresent_ 不乐观默认 true——超时无回包按"设备不存在"处理，才能识别思翼误配云卓。
     bool devicePresent_ = false;
     bool gotReply_ = false;
+    bool portClosed_ = false;  // 探测到 ICMP port unreachable（IP 在线但端口无云卓服务），与"设备没通电"区分
     QHash<QString, IpState> states_;   // 按 IP 独立的姿态/测距状态
     QSet<QString> knownIps_;           // 已发送过命令的相机 IP 集合，用于回包归属判断
     QSet<QString> gaaEnabledIps_;      // 已使能姿态回读（GAA01）的 IP，stop 时发送 GAA00 关闭
