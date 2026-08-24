@@ -17,6 +17,13 @@ Item {
     function fcMode() { void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
     function fcArmed() { void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
     function fcBattPct() { void root.themeRoot.dataTick; return Math.round(bridge.value("fc", "batt_pct") * 100) }
+    // GPS 卫星数（协议 5.5 fc.gps.sat）：在线且有效返回颗数，否则 -1（显示 --）
+    function fcGpsSat() {
+        void root.themeRoot.dataTick
+        if (!root.fcOnline()) return -1
+        const sat = bridge.value("fc", "gps_sat")
+        return isNaN(sat) ? -1 : Math.round(sat)
+    }
 
     // 姿态读数文本：俯仰/横滚带符号、航向一段
     function attLbl() {
@@ -81,14 +88,14 @@ Item {
                         font.pixelSize: 12; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                     }
                 }
-                // GPS 颗数（本地模拟）
+                // GPS 颗数（数传 UDP 含 fc.gps.sat 真实值；离线显示 --）
                 Rectangle {
                     Layout.preferredHeight: 24; radius: 99
                     implicitWidth: gpsTxt.implicitWidth + 22
                     color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine
                     Text {
                         id: gpsTxt; anchors.centerIn: parent
-                        text: "🛰 GPS " + root.gpsSat + " 颗"
+                        text: "🛰 GPS " + (root.fcGpsSat() >= 0 ? root.fcGpsSat() + " 颗" : "--")
                         font.pixelSize: 12; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText2
                     }
                 }
@@ -353,9 +360,9 @@ Item {
         }
     }
 
-    // ===== 电机模拟（本地演示数据，真实需机载扩展打包）=====
+    // ===== 电机显示：优先真实 ESC 遥测（协议 5.5 fc.esc，DroneCAN 电调回传时 n>0）；
+    // 无真实遥测时回落本地模拟（PWM 电调/演示），保证界面始终有值 =====
     property bool mfoldOpen: true
-    property int gpsSat: 15
     // 电机 RPM/相位初始值（在 onCompleted 初始化，避免 model 绑定求值中写属性造成循环）
     property var motorArr: [380,362,375,388,1240,1205,1218,1255,1102,1160]
     property var motorPhase: [0,0,0,0,0,0,0,0,0,0]
@@ -378,15 +385,23 @@ Item {
         const cells = names.map((x, i) => Object.assign({}, x, {i:i}))
         return [ {g:"推进电机", m:cells.slice(0,4)}, {g:"上升电机", m:cells.slice(4,8)}, {g:"下降电机", m:cells.slice(8,10)} ]
     }
+    // 真实 ESC 是否覆盖第 i 台电机（在线且有该路遥测）
+    function escReal(i) {
+        return root.fcOnline() && bridge.fcEscCount() > i && bridge.fcEscRpm(i) > 0
+    }
     function motorVal(i, cell) {
         void root.mfoldTick
+        if (root.escReal(i))
+            return bridge.fcEscRpm(i)
         return root.motorArr[i] !== undefined ? root.motorArr[i] : cell.max
     }
     function motorTemp(i, cell) {
         void root.mfoldTick
+        if (root.escReal(i))
+            return bridge.fcEscTemp(i)
         return 40 + i*2.4 + (root.motorArr[i]!==undefined ? Math.round(root.motorArr[i]/100) : 0)
     }
-    // 电机温度告警
+    // 电机温度告警（真实或模拟温度 >65℃ 均触发）
     function anyHot() {
         void root.mfoldTick
         for (var i=0;i<10;i++){ if (root.motorTemp(i,{})>65) return true }
@@ -412,7 +427,6 @@ Item {
                 var tgt = base + Math.sin(phase)*2000*0.07
                 root.motorArr[i] = Math.max(0, root.motorArr[i] + (tgt-root.motorArr[i])*0.2 + (Math.random()-0.5)*20)
             }
-            root.gpsSat = 15 + (Math.random()<0.3?1:0)
             root.mfoldTick++
         }
     }

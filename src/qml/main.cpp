@@ -7,6 +7,7 @@
 #include <QThread>
 #include <QMetaObject>
 #include "comms/serial_manager.h"
+#include "comms/udp_link_source.h"
 #include "core/data_bus.h"
 #include "core/alarm_engine.h"
 #include "core/config_manager.h"
@@ -66,10 +67,14 @@ int main(int argc, char *argv[]) {
     lgs::TileProvider tileProvider;
     tileProvider.setMapSource(config.mapSource());
     tileProvider.setMapKey(config.mapKey());
+    // 数传网口 UDP 数据源（协议 2.1，机载串口+UDP 双发冗余）：按配置启用，走总线统一分发
+    lgs::UdpLinkSource udp;
 
     bridge.setSerialManager(serial);
     bridge.setConfigManager(&config);
     bridge.setAlarmEngine(&alarm);
+    bridge.setUdpLinkSource(&udp);
+    bridge.applyUdpConfig(); // 依配置启动 UDP 监听（默认开启）
 
     // SerialManager 跨线程信号：强制 QueuedConnection
     QObject::connect(serial, &lgs::SerialManager::telemetryReceived,
@@ -84,6 +89,11 @@ int main(int argc, char *argv[]) {
     // 逐帧原始报文 → bridge 自动记录（断电安全落盘）
     QObject::connect(serial, &lgs::SerialManager::rawFrameReceived,
                      &bridge, &lgs::TelemetryBridge::onRawFrame, Qt::QueuedConnection);
+    // 数传网口 UDP：与串口同一帧双源，统一接入总线；链路状态同步到 bridge
+    QObject::connect(&udp, &lgs::UdpLinkSource::telemetryReceived,
+                     &bus, &lgs::DataBus::publish);
+    QObject::connect(&udp, &lgs::UdpLinkSource::linkStatusChanged,
+                     &bridge, &lgs::TelemetryBridge::onUdpLinkOnline);
     QObject::connect(serial, &lgs::SerialManager::errorOccurred,
                      &bridge, [&bridge](const QString &msg) {
         bridge.addAlarm(msg, "严重", "链路");

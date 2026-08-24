@@ -23,6 +23,10 @@ struct Bms {
     int riso_p = 0;        // 正极绝缘电阻 kΩ
     int riso_n = 0;        // 负极绝缘电阻 kΩ
     int alarm = 0;         // 0 正常 / 1 故障 / 2 严重
+    double soh = 0.0;      // 健康状态 %（协议 5.1）
+    int fault1 = 0;        // 一级故障/告警字（协议 5.1，32 位）
+    int fault2 = 0;        // 二级故障/告警字
+    int fault3 = 0;        // 三级故障/告警字
 };
 
 // 备用电源 BMS 状态（12S 备用电池，串口协议）
@@ -83,7 +87,7 @@ struct Lora {
     std::vector<LoraSample> nodes;
 };
 
-// 飞控 FC 状态（仅 4G 链路提供，《地面站对接协议》5.5 节）
+// 飞控 FC 状态（协议 5.5，数传 UDP 与 4G 均含）
 struct Fc {
     bool online = false;
     double roll = 0.0;    // 横滚角 deg
@@ -99,6 +103,28 @@ struct Fc {
     bool armed = false;   // 是否解锁
     double batt_v = 0.0;  // 电池电压 V
     double batt_pct = 0.0;// 剩余电量 (0~1)
+    // 协议 5.5 扩展：
+    double hdg = 0.0;     // 航向角 deg（VfrHud compass_hdg，0~360）
+    double airspd = 0.0;  // 空速 m/s
+    double tas = 0.0;     // 真空速 m/s
+    double gs = 0.0;      // 地速 m/s
+    double climb = 0.0;   // 垂直爬升率 m/s
+    double thr = 0.0;     // 油门 %（0~100）
+    // EKF 估计器健康
+    bool ekfPos = false;      // 位置锁定（GPS 失效）
+    bool ekfGlitch = false;   // GPS 毛刺
+    bool ekfAccelErr = false; // 加速度计错误
+    // GPS 原始数据
+    int gpsFix = 0;      // 0=无 1=NO_FIX 2=2D 3=3D 4=DGPS 5/6=RTK
+    int gpsSat = 0;      // 卫星数（255=未知）
+    int gpsEph = 0;      // 水平精度 HDOP
+    int gpsEpv = 0;      // 垂直精度 VDOP
+    // ESC 电调遥测（DroneCAN/回传时有遥测电调数 n>0；PWM 供电为 0）
+    int escN = 0;                 // 有遥测电调数
+    std::vector<double> escRpm;   // 定长 [10]
+    std::vector<double> escV;     // 定长 [10]
+    std::vector<double> escI;     // 定长 [10]
+    std::vector<double> escTmp;   // 定长 [10]
 };
 
 // 一帧完整遥测；std::optional 表示该设备离线/未出现在帧中

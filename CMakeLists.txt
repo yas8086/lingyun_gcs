@@ -28,6 +28,7 @@ add_executable(LingyunGCS
     src/comms/frame_parser.cpp
     src/comms/json_decoder.cpp
     src/comms/serial_manager.cpp
+    src/comms/udp_link_source.cpp
     src/core/data_bus.cpp
     src/core/alarm_engine.cpp
     src/core/config_manager.cpp

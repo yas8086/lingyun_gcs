@@ -63,6 +63,11 @@ static Bms parseBms(const QJsonObject &o) {
     readInt(o, "riso_p", b.riso_p);
     readInt(o, "riso_n", b.riso_n);
     readInt(o, "alarm", b.alarm);
+    // 协议 5.1 扩展：soh / fault1/2/3
+    readDouble(o, "soh", b.soh);
+    readInt(o, "fault1", b.fault1);
+    readInt(o, "fault2", b.fault2);
+    readInt(o, "fault3", b.fault3);
     return b;
 }
 
@@ -129,6 +134,38 @@ static Fc parseFc(const QJsonObject &o) {
     readBool(o, "armed", f.armed);
     readDouble(o, "batt_v", f.batt_v);
     readDouble(o, "batt_pct", f.batt_pct);
+    // 协议 5.5 扩展开量字段
+    readDouble(o, "hdg", f.hdg);
+    readDouble(o, "airspd", f.airspd);
+    readDouble(o, "tas", f.tas);
+    readDouble(o, "gs", f.gs);
+    readDouble(o, "climb", f.climb);
+    readDouble(o, "thr", f.thr);
+    // EKF 估计器健康（子对象 ekf）
+    const QJsonObject ekf = o.value(QLatin1String("ekf")).toObject();
+    readBool(ekf, "const_pos", f.ekfPos);
+    readBool(ekf, "glitch", f.ekfGlitch);
+    readBool(ekf, "accel_err", f.ekfAccelErr);
+    // GPS 原始数据（子对象 gps）
+    const QJsonObject gps = o.value(QLatin1String("gps")).toObject();
+    readInt(gps, "fix", f.gpsFix);
+    readInt(gps, "sat", f.gpsSat);
+    readInt(gps, "eph", f.gpsEph);
+    readInt(gps, "epv", f.gpsEpv);
+    // ESC 电调遥测（子对象 esc，数组定长 10，缺失置 0）
+    const QJsonObject esc = o.value(QLatin1String("esc")).toObject();
+    readInt(esc, "n", f.escN);
+    f.escRpm.resize(10); f.escV.resize(10); f.escI.resize(10); f.escTmp.resize(10);
+    const auto readArr = [&esc](const char *key, std::vector<double> &dst) {
+        const QJsonArray arr = esc.value(QLatin1String(key)).toArray();
+        for (int i = 0; i < 10; ++i)
+            if (i < arr.size() && arr[i].isDouble())
+                dst[static_cast<size_t>(i)] = arr[i].toDouble();
+    };
+    readArr("rpm", f.escRpm);
+    readArr("v", f.escV);
+    readArr("i", f.escI);
+    readArr("tmp", f.escTmp);
     return f;
 }
 

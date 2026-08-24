@@ -183,6 +183,10 @@ double TelemetryBridge::value(const QString &device, const QString &key) const {
         if (key == "riso_p") return b.riso_p;
         if (key == "riso_n") return b.riso_n;
         if (key == "alarm") return b.alarm;
+        if (key == "soh") return b.soh;
+        if (key == "fault1") return b.fault1;
+        if (key == "fault2") return b.fault2;
+        if (key == "fault3") return b.fault3;
     } else if (device == "backup" && last_.backup) {
         const auto &b = *last_.backup;
         if (key == "pack_v") return b.pack_v;
@@ -231,8 +235,43 @@ double TelemetryBridge::value(const QString &device, const QString &key) const {
         if (key == "batt_v") return f.batt_v;
         if (key == "batt_pct") return f.batt_pct;
         if (key == "armed") return f.armed ? 1 : 0;
+        // 协议 5.5 扩展字段
+        if (key == "hdg") return f.hdg;
+        if (key == "airspd") return f.airspd;
+        if (key == "tas") return f.tas;
+        if (key == "gs") return f.gs;
+        if (key == "climb") return f.climb;
+        if (key == "thr") return f.thr;
+        if (key == "ekf_pos") return f.ekfPos ? 1 : 0;
+        if (key == "ekf_glitch") return f.ekfGlitch ? 1 : 0;
+        if (key == "ekf_accel_err") return f.ekfAccelErr ? 1 : 0;
+        if (key == "gps_fix") return f.gpsFix;
+        if (key == "gps_sat") return f.gpsSat;
+        if (key == "gps_eph") return f.gpsEph;
+        if (key == "gps_epv") return f.gpsEpv;
     }
     return nan;
+}
+
+// 飞控 ESC 电调遥测（协议 5.5 esc 子对象）：n>0 时索引 < n 可信，其余为占位 0
+int TelemetryBridge::fcEscCount() const {
+    return last_.fc ? last_.fc->escN : 0;
+}
+double TelemetryBridge::fcEscRpm(int i) const {
+    if (!last_.fc || i < 0 || i >= int(last_.fc->escRpm.size())) return 0.0;
+    return last_.fc->escRpm[static_cast<size_t>(i)];
+}
+double TelemetryBridge::fcEscTemp(int i) const {
+    if (!last_.fc || i < 0 || i >= int(last_.fc->escTmp.size())) return 0.0;
+    return last_.fc->escTmp[static_cast<size_t>(i)];
+}
+double TelemetryBridge::fcEscVolt(int i) const {
+    if (!last_.fc || i < 0 || i >= int(last_.fc->escV.size())) return 0.0;
+    return last_.fc->escV[static_cast<size_t>(i)];
+}
+double TelemetryBridge::fcEscCur(int i) const {
+    if (!last_.fc || i < 0 || i >= int(last_.fc->escI.size())) return 0.0;
+    return last_.fc->escI[static_cast<size_t>(i)];
 }
 
 int TelemetryBridge::readinessState() const {

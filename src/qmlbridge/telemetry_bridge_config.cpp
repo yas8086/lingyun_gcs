@@ -2,6 +2,7 @@
 // 保留 `bridge` 前缀与 QML 调用不变，仅按源码组织拆分。
 #include "qmlbridge/telemetry_bridge.h"
 #include "core/config_manager.h"
+#include "comms/udp_link_source.h"
 #include "video/siyi_sdk_client.h"
 #include "video/skydroid_sdk_client.h"
 #include "video/rtsp_stream.h"
@@ -472,6 +473,43 @@ QString TelemetryBridge::configMapKey() const {
 }
 void TelemetryBridge::setConfigMapKey(const QString &key) {
     if (config_) config_->setMapKey(key);
+}
+
+// ---- 数传网口 UDP 数据源（协议 2.1）----
+void TelemetryBridge::setUdpLinkSource(UdpLinkSource *udp) {
+    udp_ = udp;
+}
+void TelemetryBridge::onUdpLinkOnline(bool online) {
+    if (udpOnline_ != online) {
+        udpOnline_ = online;
+        emit stateChanged(); // 驱动前端刷新链路状态
+    }
+}
+bool TelemetryBridge::configUdpEnabled() const {
+    return config_ ? config_->udpEnabled() : true;
+}
+void TelemetryBridge::setConfigUdpEnabled(bool on) {
+    if (config_) config_->setUdpEnabled(on);
+    applyUdpConfig(); // 即时启停
+}
+int TelemetryBridge::configUdpPort() const {
+    return config_ ? int(config_->udpPort()) : 20000;
+}
+void TelemetryBridge::setConfigUdpPort(int port) {
+    if (config_) config_->setUdpPort(quint16(qBound(1, port, 65535)));
+    applyUdpConfig(); // 端口改动即时重启监听
+}
+void TelemetryBridge::applyUdpConfig() {
+    const bool on = config_ ? config_->udpEnabled() : false;
+    if (!udp_)
+        return;
+    if (on && !udp_->isRunning())
+        udp_->start(config_ ? config_->udpPort() : 20000);
+    else if (!on && udp_->isRunning())
+        udp_->stop();
+}
+bool TelemetryBridge::isUdpLinkOpen() const {
+    return udp_ && udp_->isRunning();
 }
 
 } // namespace lgs

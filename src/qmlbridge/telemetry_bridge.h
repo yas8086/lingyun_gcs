@@ -25,6 +25,7 @@ class RtspStream;
 class RtspRecorder;
 class SiyiSdkClient;
 class SkydroidSdkClient;
+class UdpLinkSource;
 
 // 桥接层：把 C++ 后端（遥测/链路/就绪度/告警/串口/配置）暴露给 QML 前端。
 // 采用 context 属性注入，QML 通过 Q_INVOKABLE 方法与信号交互。
@@ -52,6 +53,9 @@ public:
     void setAlarmEngine(AlarmEngine *engine);
     // B3：串口异常（ResourceError 拔线等）时同步缓存状态，避免 isSerialOpen 长期跨线程阻塞
     void markSerialGone();
+    // 数传网口 UDP 数据源：注入 + 依据配置启停
+    void setUdpLinkSource(UdpLinkSource *udp);
+    void onUdpLinkOnline(bool online);   // UDP 链路在线状态缓存（由 linkStatusChanged 驱动）
 
     // 串口控制
     Q_INVOKABLE QStringList ports() const;
@@ -69,6 +73,12 @@ public:
     Q_INVOKABLE double value(const QString &device, const QString &key) const;
     // 飞控字符串字段（mode 飞行模式）：离线返回空串
     Q_INVOKABLE QString fcStringField(const QString &key) const;
+    // 飞控 ESC 电调遥测（协议 5.5）：n>0 时索引 < n 可信；rpm/温度/电压/电流
+    Q_INVOKABLE int fcEscCount() const;
+    Q_INVOKABLE double fcEscRpm(int i) const;
+    Q_INVOKABLE double fcEscTemp(int i) const;
+    Q_INVOKABLE double fcEscVolt(int i) const;
+    Q_INVOKABLE double fcEscCur(int i) const;
     // 就绪度状态：0 待自检 / 1 就绪可飞 / 2 起飞受限 / 3 不可起飞
     Q_INVOKABLE int readinessState() const;
     // 就绪度明细（B4：与 readinessState() 阈值单一来源，QML 弹窗单源消费，避免阈值漂移）：
@@ -127,6 +137,14 @@ public:
     Q_INVOKABLE void setConfigMapSource(int source);
     Q_INVOKABLE QString configMapKey() const;
     Q_INVOKABLE void setConfigMapKey(const QString &key);
+    // 数传网口 UDP 数据源（协议 2.1）：启用开关 + 监听端口；改动即时生效（applyUdpConfig）
+    Q_INVOKABLE bool configUdpEnabled() const;
+    Q_INVOKABLE void setConfigUdpEnabled(bool on);
+    Q_INVOKABLE int configUdpPort() const;
+    Q_INVOKABLE void setConfigUdpPort(int port);
+    // 按当前配置启停 UDP 监听；isUdpLinkOpen 返回 UDP 链路是否在线（有帧在收）
+    Q_INVOKABLE void applyUdpConfig();
+    Q_INVOKABLE bool isUdpLinkOpen() const;
 
     // 相机拉流配置（RTSP）：QVariantList<QVariantMap{id,name,enable,ip,port,path,user,pass,stream,transport,fps}>
     Q_INVOKABLE QVariantList cameraConfigs() const;
@@ -261,6 +279,8 @@ private:
     void onRecorderFinalized();   // 录制器收尾完成（EOS 写完）后移除并释放
     bool linkOnline_ = false;
     bool serialOpen_ = false;     // B3：串口打开状态缓存（避免 isSerialOpen 高频跨线程阻塞）
+    UdpLinkSource *udp_ = nullptr;   // 数传网口 UDP 数据源（由 main.cpp 注入）
+    bool udpOnline_ = false;         // UDP 链路在线状态缓存（见 onUdpLinkOnline）
     SerialManager *serial_ = nullptr;
     ConfigManager *config_ = nullptr;
     AlarmEngine *engine_ = nullptr;

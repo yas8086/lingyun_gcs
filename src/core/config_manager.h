@@ -80,6 +80,12 @@ public:
     QString cameraLay() const;
     void setCameraLay(const QString &lay);
 
+    // 数传网口 UDP 数据源（协议 2.1）：启用开关 + 本地监听端口（默认 20000，机载定向单播）
+    bool udpEnabled() const;
+    void setUdpEnabled(bool on);
+    quint16 udpPort() const;
+    void setUdpPort(quint16 port);
+
     QString filePath() const;
     // 重载：重新从磁盘读取配置到内存缓存（导入配置后调用，避免前端读到旧值）
     void reload();

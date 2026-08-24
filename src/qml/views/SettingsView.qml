@@ -14,6 +14,8 @@ Item {
     // 串口打开状态（带 dataTick 依赖：isSerialOpen 是 Q_INVOKABLE 方法调用，
     // QML 绑定只求值一次，须由 dataTick 触发重算，否则按钮文字/颜色不刷新）
     property bool serialIsOpen: { void root.themeRoot.dataTick; return bridge.isSerialOpen() }
+    // UDP 网口监听状态（同理：isUdpLinkOpen 是方法调用，依赖 dataTick 每秒刷新）
+    property bool udpLinkOpen: { void root.themeRoot.dataTick; return bridge.isUdpLinkOpen() }
 
     // 串口设备列表（bridge.ports() 是方法调用，QML 绑定只求值一次不自动刷新，
     // 故存为属性，由"刷新"按钮手动重新枚举）
@@ -283,6 +285,94 @@ Item {
                         Item { Layout.fillWidth: true }
                     }
                     Text { text: "遵循《地面站对接协议》115200 8N1，机载 5Hz 下传"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            // ===== 数传网口 UDP 数据源（协议 2.1，机载串口+UDP 双发冗余）=====
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 170
+                radius: 14
+                color: root.themeRoot.colCard
+                border.color: root.themeRoot.colLine
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    Row {
+                        spacing: 8
+                        Text { text: "数传网口 UDP"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
+                        Text { text: "（与串口并行冗余）"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "启用网口监听"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        Switch {
+                            id: udpSwitch
+                            Layout.preferredWidth: 60
+                            checked: bridge.configUdpEnabled()
+                            onToggled: {
+                                bridge.setConfigUdpEnabled(checked)
+                                root.showNote(checked ? "已启用 UDP 网口监听" : "已关闭 UDP 网口监听")
+                            }
+                        }
+                        Rectangle {
+                            Layout.preferredHeight: 24; radius: 99
+                            implicitWidth: udpStateTxt.implicitWidth + 22
+                            color: root.udpLinkOpen ? root.themeRoot.colOkSoft : root.themeRoot.colCard2
+                            border.color: root.udpLinkOpen ? root.themeRoot.colOk : root.themeRoot.colLine
+                            Text {
+                                id: udpStateTxt; anchors.centerIn: parent
+                                text: root.udpLinkOpen ? "● 监听中" : "○ 已停止"
+                                font.pixelSize: 12; font.bold: true
+                                color: root.udpLinkOpen ? root.themeRoot.colOk : root.themeRoot.colText2
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    RowLayout {
+                        spacing: 8
+                        Text { text: "监听端口"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: udpPortEdit
+                            Layout.preferredWidth: 140
+                            implicitHeight: 34
+                            text: String(bridge.configUdpPort())
+                            font.pixelSize: 13; font.family: "monospace"
+                            validator: IntValidator { bottom: 1; top: 65535 }
+                            leftPadding: 10; rightPadding: 10
+                            color: root.themeRoot.colText
+                            background: Rectangle {
+                                radius: 8; color: root.themeRoot.colCard
+                                border.width: 1
+                                border.color: udpPortEdit.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine
+                            }
+                        }
+                        Button {
+                            // 按压缩放反馈（对齐原型 :active{scale(.94)}）
+                            scale: pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            HoverHandler {
+                                id: hover_udp_apply
+                                cursorShape: Qt.PointingHandCursor
+                            }
+                            text: "应用"
+                            background: Rectangle {
+                                radius: 8
+                                color: root.themeRoot.colPrimarySoft
+                                border.color: root.themeRoot.colPrimary
+                            }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colPrimary; font.bold: true }
+                            onClicked: {
+                                const p = parseInt(udpPortEdit.text)
+                                if (!p || p < 1 || p > 65535) { root.showNote("端口需为 1-65535"); return }
+                                bridge.setConfigUdpPort(p)
+                                root.showNote("UDP 监听端口已设为 " + p)
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Text { text: "机载《地面站对接协议》默认向地面站 192.168.10.200:20000 定向单播（AA55 JSON\\n 与串口同帧）；地面站监听该端口即可经网口接收遥测，含完整飞控数据"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
                     Item { Layout.fillHeight: true }
                 }
             }

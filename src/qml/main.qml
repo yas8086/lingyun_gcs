@@ -1008,22 +1008,41 @@ ApplicationWindow {
         }
     }
 
-    // 飞艇位置模拟（常驻顶层，每秒更新）：与 rtcData 同理，无论当前在哪页都持续
-    // 累积轨迹。让"切出地图页再切回"时看到完整的连续路径，而不是只在图上停留期间
-    // 采样导致的断线（A 切出 → B 切回，中间空段无轨迹）。
+    // 飞艇位置更新（常驻顶层，每秒更新）：与 rtcData 同理，无论当前在哪页都持续累积轨迹。
+    // P3：优先使用真实飞控遥测（数传 UDP 含 fc.lon/lat/alt/yaw/gs）——地图箭头/轨迹跟随真实位置；
+    //      fc 离线（串口+UDP 均无飞控数据）时回退椭圆模拟，保证无数据时仍可演示。
+    // 注：模拟分支仅在"从未收到真实位置"时运行；一旦收到过真实位置，fc 离线则停在最后位置
+    // （不跳回模拟，避免演示/作业切换时地图箭头跳变）。
+    property bool mapHasRealPos: false
     Timer {
         interval: 1000
         running: true
         repeat: true
         onTriggered: {
-            // 沿椭圆路径移动
-            const t = Date.now() / 1000
-            const r = 0.004
-            root.mapAirPos.lon = root.mapHomePos.lon + r * Math.cos(t * 0.3)
-            root.mapAirPos.lat = root.mapHomePos.lat + r * Math.sin(t * 0.3)
-            root.mapHeading = (t * 20) % 360
-            root.mapAlt = 150 + 30 * Math.sin(t * 0.2)
-            root.mapSpeed = 10 + 3 * Math.sin(t * 0.4)
+            const fcLon = bridge.value("fc","lon")
+            const fcLat = bridge.value("fc","lat")
+            const hasReal = !isNaN(fcLon) && !isNaN(fcLat)
+            if (hasReal) {
+                // 真实遥测：位置/航向/高度/速度全部取 fc
+                root.mapAirPos.lon = fcLon
+                root.mapAirPos.lat = fcLat
+                const yaw = bridge.value("fc","yaw")
+                if (!isNaN(yaw)) root.mapHeading = yaw
+                const alt = bridge.value("fc","alt")
+                if (!isNaN(alt)) root.mapAlt = alt
+                const gs = bridge.value("fc","gs")
+                if (!isNaN(gs) && gs >= 0) root.mapSpeed = gs
+                root.mapHasRealPos = true
+            } else if (!root.mapHasRealPos) {
+                // 从未收到真实位置：保留原椭圆模拟（演示）
+                const t = Date.now() / 1000
+                const r = 0.004
+                root.mapAirPos.lon = root.mapHomePos.lon + r * Math.cos(t * 0.3)
+                root.mapAirPos.lat = root.mapHomePos.lat + r * Math.sin(t * 0.3)
+                root.mapHeading = (t * 20) % 360
+                root.mapAlt = 150 + 30 * Math.sin(t * 0.2)
+                root.mapSpeed = 10 + 3 * Math.sin(t * 0.4)
+            }
             // 累积轨迹点
             root.mapTrack.push({lon: root.mapAirPos.lon, lat: root.mapAirPos.lat})
             if (root.mapTrack.length > 500) root.mapTrack.shift()

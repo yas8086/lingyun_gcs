@@ -231,6 +231,17 @@ QString ConfigManager::cameraLay() const {
 }
 void ConfigManager::setCameraLay(const QString &lay) { set("camera_lay", lay); }
 
+// ---- 数传网口 UDP 数据源（协议 2.1）----
+bool ConfigManager::udpEnabled() const {
+    return value("udp_enabled", true).toBool(true); // 默认开启（机载默认双发）
+}
+void ConfigManager::setUdpEnabled(bool on) { set("udp_enabled", on); }
+quint16 ConfigManager::udpPort() const {
+    const int v = value("udp_port", 20000).toInt(20000);
+    return quint16(qBound(1, v, 65535));
+}
+void ConfigManager::setUdpPort(quint16 port) { set("udp_port", int(port)); }
+
 // 保留 alarmSoundEnabled 访问（header 有声明）
 bool ConfigManager::alarmSoundEnabled() const {
     return value("alarm_sound", false).toBool(false);
