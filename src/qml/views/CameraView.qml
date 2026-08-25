@@ -181,7 +181,8 @@ Item {
         //     注意：不再用"GAA/GAC 姿态超时"判定——真云卓可能不支持 GAA 协议，
         //     会导致正确配置的云卓相机被误判 wrong，进而把测距等按钮全堵死。
         //   - gimbal=siyi：对会话主 IP（root.gimbalCamIp）做思翼 SDK 连接判定
-        //     （3 秒连不上=目标 37260 无服务=非思翼设备，如云卓误配思翼）。
+        //     （ICMP 端口不可达=目标 37260 无服务=非思翼设备，如云卓误配思翼；
+        //      仅超时无响应=设备没通电/没联网 → 不判选错，提示检查供电）。
         // 由 gimbalProbeWatch 每 500ms 统一检查，探测完成后按结果标记/清除。
         for (var g = 0; g < root.camCfg.length; g++) {
             var gc = root.camCfg[g]
@@ -212,6 +213,8 @@ Item {
     // 云台类型配置错误探测（静态 Timer + 时间戳）：
     //   skydroid：UDP 设备探测完成（~2.5s）后 devicePresent=false → 判 wrong（非云卓设备）
     //   siyi：3s 内 gimbalConnected 仍为 false → 判 wrong（非思翼设备）
+    // 注意：siyi 判定须区分"端口明确无服务（ICMP，选错）"与"仅超时无响应（没通电/没联网，
+    // 不判选错）"，逻辑见 gimbalProbeWatch onTriggered。
     property var gimbalProbeStart: ({})   // camId → 探测开始时间戳(ms)；0/undefined=未在探测
     Timer {
         id: gimbalProbeWatch
@@ -259,12 +262,20 @@ Item {
                         // 思翼 SDK 已连接=设备存在（正确配置）
                         root.gimbalProbeStart[camId] = 0
                         bridge.markSkyGimbalWrong(camId, false)
-                    } else if (now - t0 >= 3000) {
-                        // 3 秒仍连不上 → 非思翼设备（如云卓误配思翼）
+                    } else if (bridge.siyiGimbalPortClosed()) {
+                        // 设备 IP 在线但 37260 端口无思翼 UDP 服务（ICMP port unreachable）
+                        // → 确为非思翼设备（选错云台）
                         root.gimbalProbeStart[camId] = 0
                         bridge.markSkyGimbalWrong(camId, true)
                         if (root.selected.indexOf(i) >= 0)
                             root.toast(root.gimbalWrongMsg(c.id, c.name || camId), "err")
+                    } else if (now - t0 >= 3000) {
+                        // 探测超时仍无连接、且未探测到"端口明确无服务"：
+                        // 多为设备没通电/没联网（IP 无响应）→ 不判"选错云台"，清除误报，提示检查供电/网络
+                        root.gimbalProbeStart[camId] = 0
+                        bridge.markSkyGimbalWrong(camId, false)
+                        if (root.selected.indexOf(i) >= 0)
+                            root.toast("⚠ " + (c.name || camId) + " 思翼云台无响应，请检查供电与网线连接", "err")
                     }
                 } else {
                     root.gimbalProbeStart[camId] = 0   // 非会话主 IP 的相机不判定

@@ -53,6 +53,10 @@ private slots:
     void skyProbePresentKeepsPortClosedFalse();
     // 思翼：ACK 姿态帧解析
     void siyiAckParsing();
+    // 思翼：目标端口无 UDP 服务 → ICMP port unreachable → portClosed=true（判"选错云台"）
+    void siyiPortClosedOnNoService();
+    // 思翼：端口有 UDP 服务但无思翼 ACK 回包（设备没通电/没联网模拟）→ portClosed=false（不误判选错）
+    void siyiProbePresentKeepsPortClosedFalse();
 };
 
 void TestVideoProtocol::skyCmdConstruction() {
@@ -255,6 +259,42 @@ void TestVideoProtocol::siyiAckParsing() {
     QVERIFY(qAbs(client.pitch() - (-10.5)) < 0.01);
     QVERIFY(qAbs(client.yaw() - 50.0) < 0.01);
     QVERIFY(qAbs(client.roll() - 0.0) < 0.01);
+
+    client.stop();
+}
+
+void TestVideoProtocol::siyiPortClosedOnNoService() {
+    // 模拟"端口无思翼服务"（如云卓误配思翼：云卓 5000 有服务，但 37260 无监听）：
+    // 先占一个端口确认它可用，然后关闭它——此时 127.0.0.1:port 无 UDP 服务，
+    // 思翼 SDK 的 ICMP 探测应收到 port unreachable → portClosed=true（判选错云台）
+    QUdpSocket tmp;
+    QVERIFY(tmp.bind(QHostAddress::LocalHost, 0));
+    const quint16 dport = tmp.localPort();
+    tmp.close();   // 释放端口 → 目标端口无服务
+
+    SiyiSdkClient client;
+    QSignalSpy probeDone(&client, &SiyiSdkClient::probeFinished);
+    client.start(QStringLiteral("127.0.0.1"), dport);
+    // 等待探测结束（ICMP 错误应立即触发）
+    QTRY_VERIFY_WITH_TIMEOUT(probeDone.count() >= 1, 2000);
+    QVERIFY(client.portClosed());   // 端口明确无服务 → 判"选错云台"
+
+    client.stop();
+}
+
+void TestVideoProtocol::siyiProbePresentKeepsPortClosedFalse() {
+    QUdpSocket device;   // 模拟思翼设备：绑定端口 = 有 UDP 监听服务
+    QVERIFY(device.bind(QHostAddress::LocalHost, 0));
+    const quint16 dport = device.localPort();
+
+    SiyiSdkClient client;
+    QSignalSpy probeDone(&client, &SiyiSdkClient::probeFinished);
+    client.start(QStringLiteral("127.0.0.1"), dport);
+    // 等待设备探测完成
+    QTRY_VERIFY_WITH_TIMEOUT(probeDone.count() >= 1, 2000);
+    // 端口有监听服务 → 不会产生 ICMP port unreachable → portClosed 必须为 false。
+    // 即使设备未回 ACK（模拟没通电/没联网：仅超时"无响应"），也不得误判为"选错云台"（portClosed=false）
+    QVERIFY(!client.portClosed());
 
     client.stop();
 }

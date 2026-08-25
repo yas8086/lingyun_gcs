@@ -11,7 +11,18 @@ Item {
     signal showNote(string msg)
 
     property bool stripCollapsed: false
-    function bridgeReadiness() { void root.themeRoot.dataTick; return bridge.readinessState() }
+    // 常驻刷新节拍：LoRa/节点数据走 UDP 透传，初次创建时 themeRoot 尚未注入、
+    // 且全局 dataTick 仅在遥测变化时递增——首帧若在组件创建前到达，LoRa 面板
+    // 的 model 绑定（依赖 dataTick）可能不随其后刷新，表现为"初次无温度/压力，
+    // 切页重建才有"。用本地 osdTick 常驻定时驱动，保证进入监控页后 LoRa 持续刷新（对齐 CameraView.osdTick 做法）。
+    property int osdTick: 0
+    Timer {
+        interval: 500
+        running: true
+        repeat: true
+        onTriggered: root.osdTick++
+    }
+    function bridgeReadiness() { void root.osdTick; void root.themeRoot.dataTick; return bridge.readinessState() }
 
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
     function fmtInt(v) { return isNaN(v) ? "--" : Math.round(v); }
@@ -19,14 +30,14 @@ Item {
     // 温度单位换算（决策 #24）：0=℃ 1=℉
     function tempUnit() { return bridge.configTempUnit() === 1 ? "℉" : "℃" }
     function toTemp(c) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         if (isNaN(c)) return "--"
         return bridge.configTempUnit() === 1 ? (c * 9 / 5 + 32).toFixed(1) : c.toFixed(1)
     }
     // 压力单位换算（决策：协议值为 Pa，按设置换算显示）：0=kPa 1=Pa 2=bar 3=psi
     // 带 dataTick 依赖，设置页修改单位后自动跟随换算
     function presStr(pa) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         if (isNaN(pa)) return "--"
         switch (bridge.configPressureUnit()) {
             case 1: return Math.round(pa) + " Pa"
@@ -39,7 +50,7 @@ Item {
     // 节点多换行时模块随之增高（ScrollView 滚动兜底），最小 150。
     // 依赖 dataTick + root.width，节点数/窗口宽度变化时自动重算。
     function loraPanelHCalc() {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         const n = root.loraNodes().length
         if (n === 0) return 150
         // 估算卡片尺寸与真实布局对齐：卡片固定高 60px（见下方 LoRa 卡片 height:60），
@@ -55,20 +66,20 @@ Item {
     // 功率单位：W / kW
     function powerUnit() { return "W" }
     function toPower(w) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         return isNaN(w) ? "--" : Math.round(w)
     }
-    function socVal() { void root.themeRoot.dataTick; return bridge.value("bms","soc") }
+    function socVal() { void root.osdTick; void root.themeRoot.dataTick; return bridge.value("bms","soc") }
     // 通用字段显示辅助：读取数值并格式化为字符串（触发 dataTick 依赖）
     function valStr(dev, key, dp, unit) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         return root.fmt(bridge.value(dev,key), dp) + (unit||"")
     }
-    function battStr() { void root.themeRoot.dataTick; return root.fmt(bridge.value("bms","soc"),0) + "%" }
+    function battStr() { void root.osdTick; void root.themeRoot.dataTick; return root.fmt(bridge.value("bms","soc"),0) + "%" }
 
     // 空气囊气压：从 LoRa 压力节点取压力值（Pa），无压力节点返回 NaN
     function airbagPressure() {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         const nodes = root.loraNodes()
         for (var i = 0; i < nodes.length; i++) {
             if (nodes[i].pressure !== 0 && !isNaN(nodes[i].pressure))
@@ -78,54 +89,34 @@ Item {
     }
     // 飞控横幅数据（带 dataTick 依赖）
     function fcBanVal(key, dp) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         return root.fmt(bridge.value("fc", key), dp)
     }
-    function fcBanMode() { void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
-    function fcBanArmed() { void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
+    function fcBanMode() { void root.osdTick; void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
+    function fcBanArmed() { void root.osdTick; void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
     // 飞控地速（水平合成）
     function fcGroundSpeed() {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         const vx = bridge.value("fc","vx"), vy = bridge.value("fc","vy")
         if (isNaN(vx) || isNaN(vy)) return NaN
         return Math.sqrt(vx*vx + vy*vy)
     }
-    function bkSoc() { void root.themeRoot.dataTick; return bridge.value("backup","soc") }
+    function bkSoc() { void root.osdTick; void root.themeRoot.dataTick; return bridge.value("backup","soc") }
     function backupStr(fid, u) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         if (fid==="fault") return root.fmtInt(bridge.value("backup","fault"))
         if (fid==="soh") return root.fmtInt(bridge.value("backup","soh"))
         return root.fmt(bridge.value("backup", fid), fid==="diff_v"?2:1) + u
     }
-    function mpptStr(fid, u) {
-        void root.themeRoot.dataTick
-        if (fid==="fault_m") return root.fmtInt(bridge.value("mppt","fault"))
-        if (fid==="today") return root.fmt(bridge.value("mppt","today"),2)
-        return root.fmt(bridge.value("mppt", fid),1) + u
-    }
-    // 副囊 MPPT（模拟派生，与图示页电源链路副囊一致）：主囊真实 + 副囊按比例模拟
-    function subMppt(fid, u) {
-        void root.themeRoot.dataTick
-        const now = Date.now()
-        const pvM  = root.devOff("mppt") ? 0 : (bridge.value("mppt","pv_p")||0)
-        const pvMv = root.devOff("mppt") ? 0 : (bridge.value("mppt","pv_v")||0)
-        const c1   = root.devOff("mppt") ? 0 : (bridge.value("mppt","charge_i")||0)
-        const pvS  = Math.max(0, Math.round(pvM * (0.8 + 0.2*Math.sin(now/9000))))
-        const pvSv = pvMv * (0.95 + 0.05*Math.sin(now/7000))
-        const c2   = Math.round(c1 * (pvS/(pvM||1)) * 10)/10
-        const today2 = Math.max(0, (bridge.value("mppt","today")||0) * 0.78 + Math.sin(now/60000)*0.05)
-        const total2 = Math.max(0, (bridge.value("mppt","total")||0) * 0.78)
-        if (fid==="pv_p") return Math.round(pvS) + u
-        if (fid==="pv_v") return pvSv.toFixed(1) + u
-        if (fid==="batt_v") return root.fmt((bridge.value("mppt","batt_v")||0) * 0.98,1) + u
-        if (fid==="charge_i") return c2.toFixed(1) + u
-        if (fid==="today") return today2.toFixed(2) + u
-        if (fid==="fault_m") return root.fmtInt(bridge.value("mppt","fault"))
-        if (fid==="total") return total2.toFixed(2) + u
-        return "--"
+    // 主囊用 mppt1、副囊用 mppt2，各自独立数据源，格式一致
+    function mpptStr(dev, fid, u) {
+        void root.osdTick; void root.themeRoot.dataTick
+        if (fid==="fault_m") return root.fmtInt(bridge.value(dev,"fault"))
+        if (fid==="today") return root.fmt(bridge.value(dev,"today"),2)
+        return root.fmt(bridge.value(dev, fid),1) + u
     }
     function dcdcStr(fid, u) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         if (fid==="fault_d") return root.fmtInt(bridge.value("dcdc","fault"))
         if (fid==="enabled") return bridge.value("dcdc","enabled")===1 ? "开启" : "关闭"
         return root.fmt(bridge.value("dcdc", fid),1) + u
@@ -161,13 +152,13 @@ Item {
 
     // 设备在线状态（含数据新鲜度演示置灰）
     function devOff(dev) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         return !bridge.online(dev)
     }
     function devBadge(dev) { return root.devOff(dev) ? "离线" : "正常" }
     // 模块可见性：任一个模块可见即为真（用于设备卡片网格 / DCDC+温度压力采集 聚合容器）
     function anyModuleShown(keys) {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         for (const k of keys) if (!root.themeRoot.isModuleHidden(k)) return true
         return false
     }
@@ -175,7 +166,8 @@ Item {
     // 设备卡显示字段可见性（决策：更多字段配置）
     property var fieldVis: {
         "bms":  ["pack_v","pack_i","max_t","max_v","min_v","diff_v"],
-        "mppt": ["charge_i","today","fault_m","pv_v","total"],
+        "mppt1": ["charge_i","today","fault_m","pv_v","total"],
+        "mppt2": ["charge_i","today","fault_m","pv_v","total"],
         "dcdc": ["out_i","temp","fault_d","in_v","enabled"]
     }
     function fieldShown(dev, fid) {
@@ -183,9 +175,9 @@ Item {
     }
 
     // ===== 电源总览（原型 power-strip）=====
-    function psPin()  { void root.themeRoot.dataTick; return root.devOff("mppt") ? 0 : bridge.value("mppt","pv_p") }
-    function psPout() { void root.themeRoot.dataTick; return root.devOff("dcdc") ? 0 : bridge.value("dcdc","out_p") }
-    function psBatt() { void root.themeRoot.dataTick; return root.devOff("bms") ? 0 : bridge.value("bms","pack_i") }
+    function psPin()  { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("mppt1") ? 0 : bridge.value("mppt1","pv_p") }
+    function psPout() { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("dcdc") ? 0 : bridge.value("dcdc","out_p") }
+    function psBatt() { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("bms") ? 0 : bridge.value("bms","pack_i") }
     function psNet()  { return root.psPin() - root.psPout() }
 
     // ===== 外层滚动容器（窗口化/小高度时支持鼠标滚轮滑动查看全部模块）=====
@@ -247,7 +239,7 @@ Item {
                         Row {
                             spacing: 28
                             Text {
-                                text: "链路 <b>" + (bridge.isSerialOpen() ? "正常" : "断线") + "</b>"
+                                text: "链路 <b>" + (bridge.isDataLinkOnline() ? "正常" : "断线") + "</b>"
                                 font.pixelSize: 14; color: root.themeRoot.colText2
                                 textFormat: Text.RichText
                             }
@@ -404,23 +396,23 @@ Item {
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
-                                color: root.devOff("mppt") ? "transparent" : root.themeRoot.colOkSoft
-                                border.color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                color: root.devOff("mppt1") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("mppt1") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("mppt"); font.pixelSize: 11; font.bold: true
-                                    color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                    text: root.devBadge("mppt1"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("mppt1") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
                         }
                         Row {
                             spacing: 20
                             Column {
-                                Text { text: root.toPower(bridge.value("mppt","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: root.toPower(bridge.value("mppt1","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
                                 Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
                             }
                             Column {
-                                Text { text: root.valStr("mppt","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: root.valStr("mppt1","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
                                 Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
                             }
                         }
@@ -436,13 +428,13 @@ Item {
                                     {fid:"total", k:"总发电量", u:" kWh"}
                                 ]
                                 Rectangle {
-                                    visible: root.fieldShown("mppt", modelData.fid)
+                                    visible: root.fieldShown("mppt1", modelData.fid)
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
                                         Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
                                         Text {
-                                            text: root.mpptStr(modelData.fid, modelData.u)
+                                            text: root.mpptStr("mppt1", modelData.fid, modelData.u)
                                             font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
@@ -468,23 +460,23 @@ Item {
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
-                                color: root.devOff("mppt") ? "transparent" : root.themeRoot.colOkSoft
-                                border.color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                color: root.devOff("mppt2") ? "transparent" : root.themeRoot.colOkSoft
+                                border.color: root.devOff("mppt2") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("mppt"); font.pixelSize: 11; font.bold: true
-                                    color: root.devOff("mppt") ? root.themeRoot.colOff : root.themeRoot.colOk
+                                    text: root.devBadge("mppt2"); font.pixelSize: 11; font.bold: true
+                                    color: root.devOff("mppt2") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
                         }
                         Row {
                             spacing: 20
                             Column {
-                                Text { text: root.subMppt("pv_p",""); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: root.toPower(bridge.value("mppt2","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
                                 Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
                             }
                             Column {
-                                Text { text: root.subMppt("batt_v"," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
+                                Text { text: root.valStr("mppt2","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
                                 Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
                             }
                         }
@@ -500,13 +492,13 @@ Item {
                                     {fid:"total", k:"总发电量", u:" kWh"}
                                 ]
                                 Rectangle {
-                                    visible: root.fieldShown("mppt", modelData.fid)
+                                    visible: root.fieldShown("mppt2", modelData.fid)
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
                                         Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
                                         Text {
-                                            text: root.subMppt(modelData.fid, modelData.u)
+                                            text: root.mpptStr("mppt2", modelData.fid, modelData.u)
                                             font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
@@ -556,7 +548,7 @@ Item {
                                     width: 68; height: 68
                                     onPaint: {
                                         const ctx = getContext("2d")
-                                        void root.themeRoot.dataTick
+                                        void root.osdTick; void root.themeRoot.dataTick
                                         const soc = bridge.value("bms","soc")
                                         const col = isNaN(soc) ? root.themeRoot.colOff : (soc>50 ? root.themeRoot.colOk : (soc>20 ? root.themeRoot.colWarn : root.themeRoot.colErr))
                                         ctx.clearRect(0, 0, width, height)
@@ -829,12 +821,12 @@ Item {
                                                 id: mainVal
                                                 text: modelData.pressure !== 0
                                                       ? root.presStr(modelData.pressure)
-                                                      : root.toTemp(modelData.temp) + " " + root.tempUnit()
+                                                      : (modelData.hasTemp ? root.toTemp(modelData.temp) + " " + root.tempUnit() : "--")
                                                 font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                             }
                                             // 压力传感器自带温度检测：同行小字显示（间隔由 Row spacing 控制）
                                             Text {
-                                                visible: modelData.pressure !== 0 && modelData.temp !== 0
+                                                visible: modelData.pressure !== 0 && modelData.hasTemp
                                                 text: "温度 " + root.toTemp(modelData.temp) + root.tempUnit()
                                                 font.pixelSize: 11; color: root.themeRoot.colText2
                                                 anchors.baseline: mainVal.baseline
@@ -968,7 +960,7 @@ Item {
              : type==="err" ? root.themeRoot.colErr : root.themeRoot.colPrimary
     }
     function filteredLog() {
-        void root.themeRoot.dataTick
+        void root.osdTick; void root.themeRoot.dataTick
         const arr = root.logFilter === "alarm" ? root.logStream.filter(x=>x.type==="alarm") : root.logStream
         return arr.slice().reverse()
     }
@@ -989,9 +981,11 @@ Item {
         if (root.themeRoot) root.themeRoot.dataTick++
     }
 
-    // 数据源辅助
+    // 数据源辅助（LoRa：依赖 osdTick 常驻刷新 + dataTick 遥测刷新双驱动，
+    // 保证初次进入即有节点、节点变化实时更新）
     function loraNodes() {
-        void root.themeRoot.dataTick
+        void root.osdTick
+        void root.osdTick; void root.themeRoot.dataTick
         return bridge.loraNodes()
     }
 

@@ -20,6 +20,16 @@ SiyiSdkClient::SiyiSdkClient(QObject *parent)
     sock_ = new QUdpSocket(this);
     connect(sock_, &QUdpSocket::readyRead, this, &SiyiSdkClient::onReadyRead);
 
+    probeSock_ = new QUdpSocket(this);
+    // 探测 socket：ICMP 端口不可达 → ConnectionRefusedError（目标端口无服务）
+    connect(probeSock_, &QUdpSocket::errorOccurred,
+            this, &SiyiSdkClient::onProbeError);
+    connect(probeSock_, &QUdpSocket::readyRead,
+            this, &SiyiSdkClient::onProbeReply);
+    probeTimer_.setSingleShot(true);
+    probeTimer_.setInterval(1500);   // 1.5s 内无 ICMP 错误/回包 → 视为设备没通电/没联网
+    connect(&probeTimer_, &QTimer::timeout, this, &SiyiSdkClient::onProbeTimeout);
+
     poll_ = new QTimer(this);
     poll_->setInterval(200);
     connect(poll_, &QTimer::timeout, this, &SiyiSdkClient::pollAttitude);
@@ -46,6 +56,7 @@ void SiyiSdkClient::start(const QString &ip, quint16 port)
         return;
     }
     poll_->start();
+    probeDevice();
     qInfo() << "[SiyiSdk] 会话启动 →" << ip << ":" << port;
 }
 
@@ -53,8 +64,13 @@ void SiyiSdkClient::stop()
 {
     poll_->stop();
     alive_->stop();
+    probeTimer_.stop();
+    if (probeSock_->state() == QAbstractSocket::BoundState
+        || probeSock_->state() == QAbstractSocket::ConnectedState)
+        probeSock_->close();
     if (sock_->state() == QAbstractSocket::BoundState)
         sock_->close();
+    portClosed_ = false;   // 重置：下次 start 重新探测（区分"选错云台"vs"设备没通电"）
     // P2-3：清零姿态值并通知，避免 QML 离线后仍显示残留旧角度
     if (pitch_ != 0 || yaw_ != 0 || roll_ != 0) {
         pitch_ = yaw_ = roll_ = 0;
@@ -79,10 +95,8 @@ quint16 SiyiSdkClient::crc16(const char *data, int len)
     return crc;
 }
 
-void SiyiSdkClient::send(quint8 cmd, const QByteArray &data)
+QByteArray SiyiSdkClient::buildFrame(quint8 cmd, const QByteArray &data)
 {
-    if (target_.isNull() || sock_->state() != QAbstractSocket::BoundState)
-        return;
     // 组帧：55 66 | 01 | len LE | seq LE | cmd | data | crc LE
     QByteArray f;
     f.reserve(OFF_DATA + data.size() + 2);
@@ -96,7 +110,14 @@ void SiyiSdkClient::send(quint8 cmd, const QByteArray &data)
     const quint16 crc = crc16(f.constData(), f.size());
     f.append(char(crc & 0xFF)); f.append(char(crc >> 8)); // CRC LE
     seq_++;
-    sock_->writeDatagram(f, target_, port_);
+    return f;
+}
+
+void SiyiSdkClient::send(quint8 cmd, const QByteArray &data)
+{
+    if (target_.isNull() || sock_->state() != QAbstractSocket::BoundState)
+        return;
+    sock_->writeDatagram(buildFrame(cmd, data), target_, port_);
 }
 
 void SiyiSdkClient::pollAttitude()
@@ -187,6 +208,72 @@ void SiyiSdkClient::setConnected(bool on)
         return;
     connected_ = on;
     emit connectedChanged();
+}
+
+// 设备探测：向目标 IP:37260 发一条无害命令（0x0D 查询姿态），监听 ICMP 端口不可达。
+// 若目标端口无思翼服务（如误配为思翼的云卓相机，其控制端口为 5000），系统返回 ICMP
+// Port Unreachable → QUdpSocket errorOccurred(ConnectionRefusedError)。
+// 注意：Linux 下 UDP 必须 connectToHost 后，内核才把 ICMP 错误上报给应用（未 connect 的 sendto 默认丢弃）。
+void SiyiSdkClient::probeDevice()
+{
+    if (target_.isNull())
+        return;
+    if (probeSock_->state() != QAbstractSocket::UnconnectedState)
+        probeSock_->abort();
+    // UDP connect 是即时的（无需握手），此后 write 发送并能在 ICMP 错误时触发 errorOccurred
+    probeSock_->connectToHost(target_, port_);
+    portClosed_ = false;
+    // 先经主 socket 发一条 0x0D 姿态查询（真思翼回 ACK → parseAck → setConnected(true)），
+    // 再用探测 socket 发一次（无监听服务时内核回 ICMP port unreachable → onProbeError 判选错；
+    // 设备没通电/没联网 → 无回包无 ICMP → onProbeTimeout，不判选错）。
+    send(0x0D, QByteArray());
+    probeSock_->write(buildFrame(0x0D, QByteArray()));
+    probeTimer_.start();
+}
+
+void SiyiSdkClient::onProbeError(QAbstractSocket::SocketError err)
+{
+    // 仅 ICMP 端口不可达判定为非思翼设备；其余错误忽略（交给超时兜底）
+    if (err != QAbstractSocket::ConnectionRefusedError)
+        return;
+    probeTimer_.stop();
+    portClosed_ = true;   // 明确"设备 IP 在线但 37260 端口无思翼服务"→ 可用作"选错云台类型"判据
+    qWarning() << "[SiyiSdk] 设备探测：目标" << target_.toString() << ":" << port_
+               << "端口无服务（非思翼设备？请检查云台类型配置）";
+    emit probeFinished();
+}
+
+void SiyiSdkClient::onProbeReply()
+{
+    // 目标 37260 端口有 UDP 响应 → 思翼设备存在（真思翼会回 ACK）。
+    // 注意：Linux 上 ICMP port unreachable 可能表现为 readyRead（read 就绪）而非 errorOccurred，
+    // 此时 readDatagram 返回 -1/ECONNREFUSED 且无有效数据 → 应视为"端口无服务"而非"有响应"
+    bool gotData = false;
+    while (probeSock_->hasPendingDatagrams()) {
+        QByteArray d;
+        d.resize(int(probeSock_->pendingDatagramSize()));
+        const qint64 n = probeSock_->readDatagram(d.data(), d.size());
+        if (n < 0) { gotData = false; break; }
+        gotData = true;
+    }
+    probeTimer_.stop();
+    if (!gotData) {
+        // ICMP port unreachable（无实际数据）→ 端口无思翼服务 → 判"选错云台"
+        portClosed_ = true;
+        qWarning() << "[SiyiSdk] 设备探测：目标" << target_.toString() << ":" << port_
+                   << "端口无服务（非思翼设备？请检查云台类型配置）";
+    } else {
+        qInfo() << "[SiyiSdk] 设备探测：目标有响应，确认思翼设备在线";
+    }
+    emit probeFinished();
+}
+
+void SiyiSdkClient::onProbeTimeout()
+{
+    // 1.5s 无回包也无 ICMP 错误：多为设备没通电/没联网（IP 无响应）
+    // → 不判"选错云台"（portClosed_ 保持 false），由上层提示检查供电/网络
+    qInfo() << "[SiyiSdk] 设备探测：超时无响应（设备可能未通电/未联网）";
+    emit probeFinished();
 }
 
 } // namespace lgs

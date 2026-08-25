@@ -62,6 +62,8 @@ public:
     Q_INVOKABLE bool openSerial(const QString &port, int baud);
     Q_INVOKABLE void closeSerial();
     Q_INVOKABLE bool isSerialOpen() const;
+    // 统一数据链路在线判定：串口打开 或 UDP 链路在线，任一即在线（区别于 isSerialOpen 仅看串口）
+    Q_INVOKABLE bool isDataLinkOnline() const;
     Q_INVOKABLE QString lastSerialError() const;  // 最近一次 openSerial 失败的具体原因
     // 串口配置（用于导入配置后刷新下拉框）
     Q_INVOKABLE QString port() const;
@@ -178,6 +180,11 @@ public:
     Q_INVOKABLE void gimbalSetPitchAngle(double pitchDeg);   // 单位度，A2 mini 范围 -90~+25
     bool gimbalConnected() const;
     double gimbalPitch() const;
+    // 思翼设备探测结论：true=设备 IP 在线但 37260 端口无思翼 UDP 服务（ICMP port unreachable）
+    // → 确为"非思翼设备/选错云台"（如云卓相机误配为思翼）；false=已连接或有回包、或仅超时无响应
+    // （可能没通电/没联网）。与 gimbalConnected 区别：本方法只响应"端口明确无服务"，
+    // 不把"设备没通电"误判为选错云台
+    Q_INVOKABLE bool siyiGimbalPortClosed() const;
     // 云卓云台相机（C14PRO，UDP 5000 文本协议）控制：
     // startSkyGimbal(ip) 启动会话；skyGimbalCtrlMove(ip,yaw,pitch) 速度控制 -100~100；
     // skyGimbalCenter(ip) 一键回中；skyGimbalZoom(ip,dir) 变焦 ±1；skyGimbalShot(ip) 拍照；skyGimbalRecord(ip,on) 录像开关
@@ -277,6 +284,10 @@ private:
     void startRecording();
     void stopRecording();
     void onRecorderFinalized();   // 录制器收尾完成（EOS 写完）后移除并释放
+    // 统一数据源评估：任一数据源在线时启动记录/运行时长，全断时停止
+    void onDataLinkActive(bool active);
+    // 结构化遥测表格落盘（分析用 CSV）：每收到一帧解析后的 TelemetryData 写一行
+    void recordStructured(const lgs::TelemetryData &data);
     bool linkOnline_ = false;
     bool serialOpen_ = false;     // B3：串口打开状态缓存（避免 isSerialOpen 高频跨线程阻塞）
     UdpLinkSource *udp_ = nullptr;   // 数传网口 UDP 数据源（由 main.cpp 注入）
@@ -302,8 +313,10 @@ private:
     QElapsedTimer uptime_;
     bool uptimeStarted_ = false;
     // 数据自动记录
-    QFile recordFile_;
+    QFile recordFile_;     // 原始帧（回放用，AA55+JSON 逐帧）
     QString recordPath_;
+    QFile tableFile_;      // 结构化遥测表格（分析用 CSV，固定列）
+    QString tablePath_;
     QTimer flushTimer_;   // 定时批量落盘，避免每帧 flush 阻塞 GUI 线程
     bool recordEnabled_ = true; // 运行时开关状态（初始化取自 config，默认开）
 };

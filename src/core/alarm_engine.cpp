@@ -8,7 +8,7 @@ namespace {
 QString deviceLabel(const QString &id) {
     if (id == "bms") return "BMS";
     if (id == "backup") return "备用BMS";
-    if (id == "mppt") return "MPPT";
+    if (id == "mppt1" || id == "mppt2") return "MPPT";
     if (id == "dcdc") return "DCDC";
     if (id == "lora") return "LoRa";
     return id.toUpper();
@@ -17,6 +17,25 @@ QString deviceLabel(const QString &id) {
 
 std::optional<double> ruleValue(const QString &device, const QString &field,
                                 const lgs::TelemetryData &data) {
+    // MPPT 字段取值（协议 5.3）：主/副分支共用同一套字段清单
+    const auto mpptValue = [&field](const lgs::Mppt &m) -> std::optional<double> {
+        if (field == "pv_v") return m.pv_v;
+        if (field == "pv_p") return m.pv_p;
+        if (field == "batt_v") return m.batt_v;
+        if (field == "charge_i") return m.charge_i;
+        if (field == "today") return m.today;
+        if (field == "month") return m.month;
+        if (field == "total") return m.total;
+        if (field == "rated_v") return m.rated_v;
+        if (field == "rated_i") return m.rated_i;
+        if (field == "air_t") return m.air_t;
+        if (field == "mod_t") return m.mod_t;
+        if (field == "cs") return m.cs;
+        if (field == "mode") return m.mode;
+        if (field == "chg_on") return m.chg_on ? 1.0 : 0.0;
+        if (field == "fault") return m.fault;
+        return std::nullopt;
+    };
     if (device == "bms" && data.bms) {
         const auto &b = *data.bms;
         if (field == "pack_v") return b.pack_v;
@@ -50,15 +69,10 @@ std::optional<double> ruleValue(const QString &device, const QString &field,
         if (field == "protect") return b.protect;
         if (field == "fault") return b.fault;
         if (field == "sys") return b.sys;
-    } else if (device == "mppt" && data.mppt) {
-        const auto &m = *data.mppt;
-        if (field == "pv_v") return m.pv_v;
-        if (field == "pv_p") return m.pv_p;
-        if (field == "batt_v") return m.batt_v;
-        if (field == "charge_i") return m.charge_i;
-        if (field == "today") return m.today;
-        if (field == "total") return m.total;
-        if (field == "fault") return m.fault;
+    } else if (device == "mppt1" && data.mppt1) {
+        return mpptValue(*data.mppt1);
+    } else if (device == "mppt2" && data.mppt2) {
+        return mpptValue(*data.mppt2);
     } else if (device == "dcdc" && data.dcdc) {
         const auto &d = *data.dcdc;
         if (field == "in_v") return d.in_v;
@@ -86,7 +100,7 @@ AlarmEngine::AlarmEngine(QObject *parent) : QObject(parent) {
     r.level = AlarmEvent::Critical; r.label = "备用电源故障"; defaults_.push_back(r);
     r.device = "backup"; r.field = "alarm"; r.id = "backup_alarm";
     r.level = AlarmEvent::Warn; r.label = "备用电源告警"; defaults_.push_back(r);
-    r.device = "mppt"; r.field = "fault"; r.id = "mppt_fault";
+    r.device = "mppt1"; r.field = "fault"; r.id = "mppt1_fault";
     r.level = AlarmEvent::Warn; r.label = "MPPT 故障"; defaults_.push_back(r);
     r.device = "dcdc"; r.field = "fault"; r.id = "dcdc_fault";
     r.level = AlarmEvent::Warn; r.label = "DCDC 故障"; defaults_.push_back(r);
@@ -154,7 +168,8 @@ void AlarmEngine::updateDevice(const QString &id, bool present) {
 void AlarmEngine::onTelemetry(const lgs::TelemetryData &data) {
     updateDevice("bms", data.bms.has_value());
     updateDevice("backup", data.backup.has_value());
-    updateDevice("mppt", data.mppt.has_value());
+    updateDevice("mppt1", data.mppt1.has_value());
+    updateDevice("mppt2", data.mppt2.has_value());
     updateDevice("dcdc", data.dcdc.has_value());
     // lora 特殊：机载收到过采样即持续存在（nodes 可为空数组）
     updateDevice("lora", data.lora.has_value());
@@ -253,7 +268,7 @@ void AlarmEngine::evalRules(const lgs::TelemetryData &data) {
 
 void AlarmEngine::scanOffline() {
     const qint64 now = clock_.elapsed();
-    const QStringList ids = {"bms", "backup", "mppt", "dcdc", "lora"};
+    const QStringList ids = {"bms", "backup", "mppt1", "mppt2", "dcdc", "lora"};
     for (const auto &id : ids) {
         if (lastSeen_.contains(id) && now - lastSeen_[id] >= offlineTimeoutMs_) {
             const QString offId = "offline:" + id;

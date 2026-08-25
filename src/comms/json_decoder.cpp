@@ -102,6 +102,15 @@ static Mppt parseMppt(const QJsonObject &o) {
     readDouble(o, "today", m.today);
     readDouble(o, "total", m.total);
     readInt(o, "fault", m.fault);
+    // 协议 5.3 扩展
+    readDouble(o, "month", m.month);
+    readDouble(o, "rated_v", m.rated_v);
+    readDouble(o, "rated_i", m.rated_i);
+    readDouble(o, "air_t", m.air_t);
+    readDouble(o, "mod_t", m.mod_t);
+    readInt(o, "cs", m.cs);
+    readInt(o, "mode", m.mode);
+    readBool(o, "chg_on", m.chg_on);
     return m;
 }
 
@@ -179,7 +188,9 @@ static Lora parseLora(const QJsonObject &o) {
         // 与其余 parse* 一致：缺失字段保留默认，null 视为无效不覆盖。
         // online 恒为 1（仅在线节点被打包），无需解析。
         readInt(node, "id", s.id);
-        readDouble(node, "temp", s.temp);
+        // temp 仅在 JSON 字段有效（非 null）时才算"有温度"：
+        // missing/null → hasTemp=false（UI 显示 --）；真实 0℃ → hasTemp=true（显示 0）
+        s.hasTemp = readDouble(node, "temp", s.temp);
         readDouble(node, "pressure", s.pressure);
         readInt(node, "alarm", s.alarm);
         l.nodes.push_back(s);
@@ -199,8 +210,13 @@ bool decodeJson(const QByteArray &json, TelemetryData &out) {
         out.bms = parseBms(root.value(QLatin1String("bms")).toObject());
     if (root.contains(QLatin1String("backup")))
         out.backup = parseBackup(root.value(QLatin1String("backup")).toObject());
-    if (root.contains(QLatin1String("mppt")))
-        out.mppt = parseMppt(root.value(QLatin1String("mppt")).toObject());
+    // 协议 v2：主 MPPT 键 mppt1、副 MPPT 键 mppt2；旧固件 mppt 键兜底映射为主 MPPT
+    if (root.contains(QLatin1String("mppt1")))
+        out.mppt1 = parseMppt(root.value(QLatin1String("mppt1")).toObject());
+    else if (root.contains(QLatin1String("mppt")))
+        out.mppt1 = parseMppt(root.value(QLatin1String("mppt")).toObject());   // 过渡兼容
+    if (root.contains(QLatin1String("mppt2")))
+        out.mppt2 = parseMppt(root.value(QLatin1String("mppt2")).toObject());
     if (root.contains(QLatin1String("dcdc")))
         out.dcdc = parseDcdc(root.value(QLatin1String("dcdc")).toObject());
     if (root.contains(QLatin1String("fc")))

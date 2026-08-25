@@ -6,10 +6,12 @@
 #include "video/rtsp_recorder.h"
 #include <QDir>
 #include <QDateTime>
+#include <QTextStream>
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <cmath>
 
 namespace lgs {
 
@@ -139,8 +141,10 @@ bool TelemetryBridge::recordEnabled() const {
 void TelemetryBridge::setRecordEnabled(bool on) {
     recordEnabled_ = on;
     if (config_) config_->setRecordEnabled(on);
-    // 关闭时立即停止，开启时不自动开始（待下次打开串口）
-    if (!on) stopRecording();
+    if (on)
+        onDataLinkActive(serialOpen_ || udpOnline_); // 开启且任一数据源在线 → 立即启动
+    else
+        stopRecording(); // 关闭必然停止
 }
 QString TelemetryBridge::recordDir() const {
     return config_ ? config_->recordDir() : QString();
@@ -153,26 +157,22 @@ QString TelemetryBridge::currentRecordFile() const { return recordPath_; }
 
 void TelemetryBridge::startRecording() {
     if (recordFile_.isOpen())
-        recordFile_.close();
+        return; // 幂等：已在录则跳过（原逻辑达常关重开，改为任一数据源在线时由 onDataLinkActive 统一调用）
     recordPath_.clear();
-    if (!recordEnabled() || !serial_)
+    tablePath_.clear();
+    if (!recordEnabled())
         return;
-    // serial_ 在工作线程，需跨线程投递 isOpen（不能直接调用）
-    bool serialOpen = false;
-    QMetaObject::invokeMethod(serial_, "isOpen", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, serialOpen));
-    if (!serialOpen)
-        return;
-    // 目录：优先用户配置，否则软件目录/data
+    // 目录：优先用户配置；否则按天归档到 data/原始数据/yyyy-MM-dd/（同一天同一文件夹）
     QString dir = recordDir();
     if (dir.isEmpty())
-        dir = dataDir();
+        dir = dataDir() + QStringLiteral("/原始数据/")
+             + QDateTime::currentDateTime().date().toString("yyyy-MM-dd");
     QDir().mkpath(dir);
-    // 文件名：打开串口时间（含毫秒，避免同秒重开覆盖）telemetry_20260813_143025_123.csv
+    // 文件名：打开数据源时间（含毫秒，避免同秒重开覆盖）
     const QString ts = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
-    recordPath_ = dir + QStringLiteral("/telemetry_") + ts + QStringLiteral(".csv");
+    // ① 原始帧（回放用）：AA55 + JSON 逐帧，字节级一致
+    recordPath_ = dir + QStringLiteral("/telemetry_") + ts + QStringLiteral(".raw");
     recordFile_.setFileName(recordPath_);
-    // 二进制写入：逐帧原始报文需保持字节一致，Text 模式在 Windows 会把 \n 转 \r\n
     if (!recordFile_.open(QIODevice::WriteOnly))
         return;
     const QByteArray header = QByteArray("\xEF\xBB\xBF") // UTF-8 BOM
@@ -180,20 +180,111 @@ void TelemetryBridge::startRecording() {
         + "# 开始时间: " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss").toUtf8() + "\n"
         + "# 格式: 每行一帧原始报文（AA55 帧头 + JSON），utf-8\n";
     recordFile_.write(header);
+    // ② 结构化表格（分析用 CSV）：固定列，详见 recordStructured
+    tablePath_ = dir + QStringLiteral("/telemetry_") + ts + QStringLiteral(".csv");
+    tableFile_.setFileName(tablePath_);
+    if (tableFile_.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&tableFile_);
+        out.setGenerateByteOrderMark(true);
+        out << "t,fc_online,fc_roll,fc_pitch,fc_yaw,fc_lat,fc_lon,fc_alt,fc_mode,fc_armed,"
+               "fc_hdg,fc_gs,fc_climb,fc_thr,fc_batt_v,fc_batt_pct,fc_gps_fix,fc_gps_sat,"
+               "bms_pack_v,bms_pack_i,bms_soc,bms_max_t,bms_alarm,"
+               "mppt1_pv_v,mppt1_pv_p,mppt1_charge_i,mppt1_fault,mppt1_month,mppt1_rated_v,mppt1_air_t,mppt1_mod_t,mppt1_cs,mppt1_mode,mppt1_chg_on,"
+               "mppt2_pv_v,mppt2_pv_p,mppt2_charge_i,mppt2_fault,mppt2_month,mppt2_rated_v,mppt2_air_t,mppt2_mod_t,mppt2_cs,mppt2_mode,mppt2_chg_on,"
+               "dcdc_out_v,dcdc_out_i,dcdc_out_p,dcdc_temp,dcdc_fault,"
+               "backup_pack_v,backup_soc,backup_alarm,"
+               "lora_count,lora_temps,lora_pressures,lora_alarms\n";
+    }
     flushTimer_.start(); // 定时批量落盘
 }
 void TelemetryBridge::stopRecording() {
     flushTimer_.stop();
     if (recordFile_.isOpen())
-        recordFile_.flush(); // 停止前落盘残留数据
+        recordFile_.flush();   // 停止前落盘残留数据
     if (recordFile_.isOpen())
         recordFile_.close();
+    if (tableFile_.isOpen())
+        tableFile_.flush();
+    if (tableFile_.isOpen())
+        tableFile_.close();
     recordPath_.clear();
+    tablePath_.clear();
 }
 void TelemetryBridge::onRawFrame(const QByteArray &frame) {
     if (!recordFile_.isOpen())
         return;
     recordFile_.write(frame); // 由 flushTimer_ 定时落盘，避免阻塞 GUI 线程
+}
+
+// 结构化遥测表格：每收到一帧解析后的 TelemetryData 写一行（固定列，方便 Excel/脚本分析）。
+// 离线设备 / 缺失字段留空；LoRa 节点用紧凑文本列（不随节点数改变表结构）。
+void TelemetryBridge::recordStructured(const lgs::TelemetryData &data) {
+    if (!tableFile_.isOpen())
+        return;
+    QTextStream out(&tableFile_);
+    const auto nm = [](double v, int dp) {
+        return std::isnan(v) ? QString() : QString::number(v, 'f', dp);
+    };
+    const auto bm = [](bool b) { return b ? QStringLiteral("1") : QString(); };
+    const auto qs = [](const QString &s) {
+        // CSV 转义：含逗号/换行/引号时用双引号包裹
+        if (s.contains(QLatin1Char(',')) || s.contains(QLatin1Char('"')) || s.contains(QLatin1Char('\n')))
+            return QLatin1Char('"') + QString(s).replace(QLatin1Char('"'), QStringLiteral("\"\"") )+ QLatin1Char('"');
+        return s;
+    };
+    QStringList col;
+    col << nm(data.t, 3);
+    // fc（17 列）
+    if (data.fc) {
+        const auto &f = *data.fc;
+        col << "1" << nm(f.roll,3) << nm(f.pitch,3) << nm(f.yaw,1)
+            << nm(f.lat,6) << nm(f.lon,6) << nm(f.alt,1) << qs(f.mode) << bm(f.armed)
+            << nm(f.hdg,1) << nm(f.gs,2) << nm(f.climb,3) << nm(f.thr,1)
+            << nm(f.batt_v,1) << nm(f.batt_pct,3) << QString::number(f.gpsFix) << QString::number(f.gpsSat);
+    } else {
+        col << QStringList(17, QString());
+    }
+    // bms（5）+ mppt1/mppt2（各 11）+ dcdc（5）+ backup（3）列
+    if (data.bms) {
+        const auto &b = *data.bms;
+        col << nm(b.pack_v,1) << nm(b.pack_i,2) << QString::number(b.soc) << nm(b.max_t,1) << QString::number(b.alarm);
+    } else col << QStringList(5, QString());
+    // mppt1（主 MPPT，11 列）
+    if (data.mppt1) {
+        const auto &m = *data.mppt1;
+        col << nm(m.pv_v,1) << nm(m.pv_p,1) << nm(m.charge_i,2) << QString::number(m.fault)
+            << nm(m.month,2) << nm(m.rated_v,1) << nm(m.air_t,1) << nm(m.mod_t,1)
+            << QString::number(m.cs) << QString::number(m.mode) << bm(m.chg_on);
+    } else col << QStringList(11, QString());
+    // mppt2（副 MPPT，11 列；单机部署时离线留空）
+    if (data.mppt2) {
+        const auto &m = *data.mppt2;
+        col << nm(m.pv_v,1) << nm(m.pv_p,1) << nm(m.charge_i,2) << QString::number(m.fault)
+            << nm(m.month,2) << nm(m.rated_v,1) << nm(m.air_t,1) << nm(m.mod_t,1)
+            << QString::number(m.cs) << QString::number(m.mode) << bm(m.chg_on);
+    } else col << QStringList(11, QString());
+    if (data.dcdc) {
+        const auto &d = *data.dcdc;
+        col << nm(d.out_v,2) << nm(d.out_i,2) << nm(d.out_p,1) << nm(d.temp,1) << QString::number(d.fault);
+    } else col << QStringList(5, QString());
+    if (data.backup) {
+        const auto &b = *data.backup;
+        col << nm(b.pack_v,1) << QString::number(b.soc) << QString::number(b.alarm);
+    } else col << QStringList(3, QString());
+    // lora（4 列：count + 紧凑文本）
+    if (data.lora && !data.lora->nodes.empty()) {
+        QStringList tps, prs, aas;
+        for (const auto &s : data.lora->nodes) {
+            tps << QString::number(s.id) + QLatin1Char(':') + nm(s.temp,1);
+            prs << QString::number(s.id) + QLatin1Char(':') + nm(s.pressure,1);
+            aas << QString::number(s.id) + QLatin1Char(':') + QString::number(s.alarm);
+        }
+        col << QString::number(data.lora->nodes.size())
+            << tps.join(QLatin1Char(' ')) << prs.join(QLatin1Char(' ')) << aas.join(QLatin1Char(' '));
+    } else {
+        col << "" << "" << "" << "";
+    }
+    out << col.join(QLatin1Char(',')) << QLatin1Char('\n');
 }
 
 } // namespace lgs

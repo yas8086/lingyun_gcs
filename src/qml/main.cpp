@@ -74,7 +74,6 @@ int main(int argc, char *argv[]) {
     bridge.setConfigManager(&config);
     bridge.setAlarmEngine(&alarm);
     bridge.setUdpLinkSource(&udp);
-    bridge.applyUdpConfig(); // 依配置启动 UDP 监听（默认开启）
 
     // SerialManager 跨线程信号：强制 QueuedConnection
     QObject::connect(serial, &lgs::SerialManager::telemetryReceived,
@@ -94,6 +93,9 @@ int main(int argc, char *argv[]) {
                      &bus, &lgs::DataBus::publish);
     QObject::connect(&udp, &lgs::UdpLinkSource::linkStatusChanged,
                      &bridge, &lgs::TelemetryBridge::onUdpLinkOnline);
+    // UDP 原始帧同样进入自动记录（仅 UDP 收数时遥测报文也能落盘）
+    QObject::connect(&udp, &lgs::UdpLinkSource::rawFrameReceived,
+                     &bridge, &lgs::TelemetryBridge::onRawFrame);
     QObject::connect(serial, &lgs::SerialManager::errorOccurred,
                      &bridge, [&bridge](const QString &msg) {
         bridge.addAlarm(msg, "严重", "链路");
@@ -110,6 +112,11 @@ int main(int argc, char *argv[]) {
     // 规则/设备恢复 → bridge 标记对应告警"已恢复"（未确认计数下降，恢复语义反映到 UI）
     QObject::connect(&alarm, &lgs::AlarmEngine::alarmCleared,
                      &bridge, &lgs::TelemetryBridge::markAlarmRecovered);
+
+    // 依配置启动 UDP 监听（默认开启）。必须在上述对 udp 的所有 connect 建立之后调用——
+    // 否则 UdpLinkSource::start() 的首次 linkStatusChanged(true) 会被丢失（信号在连接前发出），
+    // 导致 udpOnline_ 恒为 false、isDataLinkOnline() 误判离线（显示"断线"）。
+    bridge.applyUdpConfig();
 
     QQmlApplicationEngine engine;
     // 摄像头 RTSP 视频渲染（B 方案）：注册自定义 QML 类型

@@ -150,6 +150,65 @@ private slots:
         delete bridge;
     }
 
+    // 链路状态从串口解耦：仅 UDP 在线即视为数据链路在线，且记录自动启动/全断停止
+    void dataLinkOnlineUdpOnly() {
+        auto bridge = new TelemetryBridge;
+        QVERIFY(!bridge->isDataLinkOnline());       // 无串口无 UDP → 离线
+        QVERIFY(!bridge->isRecording());
+        bridge->onUdpLinkOnline(true);              // 仅 UDP 在线（不依赖串口）
+        QVERIFY(bridge->isDataLinkOnline());
+        QVERIFY(bridge->isRecording());             // 仅 UDP 即自动开始记录
+        bridge->onUdpLinkOnline(false);             // UDP 断开
+        QVERIFY(!bridge->isDataLinkOnline());
+        QVERIFY(!bridge->isRecording());            // 全断停止记录
+        delete bridge;
+    }
+
+    // UDP 原始帧接入记录：仅 UDP 数据源下，onRawFrame 写入记录文件
+    void udpRawFrameRecorded() {
+        auto bridge = new TelemetryBridge;
+        bridge->onUdpLinkOnline(true);              // 仅 UDP 在线，自动开记录
+        QVERIFY(bridge->isRecording());
+        const QByteArray frame = QByteArray("\xaa\x55{\"t\":1}\n");
+        bridge->onRawFrame(frame);
+        QTest::qWait(400);                          // 等 flushTimer 落盘
+        QFile f(bridge->currentRecordFile());
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QByteArray content = f.readAll();
+        f.close();
+        QVERIFY(content.contains(frame));
+        bridge->setRecordEnabled(false);            // 清理：停止记录
+        QVERIFY(!bridge->isRecording());
+        delete bridge;
+    }
+
+    // 结构化遥测表格（分析用 CSV）：onTelemetry 写一行，含表头与字段值
+    void structuredCsvRecorded() {
+        auto bridge = new TelemetryBridge;
+        bridge->onUdpLinkOnline(true);              // 开记录（默认 recordEnabled）
+        QVERIFY(bridge->isRecording());
+        const QString raw = bridge->currentRecordFile();
+        QVERIFY(raw.endsWith(QStringLiteral(".raw")));
+        const QString table = raw.left(raw.size() - 4) + QStringLiteral(".csv");
+        // 喂一帧解析后的遥测 → 写结构化行
+        TelemetryData d; d.t = 100.5;
+        Fc fc; fc.online = true; fc.roll = 5.5; fc.yaw = 90.0; fc.mode = QStringLiteral("AUTO.LOITER"); fc.gpsSat = 18;
+        d.fc = fc;
+        Lora l; LoraSample s; s.id = 1; s.temp = 26.2; l.nodes.push_back(s); d.lora = l;
+        bridge->onTelemetry(d);
+        QTest::qWait(400);                          // 等落盘
+        QFile tf(table);
+        QVERIFY(tf.open(QIODevice::ReadOnly));
+        const QByteArray content = tf.readAll();
+        tf.close();
+        QVERIFY(content.contains("t,fc_online,fc_roll"));  // 表头
+        QVERIFY(content.contains("AUTO.LOITER"));          // 字符串字段（含逗号转义）
+        QVERIFY(content.contains("5.500"));                // fc.roll
+        QVERIFY(content.contains("26.2"));                 // lora 温度
+        bridge->setRecordEnabled(false);            // 清理
+        delete bridge;
+    }
+
     // 云卓 C14PRO UDP 文本协议：验证命令构造与 RCSDK demo 逐字节一致
     // （CRC = ASCII 累加和 & 0xFF，转大写 2 位 HEX；命令 = 前缀 + 数据 + CRC）
     void skydroidCmdBuild() {

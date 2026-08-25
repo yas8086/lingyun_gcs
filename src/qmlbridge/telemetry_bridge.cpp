@@ -54,17 +54,43 @@ void TelemetryBridge::onTelemetry(const lgs::TelemetryData &data) {
         if (loraHistory_.size() > 200)
             loraHistory_.removeFirst();
     }
+    // 结构化遥测表格：表文件打开时写一行（分析用 CSV）
+    recordStructured(data);
     emit telemetryChanged();
 }
 
 void TelemetryBridge::setLinkOnline(bool online) {
     // B3：链路在线 ⇒ 端口已打开（open 成功或 ResourceError 后自动重连成功），
     // 同步缓存，避免 ResourceError 后 serialOpen_ 残留 false 导致 UI 链路灯失真
-    if (online) serialOpen_ = true;
+    if (online) {
+        serialOpen_ = true;
+        onDataLinkActive(serialOpen_ || udpOnline_); // 串口链路恢复 → 任一数据源评估
+    }
     if (linkOnline_ != online) {
         linkOnline_ = online;
         emit linkChanged(online);
     }
+}
+
+// 统一数据源评估：任一数据源在线 → 启动运行时长 + 遥测记录；全部断开 → 停止并落盘
+void TelemetryBridge::onDataLinkActive(bool active) {
+    if (active) {
+        // 运行时长：从首次任一数据源在线起计时（已计时不重置）
+        if (!uptimeStarted_) {
+            uptime_.restart();
+            uptimeStarted_ = true;
+        }
+        if (recordEnabled())
+            startRecording(); // 幂等：已在录则跳过
+    } else {
+        uptimeStarted_ = false;
+        stopRecording();
+    }
+}
+
+bool TelemetryBridge::isDataLinkOnline() const {
+    // 串口打开 或 UDP 链路在线，任一即视为数据链路在线
+    return serialOpen_ || udpOnline_;
 }
 
 void TelemetryBridge::setSerialManager(SerialManager *serial) { serial_ = serial; }
@@ -106,11 +132,8 @@ bool TelemetryBridge::openSerial(const QString &port, int baud) {
     serialOpen_ = ok; // B3：同步缓存（失败/成功都更新）
     if (ok) {
         lastSerialError_.clear();
+        // 重开串口前关闭旧记录文件 → 让 onDataLinkActive 以新时间戳新开
         stopRecording();
-        startRecording();
-        // 运行时长：从串口打开开始计时（决策：而非程序启动）
-        uptime_.restart();
-        uptimeStarted_ = true;
     } else {
         // 透出具体失败原因（锁冲突/权限/设备不存在等），供 QML 提示
         QString err;
@@ -118,6 +141,7 @@ bool TelemetryBridge::openSerial(const QString &port, int baud) {
                                   Q_RETURN_ARG(QString, err));
         lastSerialError_ = err.isEmpty() ? QStringLiteral("未知错误") : err;
     }
+    onDataLinkActive(serialOpen_ || udpOnline_); // 串口或 UDP 任一在线 → 记录/运行时
     // 通知前端刷新串口状态（按钮文字/颜色/状态栏链路），否则切页后才更新
     emit stateChanged();
     return ok;
@@ -126,10 +150,9 @@ QString TelemetryBridge::lastSerialError() const {
     return lastSerialError_;
 }
 void TelemetryBridge::closeSerial() {
-    stopRecording();
-    // 串口关闭：停止运行时长计时（再次打开会从 0 重新开始）
-    uptimeStarted_ = false;
     serialOpen_ = false; // B3：同步缓存
+    // 统一评估：若 UDP 仍在线则继续记录/计时，全部断开才停止
+    onDataLinkActive(serialOpen_ || udpOnline_);
     if (!serial_) return;
     // 跨线程异步调用 SerialManager::close（QueuedConnection）
     QMetaObject::invokeMethod(serial_, "close", Qt::QueuedConnection);
@@ -145,13 +168,16 @@ bool TelemetryBridge::isSerialOpen() const {
 // B3：串口异常（ResourceError 拔线等）时同步缓存并刷新 UI
 void TelemetryBridge::markSerialGone() {
     serialOpen_ = false;
+    onDataLinkActive(serialOpen_ || udpOnline_); // 全断才停记录；UDP 在则继续
     emit stateChanged();
 }
 
 bool TelemetryBridge::online(const QString &device) const {
     if (device == "bms") return last_.bms.has_value();
     if (device == "backup") return last_.backup.has_value();
-    if (device == "mppt") return last_.mppt.has_value();
+    // "mppt" 为旧键兼容分支，映射到主 MPPT（QML 前端仍在使用该键）
+    if (device == "mppt" || device == "mppt1") return last_.mppt1.has_value();
+    if (device == "mppt2") return last_.mppt2.has_value();
     if (device == "dcdc") return last_.dcdc.has_value();
     if (device == "lora") return last_.lora.has_value();
     if (device == "fc") return last_.fc.has_value();
@@ -167,6 +193,25 @@ QString TelemetryBridge::fcStringField(const QString &key) const {
 
 double TelemetryBridge::value(const QString &device, const QString &key) const {
     const double nan = std::numeric_limits<double>::quiet_NaN();
+    // MPPT 字段取值（协议 5.3）：主/副/旧键兼容分支共用同一套字段清单
+    const auto mpptValue = [&nan](const Mppt &m, const QString &k) -> double {
+        if (k == "pv_v") return m.pv_v;
+        if (k == "pv_p") return m.pv_p;
+        if (k == "batt_v") return m.batt_v;
+        if (k == "charge_i") return m.charge_i;
+        if (k == "today") return m.today;
+        if (k == "month") return m.month;
+        if (k == "total") return m.total;
+        if (k == "rated_v") return m.rated_v;
+        if (k == "rated_i") return m.rated_i;
+        if (k == "air_t") return m.air_t;
+        if (k == "mod_t") return m.mod_t;
+        if (k == "cs") return m.cs;
+        if (k == "mode") return m.mode;
+        if (k == "chg_on") return m.chg_on ? 1.0 : 0.0;
+        if (k == "fault") return m.fault;
+        return nan;
+    };
     if (device == "bms" && last_.bms) {
         const auto &b = *last_.bms;
         if (key == "pack_v") return b.pack_v;
@@ -203,15 +248,12 @@ double TelemetryBridge::value(const QString &device, const QString &key) const {
         if (key == "alarm") return b.alarm;
         if (key == "fault") return b.fault;
         if (key == "sys") return b.sys;
-    } else if (device == "mppt" && last_.mppt) {
-        const auto &m = *last_.mppt;
-        if (key == "pv_v") return m.pv_v;
-        if (key == "pv_p") return m.pv_p;
-        if (key == "batt_v") return m.batt_v;
-        if (key == "charge_i") return m.charge_i;
-        if (key == "today") return m.today;
-        if (key == "total") return m.total;
-        if (key == "fault") return m.fault;
+    } else if (device == "mppt1" && last_.mppt1) {
+        return mpptValue(*last_.mppt1, key);
+    } else if (device == "mppt2" && last_.mppt2) {
+        return mpptValue(*last_.mppt2, key);
+    } else if (device == "mppt" && last_.mppt1) { // 旧键兼容 → 主 MPPT
+        return mpptValue(*last_.mppt1, key);
     } else if (device == "dcdc" && last_.dcdc) {
         const auto &d = *last_.dcdc;
         if (key == "in_v") return d.in_v;
@@ -275,8 +317,8 @@ double TelemetryBridge::fcEscCur(int i) const {
 }
 
 int TelemetryBridge::readinessState() const {
-    const bool any = last_.bms.has_value() || last_.mppt.has_value() ||
-                     last_.dcdc.has_value();
+    const bool any = last_.bms.has_value() || last_.mppt1.has_value() ||
+                     last_.mppt2.has_value() || last_.dcdc.has_value();
     if (!any)
         return 0; // 待自检
     int fails = 0;
@@ -286,9 +328,9 @@ int TelemetryBridge::readinessState() const {
         if (last_.bms->max_t >= 50) ++fails;
         if (last_.bms->diff_v >= 0.05) ++fails;
     } else ++fails;
-    if (last_.mppt) {
-        if (last_.mppt->pv_v <= 20 || last_.mppt->pv_v >= 120) ++fails;
-        if (last_.mppt->charge_i <= 0) ++fails;
+    if (last_.mppt1) { // 主 MPPT 为就绪必要项；副 MPPT 不参与 fails 判定
+        if (last_.mppt1->pv_v <= 20 || last_.mppt1->pv_v >= 120) ++fails;
+        if (last_.mppt1->charge_i <= 0) ++fails;
     } else ++fails;
     if (last_.dcdc) {
         if (last_.dcdc->out_v <= 40 || last_.dcdc->out_v >= 60) ++fails;
@@ -323,13 +365,13 @@ QVariant TelemetryBridge::readinessDetail() const {
         last_.bms ? f1(last_.bms->max_t) + QStringLiteral("℃ (<50)") : QStringLiteral("离线"));
     add(QStringLiteral("主电池 压差正常"), last_.bms && last_.bms->diff_v < 0.05,
         last_.bms ? f3(last_.bms->diff_v) + QStringLiteral("V (<0.05)") : QStringLiteral("离线"));
-    // MPPT：在线 + 光伏电压 20~120 + 充电电流>0
-    add(QStringLiteral("MPPT 光伏在线"), last_.mppt.has_value(),
-        last_.mppt ? QString::number(last_.mppt->pv_p, 'f', 0) + QStringLiteral("W") : QStringLiteral("离线"));
-    add(QStringLiteral("MPPT 光伏电压"), last_.mppt && last_.mppt->pv_v > 20 && last_.mppt->pv_v < 120,
-        last_.mppt ? f1(last_.mppt->pv_v) + QStringLiteral("V (20-120)") : QStringLiteral("离线"));
-    add(QStringLiteral("MPPT 充电电流"), last_.mppt && last_.mppt->charge_i > 0,
-        last_.mppt ? f1(last_.mppt->charge_i) + QStringLiteral("A (>0)") : QStringLiteral("离线"));
+    // MPPT（主）：在线 + 光伏电压 20~120 + 充电电流>0
+    add(QStringLiteral("MPPT 光伏在线"), last_.mppt1.has_value(),
+        last_.mppt1 ? QString::number(last_.mppt1->pv_p, 'f', 0) + QStringLiteral("W") : QStringLiteral("离线"));
+    add(QStringLiteral("MPPT 光伏电压"), last_.mppt1 && last_.mppt1->pv_v > 20 && last_.mppt1->pv_v < 120,
+        last_.mppt1 ? f1(last_.mppt1->pv_v) + QStringLiteral("V (20-120)") : QStringLiteral("离线"));
+    add(QStringLiteral("MPPT 充电电流"), last_.mppt1 && last_.mppt1->charge_i > 0,
+        last_.mppt1 ? f1(last_.mppt1->charge_i) + QStringLiteral("A (>0)") : QStringLiteral("离线"));
     // DCDC：在线 + 输出电压 40~60 + 散热温度<45
     add(QStringLiteral("DCDC 输出在线"), last_.dcdc.has_value(),
         last_.dcdc ? QString::number(last_.dcdc->out_p, 'f', 0) + QStringLiteral("W") : QStringLiteral("离线"));
@@ -428,7 +470,10 @@ QString TelemetryBridge::loraSummary() const {
     for (const auto &s : last_.lora->nodes) {
         QString line;
         if (s.pressure == 0.0)  // B7：pressure==0 ⇒ 温度节点（0℃ 真实温度也能正确识别）
-            line = QStringLiteral("#%1 %2℃").arg(s.id).arg(s.temp, 0, 'f', 1);
+            // 缺失温度（JSON 无 temp/null）显示 --，真实 0℃ 显示 0.0℃
+            line = s.hasTemp
+                       ? QStringLiteral("#%1 %2℃").arg(s.id).arg(s.temp, 0, 'f', 1)
+                       : QStringLiteral("#%1 --").arg(s.id);
         else {
             QString suffix;
             double val = 0.0;
@@ -457,6 +502,7 @@ QVariant TelemetryBridge::loraNodes() const {
         QVariantMap m;
         m["id"] = s.id;
         m["temp"] = s.temp;
+        m["hasTemp"] = s.hasTemp;
         m["pressure"] = s.pressure;
         m["alarm"] = s.alarm;
         m["isTemp"] = s.pressure == 0.0; // B7：pressure==0 ⇒ 温度节点（与 loraSummary/历史列判定统一）

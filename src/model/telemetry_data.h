@@ -59,6 +59,15 @@ struct Mppt {
     double today = 0.0;    // 日发电量 kWh
     double total = 0.0;    // 总发电量 kWh
     int fault = 0;         // 故障状态位
+    // 协议 5.3 扩展：
+    double month = 0.0;    // 月发电量 kWh
+    double rated_v = 0.0;  // 电池额定电压 V
+    double rated_i = 0.0;  // 充电额定电流 A
+    double air_t = 0.0;    // 机内空气温度 ℃
+    double mod_t = 0.0;    // 模块温度 ℃
+    int cs = 0;            // 充电状态码 0启动/1快充/2均充/3浮充/4结束
+    int mode = 0;          // 设备控制模式 0独立/1 EMS-RS485/2 EMS-CAN
+    bool chg_on = false;   // 充电开关是否开启
 };
 
 // DCDC 电源模块状态
@@ -78,6 +87,7 @@ struct LoraSample {
     int id = 0;
     bool online = true;     // 被打包即在线
     double temp = 0.0;      // ℃；压力节点为 0
+    bool hasTemp = false;   // JSON 中 temp 字段有效（非 null）即 true；缺数据→UI 显示 --，真实 0℃ 仍显示 0
     double pressure = 0.0;  // Pa；温度节点为 0
     int alarm = 0;          // 0 正常 / 1 超上限 / -1 超下限（仅温度节点）
 };
@@ -102,7 +112,7 @@ struct Fc {
     QString mode;         // 飞行模式
     bool armed = false;   // 是否解锁
     double batt_v = 0.0;  // 电池电压 V
-    double batt_pct = 0.0;// 剩余电量 (0~1)
+    double batt_pct = 0.0;// 剩余电量 %（0~100，机载已将 MAVROS 的 0~1 归一化）
     // 协议 5.5 扩展：
     double hdg = 0.0;     // 航向角 deg（VfrHud compass_hdg，0~360）
     double airspd = 0.0;  // 空速 m/s
@@ -132,9 +142,10 @@ struct TelemetryData {
     double t = 0.0;
     std::optional<Bms> bms;
     std::optional<BackupBms> backup;
-    std::optional<Mppt> mppt;
+    std::optional<Mppt> mppt1;   // 主 MPPT（协议键 mppt1；旧固件 mppt 键兜底映射到此）
+    std::optional<Mppt> mppt2;   // 副 MPPT（协议键 mppt2；单机部署时离线）
     std::optional<Dcdc> dcdc;
-    std::optional<Fc> fc;   // 仅 4G 链路
+    std::optional<Fc> fc;   // 飞控状态（数传串口/UDP 与 4G 链路均含）
     // lora 特殊：机载收到过一轮采样即存在（nodes 可为空数组），
     // 与 bms/mppt/dcdc 的"离线键消失"语义不同
     std::optional<Lora> lora;

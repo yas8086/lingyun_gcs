@@ -12,7 +12,7 @@ private slots:
             "{\"t\":1785928200.123,"
             "\"bms\":{\"online\":true,\"pack_v\":367.2,\"pack_i\":0.0,\"soc\":85,"
             "\"max_v\":3.62,\"min_v\":3.58,\"diff_v\":0.04,\"max_t\":32.5,\"alarm\":0},"
-            "\"mppt\":{\"online\":true,\"pv_v\":89.5,\"pv_p\":600.0,\"batt_v\":86.0,"
+            "\"mppt1\":{\"online\":true,\"pv_v\":89.5,\"pv_p\":600.0,\"batt_v\":86.0,"
             "\"charge_i\":7.0,\"today\":0.42,\"total\":12.8,\"fault\":0},"
             "\"dcdc\":{\"online\":true,\"in_v\":86.0,\"out_v\":48.1,\"out_i\":5.2,"
             "\"out_p\":250.0,\"temp\":41.0,\"enabled\":true,\"fault\":0}}";
@@ -20,10 +20,53 @@ private slots:
         QVERIFY(d.bms.has_value());
         QCOMPARE(d.bms->soc, 85);
         QCOMPARE(d.bms->alarm, 0);
-        QVERIFY(d.mppt.has_value());
-        QCOMPARE(d.mppt->pv_p, 600.0);
+        QVERIFY(d.mppt1.has_value());
+        QCOMPARE(d.mppt1->pv_p, 600.0);
         QVERIFY(d.dcdc.has_value());
         QVERIFY(d.dcdc->enabled);
+    }
+
+    void decodesDualMppt() {
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1785928200.123,"
+            "\"mppt1\":{\"online\":true,\"pv_v\":89.5,\"pv_p\":600.0,\"batt_v\":86.0,"
+            "\"charge_i\":7.0,\"today\":0.42,\"month\":3.5,\"total\":12.8,"
+            "\"rated_v\":86.4,\"rated_i\":60,\"air_t\":25.5,\"mod_t\":30.1,"
+            "\"cs\":1,\"mode\":0,\"chg_on\":true,\"fault\":0},"
+            "\"mppt2\":{\"online\":true,\"pv_v\":80.0,\"pv_p\":500.0,\"batt_v\":85.0,"
+            "\"charge_i\":5.0,\"today\":0.2,\"month\":1.0,\"total\":5.0,"
+            "\"rated_v\":86.4,\"rated_i\":60,\"air_t\":26.0,\"mod_t\":31.0,"
+            "\"cs\":2,\"mode\":1,\"chg_on\":false,\"fault\":1}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.mppt1.has_value());
+        QCOMPARE(d.mppt1->pv_p, 600.0);
+        QCOMPARE(d.mppt1->month, 3.5);
+        QCOMPARE(d.mppt1->rated_v, 86.4);
+        QCOMPARE(d.mppt1->air_t, 25.5);
+        QCOMPARE(d.mppt1->mod_t, 30.1);
+        QCOMPARE(d.mppt1->cs, 1);
+        QCOMPARE(d.mppt1->mode, 0);
+        QVERIFY(d.mppt1->chg_on);
+        QVERIFY(d.mppt2.has_value());
+        QCOMPARE(d.mppt2->pv_p, 500.0);
+        QCOMPARE(d.mppt2->month, 1.0);
+        QCOMPARE(d.mppt2->cs, 2);
+        QVERIFY(!d.mppt2->chg_on);
+        QCOMPARE(d.mppt2->fault, 1);
+    }
+
+    void oldMpptKeyFallsBackToMppt1() {
+        TelemetryData d;
+        const QByteArray json =
+            "{\"t\":1785928200.123,"
+            "\"mppt\":{\"online\":true,\"pv_v\":89.5,\"pv_p\":600.0,\"batt_v\":86.0,"
+            "\"charge_i\":7.0,\"today\":0.42,\"total\":12.8,\"fault\":0}}";
+        QVERIFY(decodeJson(json, d));
+        QVERIFY(d.mppt1.has_value());
+        QCOMPARE(d.mppt1->pv_p, 600.0);
+        QCOMPARE(d.mppt1->charge_i, 7.0);
+        QVERIFY(!d.mppt2.has_value());   // 旧帧无副 MPPT
     }
 
     void decodesLoraNodes() {
@@ -63,7 +106,8 @@ private slots:
         const QByteArray json = "{\"t\":1.0}";
         QVERIFY(decodeJson(json, d));
         QVERIFY(!d.bms.has_value());
-        QVERIFY(!d.mppt.has_value());
+        QVERIFY(!d.mppt1.has_value());
+        QVERIFY(!d.mppt2.has_value());
         QVERIFY(!d.dcdc.has_value());
     }
 
@@ -93,7 +137,7 @@ private slots:
         QCOMPARE(d.backup->soc, 90);
         QCOMPARE(d.backup->soh, 96);
         QCOMPARE(d.backup->sys, 3);
-        QVERIFY(!d.mppt.has_value());
+        QVERIFY(!d.mppt1.has_value());
     }
 
     void nullValueTreatedAsInvalid() {
@@ -110,14 +154,14 @@ private slots:
     }
 
     void decodesFc() {
-        // fc 仅 4G 链路出现；解析后应正确填充
+        // fc 数传（串口/UDP）与 4G 链路均含；解析后应正确填充
         TelemetryData d;
         const QByteArray json =
             "{\"t\":1785928200.123,"
             "\"fc\":{\"online\":true,\"roll\":1.5,\"pitch\":-2.0,\"yaw\":45.0,"
             "\"lat\":31.230400,\"lon\":121.473701,\"alt\":120.5,"
             "\"vx\":1.0,\"vy\":2.0,\"vz\":0.0,\"mode\":\"AUTO.LOITER\","
-            "\"armed\":true,\"batt_v\":24.0,\"batt_pct\":0.85}}";
+            "\"armed\":true,\"batt_v\":24.0,\"batt_pct\":85.0}}";
         QVERIFY(decodeJson(json, d));
         QVERIFY(d.fc.has_value());
         QCOMPARE(d.fc->online, true);
@@ -125,7 +169,7 @@ private slots:
         QCOMPARE(d.fc->lat, 31.230400);
         QCOMPARE(d.fc->mode, QString("AUTO.LOITER"));
         QCOMPARE(d.fc->armed, true);
-        QCOMPARE(d.fc->batt_pct, 0.85);
+        QCOMPARE(d.fc->batt_pct, 85.0);
     }
 };
 

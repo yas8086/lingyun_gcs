@@ -45,25 +45,25 @@ Item {
     }
 
     // ===== 电源链路拓扑数据 =====
-    function tPv()  { void root.themeRoot.dataTick; return root.off("mppt") ? 0 : Math.round(bridge.value("mppt","pv_p")||0) }
-    function tPvV() { void root.themeRoot.dataTick; return root.off("mppt") ? 0 : (bridge.value("mppt","pv_v")||0) }
-    function tCi()  { void root.themeRoot.dataTick; return root.off("mppt") ? 0 : (bridge.value("mppt","charge_i")||0) }
+    function tPv()  { void root.themeRoot.dataTick; return root.off("mppt1") ? 0 : Math.round(bridge.value("mppt1","pv_p")||0) }
+    function tPvV() { void root.themeRoot.dataTick; return root.off("mppt1") ? 0 : (bridge.value("mppt1","pv_v")||0) }
+    function tCi()  { void root.themeRoot.dataTick; return root.off("mppt1") ? 0 : (bridge.value("mppt1","charge_i")||0) }
     function tSoc() { void root.themeRoot.dataTick; return root.off("bms") ? 0 : Math.round(bridge.value("bms","soc")||0) }
     function tPackV(){void root.themeRoot.dataTick; return root.off("bms") ? 0 : (bridge.value("bms","pack_v")||0) }
     function tOut() { void root.themeRoot.dataTick; return root.off("dcdc") ? 0 : Math.round(bridge.value("dcdc","out_p")||0) }
     function tTemp(){ void root.themeRoot.dataTick; return root.off("dcdc") ? 0 : (bridge.value("dcdc","temp")||0) }
     function off(dev) { return !bridge.online(dev) }
-    // 电源链路完整数据（对齐原型 updateTopo）：真实字段 + 模拟派生（mppt2/12S/电机/效率）
+    // 电源链路完整数据（对齐原型 updateTopo）：真实字段 + 模拟派生（12S/电机/效率），MPPT1/MPPT2 均对接真实设备
     function topoData() {
         void root.themeRoot.dataTick
         const now = Date.now()
-        const pvM  = root.off("mppt") ? 0 : Math.round(bridge.value("mppt","pv_p")||0)
-        const pvMv = root.off("mppt") ? 0 : (bridge.value("mppt","pv_v")||0)
-        const c1   = root.off("mppt") ? 0 : (bridge.value("mppt","charge_i")||0)
-        // 光伏副囊/MPPT2（原型模拟，Qt 落地可对接 mppt2 设备）
-        const pvS  = Math.max(0, Math.round(pvM * (0.8 + 0.2*Math.sin(now/9000))))
-        const pvSv = pvMv * (0.95 + 0.05*Math.sin(now/7000))
-        const c2   = Math.round(c1 * (pvS/(pvM||1)) * 10)/10
+        const pvM  = root.off("mppt1") ? 0 : Math.round(bridge.value("mppt1","pv_p")||0)
+        const pvMv = root.off("mppt1") ? 0 : (bridge.value("mppt1","pv_v")||0)
+        const c1   = root.off("mppt1") ? 0 : (bridge.value("mppt1","charge_i")||0)
+        // 光伏副囊/MPPT2（mppt2 真实数据）
+        const pvS  = root.off("mppt2") ? 0 : Math.round(bridge.value("mppt2","pv_p")||0)
+        const pvSv = root.off("mppt2") ? 0 : (bridge.value("mppt2","pv_v")||0)
+        const c2   = root.off("mppt2") ? 0 : (bridge.value("mppt2","charge_i")||0)
         const pv   = pvM + pvS
         const soc  = root.off("bms") ? 0 : (bridge.value("bms","soc")||0)
         const packv= root.off("bms") ? 0 : (bridge.value("bms","pack_v")||0)
@@ -134,6 +134,7 @@ Item {
     property real envPresPa: NaN         // LoRa 压力节点实时均值（Pa），无压力节点为 NaN
     property var cellIndex: new Object()   // "ei:r:c" -> probe（热力图 O(1) 查表）
     property int mappingRefresh: 0   // 探头映射编辑后自增，强制刷新映射表
+    property int _diagTs: 0          // 临时诊断：上次打印 [TopoDiag] 日志的时间戳
     // 探头数据表 · 持久化 model（增量更新核心：数组引用不变，仅 mutate 属性）
     property var probeRowModel: []
     property int _probeModelGen: -1  // 与 mappingRefresh 对齐，判断是否需重建结构
@@ -156,15 +157,15 @@ Item {
         return null
     }
     // 热力图中某囊体某单元格（ei 囊体索引，cols 列数，idx 单元格序号）对应探头的颜色/文字
+    // 仅"本轮拿到实机温度"（probeLive）的格子显示热力色与数值；无实机数据的格子显示背景色
+    // 空白，不再用基准 base 值（如 45℃）冒充真实温度
     function cellColor(ei, cols, idx) {
         void root.themeRoot.dataTick
         const r = Math.floor(idx / cols) + 1
         const c = idx % cols + 1
         const p = root.cellIndex[ei + ":" + r + ":" + c]
-        if (p) {
-            const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
-            return root.pvColor(v)
-        }
+        if (p && root.probeLive[p.pid] === true && root.pvVals[p.pid] != null)
+            return root.pvColor(root.pvVals[p.pid])
         return root.themeRoot.colBg2
     }
     function cellText(ei, cols, idx) {
@@ -172,10 +173,8 @@ Item {
         const r = Math.floor(idx / cols) + 1
         const c = idx % cols + 1
         const p = root.cellIndex[ei + ":" + r + ":" + c]
-        if (p) {
-            const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
-            return String(Math.round(v))
-        }
+        if (p && root.probeLive[p.pid] === true && root.pvVals[p.pid] != null)
+            return String(Math.round(root.pvVals[p.pid]))
         return ""
     }
     // 返回某单元格对应的探头对象（无探头返回 null）
@@ -187,7 +186,7 @@ Item {
     // 点击探头方块 → 弹窗显示详情
     function showProbeDetail(p) {
         const env = root.envDef[p.ei]
-        const v = (root.pvVals && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
+        const v = (root.probeLive[p.pid] === true && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
         const hist = root.pvHist[p.pid] || []
         const hi = hist.length ? Math.max(...hist) : NaN
         const lo = hist.length ? Math.min(...hist) : NaN
@@ -212,13 +211,15 @@ Item {
     function rebuildProbeRows() {
         root._probeModelGen = root.mappingRefresh
         const model = []
+        // themeRoot 可能尚未注入（Component.onCompleted 时），空守卫避免 null 访问
+        const idleColor = root.themeRoot ? root.themeRoot.colText2 : "#888888"
         for (const p of root.probes) {
             const env = root.envDef[p.ei]
             model.push({
                 pid: p.pid,
                 pos: env.name.split("·")[0].trim() + " · " + p.row + "行" + p.col + "列",
-                cur: p.base, max: NaN, min: NaN, avg: NaN,
-                color: root.pvColor(p.base),
+                cur: NaN, max: NaN, min: NaN, avg: NaN,
+                color: idleColor,
                 live: root.probeLive[p.pid] === true,
                 _ei: p.ei, _row: p.row, _col: p.col, _base: p.base
             })
@@ -233,7 +234,7 @@ Item {
         for (let i = 0; i < model.length; i++) {
             const r = model[i]
             const pid = r.pid
-            const v = root.pvVals[pid] != null ? root.pvVals[pid] : r._base
+            const v = (root.probeLive[pid] === true && root.pvVals[pid] != null) ? root.pvVals[pid] : NaN
             const hist = root.pvHist[pid] || []
             let mx = NaN, mn = NaN, avg = NaN
             if (hist.length > 0) {
@@ -253,7 +254,7 @@ Item {
             r.max = mx
             r.min = mn
             r.avg = avg
-            r.color = root.pvColor(v)
+            r.color = !isNaN(v) ? root.pvColor(v) : root.themeRoot.colText2
             r.live = root.probeLive[pid] === true
         }
         root.probeModelPoke = (root.probeModelPoke + 1) % 1000000
@@ -264,8 +265,9 @@ Item {
         void root.themeRoot.dataTick
         let mx = -Infinity, sum = 0, alarm = 0, cnt = 0
         for (const p of root.probes) {
+            if (root.probeLive[p.pid] !== true || root.pvVals[p.pid] == null) continue
             const v = root.pvVals[p.pid]
-            if (v != null) { sum += v; cnt++; if (v > mx) mx = v; if (v > 60) alarm++ }
+            sum += v; cnt++; if (v > mx) mx = v; if (v > 60) alarm++
         }
         return {count:cnt, max: mx>-Infinity?mx:NaN, avg: cnt?sum/cnt:NaN, alarm:alarm}
     }
@@ -768,7 +770,7 @@ Item {
                         ctx.reset()
                         const T = root.themeRoot
                         const D = root.topoData()
-                        const dcdcOff = root.off("dcdc"), bmsOff = root.off("bms"), mpptOff = root.off("mppt")
+                        const dcdcOff = root.off("dcdc"), bmsOff = root.off("bms"), mpptOff = root.off("mppt1")
                         const sc = topoCanvas._sc
 
                         // ===== 两域灰框（五五分 + 四边距 10px + 虚线框 + 标题）=====
@@ -1149,20 +1151,43 @@ Item {
                                             Repeater {
                                                 model: env.cols * env.rows
                                                 Rectangle {
+                                                    id: cellRect
                                                     // 按压缩放反馈（对齐原型 :active{scale(.94)}）
                                                     scale: ma_1.pressed ? 0.96 : 1.0
                                                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Layout.fillWidth: true; Layout.fillHeight: true
                                                     Layout.preferredWidth: 1; Layout.preferredHeight: 1
-                                                    radius: 2
-                                                    color: root.cellColor(envCard.envIndex, env.cols, index)
-                                                    border.width: root.cellProbe(envCard.envIndex, env.cols, index) ? 1 : 0
-                                                    border.color: root.themeRoot.colText
+                                                    radius: 3
+                                                    property bool hasProbe: root.cellProbe(envCard.envIndex, env.cols, index) !== null
+                                                    property bool live: hasProbe && root.probeLive[cellProbe?.pid ?? ""] === true
+                                                    property var cellProbe: root.cellProbe(envCard.envIndex, env.cols, index)
+                                                    // 填充色：live=热力色；hasProbe 无数据=浅灰卡底；无探头=完全透明（跟随 Bg2 不突显）
+                                                    color: {
+                                                        if (live) return root.cellColor(envCard.envIndex, env.cols, index)
+                                                        if (hasProbe) return root.themeRoot.colCard2   // 白/深卡底：比 Bg2 更"实"，一眼看出有占位
+                                                        return root.cellColor(envCard.envIndex, env.cols, index)   // 即 Bg2，和完全空单元格一致
+                                                    }
+                                                    // 边框：live 用细黑实描边配合热力色；无数据但有探头用中灰实线（对比度足够，不依赖 colLine）；
+                                                    //       无探头=无边框，保持网格隐形
+                                                    border.width: (hasProbe || live) ? 1 : 0
+                                                    border.color: live ? root.themeRoot.colText
+                                                        : root.themeRoot.colText2   // 中灰：light=#64748b / dark=#8aa0bf，和任何背景都拉开 2+ 档对比度
+
                                                     Text {
+                                                        id: cellTextItem
                                                         anchors.centerIn: parent
                                                         text: root.cellText(envCard.envIndex, env.cols, index)
                                                         font.pixelSize: 13; font.bold: true; color: "white"
-                                                        visible: root.cellText(envCard.envIndex, env.cols, index) !== ""
+                                                        visible: text !== ""
+                                                    }
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "--"
+                                                        visible: cellRect.hasProbe && !cellRect.live
+                                                        font.pixelSize: 13
+                                                        font.bold: false
+                                                        // 占位符比边框浅一档：轻感但可读，不抢"有数据"的热力数字注意力
+                                                        color: root.themeRoot.colText2
                                                     }
                                                     MouseArea {
                                                         cursorShape: Qt.PointingHandCursor
@@ -1278,7 +1303,7 @@ Item {
                                                 font.pixelSize: 14; font.bold: true; font.family: "monospace"; color: modelData.color; Layout.preferredWidth: 90
                                                 text: {
                                                     void root.probeModelPoke
-                                                    return modelData.cur.toFixed(1) + "℃"
+                                                    return isNaN(modelData.cur) ? "--" : modelData.cur.toFixed(1) + "℃"
                                                 }
                                             }
                                             Text {
@@ -2118,9 +2143,18 @@ Item {
         repeat: true
         onTriggered: {
             root.lastSampleTs = Date.now()   // 时间对齐表本地时间基准（每秒更新）
-            // 温度探头：优先使用真实 LoRa 探头数据（bridge.loraNodes），按 pid/编号匹配；
-            // 无对应真实节点时回退基准温度（不再随机模拟），并维护历史（环形 180）
             const lora = bridge.loraNodes()
+            // === 临时诊断日志（每 5 秒一条）：排查热力图方块 45℃ 基准问题，问题解决后移除 ===
+            if (Date.now() - root._diagTs > 5000) {
+                root._diagTs = Date.now()
+                const loraD = []
+                for (const n of lora) loraD.push("id=" + n.id + " t=" + n.temp + " hasT=" + (n.hasTemp !== undefined ? n.hasTemp : "NOFIELD") + " p=" + n.pressure + " isT=" + n.isTemp)
+                const probeD = []
+                for (const p of root.probes) probeD.push("pid=" + p.pid + " ei=" + p.ei + " base=" + p.base + " live=" + (root.probeLive[p.pid] === true))
+                console.log("[TopoDiag] loraN=" + lora.length + " [" + loraD.join(" | ") + "]")
+                console.log("[TopoDiag] probeN=" + root.probes.length + " [" + probeD.join(" | ") + "]")
+            }
+            // === 临时诊断日志结束 ===
             const loraMap = new Object()
             let presSum = 0, presCnt = 0
             for (const n of lora) {
@@ -2134,15 +2168,17 @@ Item {
                 // pid 形如 T01/T1 → 数字节点 id（parseInt 去掉前导零再查表）
                 const num = parseInt(String(k).replace(/^T/i, ""), 10)
                 const node = (!isNaN(num) && (loraMap[String(num)] || loraMap[num])) || loraMap[k]
-                const real = node && node.isTemp ? node.temp : NaN
-                const base = root.pvVals[k] != null ? root.pvVals[k] : p.base
-                const next = !isNaN(real) && real > 0 ? real : base
-                root.pvVals[k] = next
-                root.probeLive[k] = !isNaN(real) && real > 0   // 本轮是否拿到实机温度
-                const h = root.pvHist[k] || []
-                h.push(next)
-                if (h.length > 180) h.shift()
-                root.pvHist[k] = h
+                const real = node && node.hasTemp ? node.temp : NaN
+                const got = !isNaN(real)
+                root.probeLive[k] = got   // 本轮是否拿到实机温度
+                if (got) {
+                    // 有真实数据才写入值/历史；无数据不写 base（避免基准假值混入统计与显示）
+                    root.pvVals[k] = real
+                    const h = root.pvHist[k] || []
+                    h.push(real)
+                    if (h.length > 180) h.shift()
+                    root.pvHist[k] = h
+                }
             }
             // 探头数据表 · 增量更新（in-place，不重建 delegate）
             root.updateProbeRows()

@@ -28,11 +28,11 @@ Item {
         list.push(root.item("BMS","单体压差 <0.05V", bridge.online("bms") ? bridge.value("bms","diff_v") < 0.05 : false,
             root.fmt(bridge.value("bms","diff_v"),2)+"V"))
         list.push(root.item("备用","链路在线", bridge.online("backup"), "在线"))
-        list.push(root.item("MPPT","链路在线", bridge.online("mppt"), "在线"))
-        list.push(root.item("MPPT","光伏电压 20–120V", root.pass("mppt","pv_v",20,120),
-            root.fmt(bridge.value("mppt","pv_v"),1)+"V"))
-        list.push(root.item("MPPT","充电电流 >0A", bridge.online("mppt") ? bridge.value("mppt","charge_i") > 0 : false,
-            root.fmt(bridge.value("mppt","charge_i"),1)+"A"))
+        list.push(root.item("MPPT","链路在线", bridge.online("mppt1"), "在线"))
+        list.push(root.item("MPPT","光伏电压 20–120V", root.pass("mppt1","pv_v",20,120),
+            root.fmt(bridge.value("mppt1","pv_v"),1)+"V"))
+        list.push(root.item("MPPT","充电电流 >0A", bridge.online("mppt1") ? bridge.value("mppt1","charge_i") > 0 : false,
+            root.fmt(bridge.value("mppt1","charge_i"),1)+"A"))
         list.push(root.item("DCDC","链路在线", bridge.online("dcdc"), "在线"))
         list.push(root.item("DCDC","输出电压 40–60V", root.pass("dcdc","out_v",40,60),
             root.fmt(bridge.value("dcdc","out_v"),1)+"V"))

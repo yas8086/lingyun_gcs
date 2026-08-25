@@ -77,10 +77,14 @@ QVariant TelemetryBridge::alarmRuleFields() const {
     add("backup", "pack_v", "备用电源总压");
     add("backup", "soc", "备用电源 SOC");
     add("backup", "fault", "备用电源故障码");
-    add("mppt", "pv_p", "MPPT 光伏功率");
-    add("mppt", "pv_v", "MPPT 光伏电压");
-    add("mppt", "charge_i", "MPPT 充电电流");
-    add("mppt", "fault", "MPPT 故障码");
+    add("mppt1", "pv_p", "MPPT1 光伏功率");
+    add("mppt1", "pv_v", "MPPT1 光伏电压");
+    add("mppt1", "charge_i", "MPPT1 充电电流");
+    add("mppt1", "fault", "MPPT1 故障码");
+    add("mppt2", "pv_p", "MPPT2 光伏功率");
+    add("mppt2", "pv_v", "MPPT2 光伏电压");
+    add("mppt2", "charge_i", "MPPT2 充电电流");
+    add("mppt2", "fault", "MPPT2 故障码");
     add("dcdc", "out_p", "DCDC 输出功率");
     add("dcdc", "out_v", "DCDC 输出电压");
     add("dcdc", "temp", "DCDC 散热温度");

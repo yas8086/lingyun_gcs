@@ -318,6 +318,12 @@ bool TelemetryBridge::gimbalConnected() const {
     return gimbal_ && gimbal_->connected();
 }
 
+bool TelemetryBridge::siyiGimbalPortClosed() const {
+    // 探测到"IP 在线但 37260 端口无思翼服务"→ 确为非思翼设备（选错云台）；
+    // 设备没通电/没联网（仅超时无响应）时 portClosed=false，用于区分"选错云台"与"设备离线"
+    return gimbal_ && gimbal_->portClosed();
+}
+
 double TelemetryBridge::gimbalPitch() const {
     return gimbal_ ? gimbal_->pitch() : 0.0;
 }
@@ -482,6 +488,7 @@ void TelemetryBridge::setUdpLinkSource(UdpLinkSource *udp) {
 void TelemetryBridge::onUdpLinkOnline(bool online) {
     if (udpOnline_ != online) {
         udpOnline_ = online;
+        onDataLinkActive(serialOpen_ || udpOnline_); // UDP 状态变化 → 任一数据源评估（记录/运行时）
         emit stateChanged(); // 驱动前端刷新链路状态
     }
 }
