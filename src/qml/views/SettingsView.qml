@@ -172,12 +172,12 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 190
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "串口配置"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
                     RowLayout {
                         spacing: 8
@@ -284,7 +284,7 @@ Item {
                         }
                         Item { Layout.fillWidth: true }
                     }
-                    Text { text: "遵循《地面站对接协议》115200 8N1，机载 5Hz 下传"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Text { text: "遵循《地面站对接协议》115200 8N1，机载 5Hz 下传"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Item { Layout.fillHeight: true }
                 }
             }
@@ -293,12 +293,12 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 230
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Row {
                         spacing: 8
                         Text { text: "数传网口 UDP"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
@@ -372,7 +372,7 @@ Item {
                         }
                         Item { Layout.fillWidth: true }
                     }
-                    Text { text: "机载《地面站对接协议》默认向地面站 192.168.10.200:20000 定向单播（AA55 JSON\\n 与串口同帧）；地面站监听该端口即可经网口接收遥测，含完整飞控数据"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
+                    Text { text: "机载《地面站对接协议》默认向地面站 192.168.10.200:20000 定向单播（AA55 JSON 帧，与串口同帧）；地面站监听该端口即可经网口接收遥测，含完整飞控数据"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Item { Layout.fillHeight: true }
                 }
             }
@@ -381,14 +381,14 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 200
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "配置管理"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    Text { text: "所有设置会在退出时自动保存、下次启动自动恢复。也可导出为配置文件，跨设备快速复用。"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
+                    Text { text: "所有设置会在退出时自动保存、下次启动自动恢复。也可导出为配置文件，跨设备快速复用。"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     RowLayout {
                         spacing: 8
                         Button {
@@ -438,12 +438,12 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 210
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "地图设置"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
                     RowLayout {
                         spacing: 8
@@ -478,7 +478,7 @@ Item {
                         text: bridge.configMapSource() === 0
                               ? (bridge.configMapKey().length ? "已启用天地图（需联网）" : "天地图需密钥，未填时地图可能无法加载")
                               : "已启用 OpenStreetMap（无需密钥，需联网）"
-                        font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap
+                        font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap
                     }
                     Item { Layout.fillHeight: true }
                 }
@@ -488,12 +488,12 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 190
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "显示单位"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
                     RowLayout {
                         Text { text: "温度单位"; color: root.themeRoot.colText2; font.pixelSize: 13; Layout.preferredWidth: 90 }
@@ -523,14 +523,14 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 170
+                Layout.minimumHeight: 230
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "数据记录"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    Text { text: "打开串口后逐帧自动记录原始报文（断电不丢），重新打开串口记录新文件"; font.pixelSize: 11; color: root.themeRoot.colText2; wrapMode: Text.Wrap }
+                    Text { text: "数据链路在线时逐帧自动记录原始报文（断电不丢），断链自动停止、重连自动续写新文件"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     RowLayout {
                         spacing: 8
                         CSetCheck {
@@ -681,14 +681,14 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 180
+                Layout.minimumHeight: 190
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "状态栏微件"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    Text { text: "取消勾选可隐藏对应状态栏项，选择将持久化"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Text { text: "取消勾选可隐藏对应状态栏项，选择将持久化"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Flow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -715,14 +715,14 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 180
+                Layout.minimumHeight: 190
                 radius: 14
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "监控模块可见性"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    Text { text: "取消勾选即可隐藏对应的监控模块，隐藏后数据仍在后台采集"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Text { text: "取消勾选即可隐藏对应的监控模块，隐藏后数据仍在后台采集"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Flow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -760,9 +760,9 @@ Item {
                 color: root.themeRoot.colCard
                 border.color: root.themeRoot.colLine
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 10
+                    anchors.fill: parent; anchors.margins: 16; spacing: 10; clip: true
                     Text { text: "告警规则"; font.bold: true; color: root.themeRoot.colText; font.pixelSize: 14 }
-                    Text { text: "规则在每帧遥测中自动求值，满足条件触发告警"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                    Text { text: "规则在每帧遥测中自动求值，满足条件触发告警"; font.pixelSize: 11; color: root.themeRoot.colText2; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true

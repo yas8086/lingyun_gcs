@@ -95,6 +95,8 @@ ApplicationWindow {
 
     property int currentNav: 0
     property int dataTick: 0
+    // 遥测节流标志（onTelemetryChanged 与 tickThrottle 共用，属 root 顶层，非内容区 Item）
+    property bool tickPending: false
 
     // 地图视口状态提升到顶层：MapView 用 Loader 懒加载，切出即销毁、切回重建。
     // 状态存顶层才能跨页面保留（切走再回不重置缩放/中心/图层/跟随），
@@ -273,17 +275,17 @@ ApplicationWindow {
                                 }
                             }
                             Text {
-                                // 波特率/串口名联动配置（B9/B14）：不再硬编码 115200，链路在线时显示实际配置
-                                text: { void root.dataTick; bridge.isSerialOpen()
-                                        ? "电源系统监控 · 串口数传 " + bridge.port() + " " + bridge.baud() + " · 5Hz"
-                                        : "电源系统监控 · 串口未连接" }
+                                // 统一数据链路状态：串口或 UDP 任一在线即为链路在（B9/B14 联动串口配置）
+                                text: { void root.dataTick; bridge.isDataLinkOnline()
+                                        ? "电源系统监控 · 数据链路 " + (bridge.isSerialOpen() ? bridge.port() + " " + bridge.baud() : "UDP")
+                                        : "电源系统监控 · 链路未连接" }
                                 font.pixelSize: 11; color: root.colText2
                             }
                         }
                         Item { Layout.fillWidth: true }
                         // 设备灯（点击弹状态详情，再次点击关闭）
                         Repeater {
-                            model: [["bms","BMS"],["mppt","MPPT"],["dcdc","DCDC"],["backup","备用电源"]]
+                            model: [["bms","BMS"],["mppt1","MPPT"],["dcdc","DCDC"],["backup","备用电源"]]
                             Rectangle {
                                 // 按压缩放反馈（对齐原型 :active{scale(.94)}）
                                 scale: ma_2.pressed ? 0.96 : 1.0
@@ -372,7 +374,6 @@ ApplicationWindow {
                     // 全局刷新节拍：遥测变化驱动 dataTick（所有视图绑定重算），不依赖任一子视图。
                     // 节流 50ms：telemetryChanged 每帧触发，若不节流，串口频率升高时全页数十处
                     // 绑定会每帧全量重算（CPU 开销线性放大）。值已实时写入 bridge，UI 仅 50ms 合并刷新。
-                    property bool tickPending: false
                     Timer {
                         id: tickThrottle
                         interval: 50
@@ -578,29 +579,33 @@ ApplicationWindow {
                         Row {
                             visible: !root.isModuleHidden("link")
                             spacing: 6
+                            Layout.alignment: Qt.AlignVCenter
                             Rectangle {
                                 width: 9; height: 9; radius: 4.5
                                 anchors.verticalCenter: parent.verticalCenter
                                 // 加 dataTick 依赖：isSerialOpen 是 Q_INVOKABLE 方法调用，
                                 // QML 绑定只计算一次不重新求值，必须通过 dataTick 触发刷新
-                                color: { void root.dataTick; bridge.isSerialOpen() ? root.colOk : root.colOff }
+                                color: { void root.dataTick; bridge.isDataLinkOnline() ? root.colOk : root.colOff }
                             }
                             Text {
-                                text: { void root.dataTick; bridge.isSerialOpen() ? "链路正常" : "链路断开" }
-                                font.pixelSize: 12; font.bold: true
-                                color: { void root.dataTick; bridge.isSerialOpen() ? root.colOk : root.colErr }
+                                text: { void root.dataTick; bridge.isDataLinkOnline() ? "链路正常" : "链路断开" }
+                                font.pixelSize: 12; font.bold: true; font.family: "monospace"
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: { void root.dataTick; bridge.isDataLinkOnline() ? root.colOk : root.colErr }
                             }
                         }
-                        Text { visible: !root.isModuleHidden("rate"); text: "数据率 " + root.fmt(5.0,1) + " Hz"; font.pixelSize: 12; color: root.colText2 }
+                        Text { visible: !root.isModuleHidden("rate"); text: "数据率 " + root.fmt(5.0,1) + " Hz"; font.pixelSize: 12; font.family: "monospace"; color: root.colText2; Layout.alignment: Qt.AlignVCenter }
                         Text {
                             visible: !root.isModuleHidden("alarm")
+                            Layout.alignment: Qt.AlignVCenter
                             text: { void root.dataTick; "告警 " + bridge.unconfirmedCount() }
-                            font.pixelSize: 12; font.bold: true
+                            font.pixelSize: 12; font.bold: true; font.family: "monospace"
                             // B1：color 必须同样依赖 dataTick，否则仅首次求值、出现告警后颜色不刷新
                             color: { void root.dataTick; bridge.unconfirmedCount() > 0 ? root.colErr : root.colOk }
                         }
                         Text {
                             visible: !root.isModuleHidden("uptime")
+                            Layout.alignment: Qt.AlignVCenter
                             text: { void root.dataTick; "运行时长 " + root.uptimeStr }
                             font.pixelSize: 12; font.bold: true; font.family: "monospace"
                             color: root.colText
@@ -618,14 +623,34 @@ ApplicationWindow {
                         Text {
                             text: root.lastMsg
                             Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
                             elide: Text.ElideRight
-                            font.pixelSize: 12; color: root.colText2
+                            font.pixelSize: 12; font.family: "monospace"; color: root.colText2
                         }
-                        // 本地时间
-                        Row {
-                            spacing: 6
-                            Text { text: "本地时间"; font.pixelSize: 12; color: root.colText2 }
-                            Text { id: clockText; text: ""; font.pixelSize: 12; font.bold: true; color: root.colText }
+                        // 本地时间（显式固定高度 + 垂直居中锚定，消除 bold/非 bold 字形基线差）
+                        Item {
+                            Layout.alignment: Qt.AlignVCenter
+                            implicitWidth: lblTime.width + 6 + clockText.implicitWidth
+                            implicitHeight: 20
+                            Text {
+                                id: lblTime
+                                text: "本地时间"
+                                anchors.verticalCenter: parent.verticalCenter
+                                font.pixelSize: 12
+                                font.family: "monospace"
+                                color: root.colText2
+                            }
+                            Text {
+                                id: clockText
+                                text: ""
+                                anchors.left: lblTime.right
+                                anchors.leftMargin: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: "monospace"
+                                color: root.colText
+                            }
                         }
                     }
                 }
@@ -638,7 +663,7 @@ ApplicationWindow {
     property var devPopKvs: []
     property var readItems: []
     property string lastMsg: "系统就绪"
-    property string activeDevPop: ""   // 当前打开的设备详情键（bms/mppt/dcdc），空=关闭
+    property string activeDevPop: ""   // 当前打开的设备详情键（bms/mppt1/dcdc），空=关闭
     property string uptimeStr: "00:00:00"
 
     function uptimeText() {
@@ -655,11 +680,11 @@ ApplicationWindow {
         if (!dev) return
         const fields = {
             bms: [["pack_v","总压"],["pack_i","电流"],["max_t","最高温"],["max_v","最高单体"],["diff_v","压差"]],
-            mppt:[["pv_p","光伏功率"],["batt_v","电池电压"],["charge_i","充电电流"],["today","日发电量"],["total","总发电"]],
+            mppt1:[["pv_p","光伏功率"],["batt_v","电池电压"],["charge_i","充电电流"],["today","日发电量"],["total","总发电"]],
             dcdc:[["out_v","输出电压"],["out_i","输出电流"],["temp","散热温度"],["in_v","输入电压"],["enabled","使能"]],
             backup:[["pack_v","总压"],["soc","电量"],["diff_v","压差"],["soh","健康度"],["fault","故障码"]]
         }
-        const names = {bms:"BMS",mppt:"MPPT",dcdc:"DCDC",backup:"备用电源"}
+        const names = {bms:"BMS",mppt1:"MPPT",dcdc:"DCDC",backup:"备用电源"}
         root.devPopTitle = names[dev] + " 状态详情"
         const arr = []
         for (const f of fields[dev]) {
@@ -785,7 +810,7 @@ ApplicationWindow {
     function showToast(msg, type) {
         toastComp.createObject(toastWrap, { tMsg: String(msg), tType: type || "ok" })
     }
-    Timer { interval: 1000; running: true; repeat: true;
+    Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true;
         onTriggered: {
             clockText.text = new Date().toTimeString().slice(0,8)
             root.uptimeStr = root.uptimeText()
@@ -995,7 +1020,7 @@ ApplicationWindow {
         repeat: true
         onTriggered: {
             if (!root.rtcPlaying) return   // 暂停时不采样
-            const v = bridge.value("bms","pack_v"), pv = bridge.value("mppt","pv_p")
+            const v = bridge.value("bms","pack_v"), pv = bridge.value("mppt1","pv_p")
             const op = bridge.value("dcdc","out_p"), i = bridge.value("bms","pack_i")
             root.rtcData.v.push(isNaN(v)?0:v); root.rtcData.pv.push(isNaN(pv)?0:pv)
             root.rtcData.outp.push(isNaN(op)?0:op); root.rtcData.i.push(isNaN(i)?0:i)

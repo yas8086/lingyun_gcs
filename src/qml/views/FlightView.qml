@@ -10,23 +10,35 @@ Item {
     id: root
     property QtObject themeRoot: null
 
-    // ===== 工具函数（数据均带 dataTick 依赖，遥测刷新自动更新）=====
+    // ===== 工具函数（依赖 dataTick 遥测刷新 + 本地 osdTick 常驻兜底，
+    // 确保飞控页即便初次未建立 dataTick 依赖也能实时刷新）=====
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
-    function fcOnline() { void root.themeRoot.dataTick; return bridge.online("fc") }
-    function fcVal(key, dp) { void root.themeRoot.dataTick; return root.fmt(bridge.value("fc", key), dp) }
-    function fcMode() { void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
-    function fcArmed() { void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
-    function fcBattPct() { void root.themeRoot.dataTick; return Math.round(bridge.value("fc", "batt_pct") * 100) }
+    function fcOnline() { void root.osdTick; void root.themeRoot.dataTick; return bridge.online("fc") }
+    function fcVal(key, dp) { void root.osdTick; void root.themeRoot.dataTick; return root.fmt(bridge.value("fc", key), dp) }
+    function fcMode() { void root.osdTick; void root.themeRoot.dataTick; return bridge.fcStringField("mode") }
+    function fcArmed() { void root.osdTick; void root.themeRoot.dataTick; return bridge.value("fc", "armed") === 1 }
+    function fcBattPct() { void root.osdTick; void root.themeRoot.dataTick; return Math.round(bridge.value("fc", "batt_pct")) }
     // GPS 卫星数（协议 5.5 fc.gps.sat）：在线且有效返回颗数，否则 -1（显示 --）
     function fcGpsSat() {
+        void root.osdTick
         void root.themeRoot.dataTick
         if (!root.fcOnline()) return -1
+        const fix = bridge.value("fc", "gps_fix")
         const sat = bridge.value("fc", "gps_sat")
-        return isNaN(sat) ? -1 : Math.round(sat)
+        // fix<3 视为未定位（无有效卫星），不把 0 当真实颗数
+        if (isNaN(fix) || fix < 3 || isNaN(sat) || sat <= 0 || sat >= 255) return -1
+        return Math.round(sat)
+    }
+    // 飞控 GPS 是否已定位（fix>=3 且卫星数有效）
+    function fcGpsFixed() {
+        void root.osdTick
+        void root.themeRoot.dataTick
+        return root.fcOnline() && root.fcGpsSat() >= 0
     }
 
     // 姿态读数文本：俯仰/横滚带符号、航向一段
     function attLbl() {
+        void root.osdTick
         void root.themeRoot.dataTick
         const on = root.fcOnline()
         const fmt1 = v => (v>=0?"+":"") + Number(v).toFixed(1)
@@ -84,7 +96,8 @@ Item {
                     color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine
                     Text {
                         id: battTxt; anchors.centerIn: parent
-                        text: (root.fcOnline() ? root.fcBattPct() : "--") + "%  " + root.fcVal("batt_v",1) + " V"
+                        // 飞控未上报电压（batt_v<=0）时显示 --，避免"0% 0.0V"误导为没电
+                        text: (root.fcOnline() && root.fcBattPct() > 0) ? root.fcBattPct() + "%  " + root.fcVal("batt_v",1) + " V" : "--"
                         font.pixelSize: 12; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                     }
                 }
@@ -95,7 +108,7 @@ Item {
                     color: root.themeRoot.colCard2; border.color: root.themeRoot.colLine
                     Text {
                         id: gpsTxt; anchors.centerIn: parent
-                        text: "🛰 GPS " + (root.fcGpsSat() >= 0 ? root.fcGpsSat() + " 颗" : "--")
+                        text: "🛰 GPS " + (root.fcGpsFixed() ? root.fcGpsSat() + " 颗" : (root.fcOnline() ? "未定位" : "--"))
                         font.pixelSize: 12; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText2
                     }
                 }
@@ -259,7 +272,11 @@ Item {
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                                         spacing: 8
                                         Text { text: "⚙ 电机状态"; font.bold: true; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "10 台 · 只读"; font.pixelSize: 10; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                        Text {
+                                            text: root.escTelemActive() ? "10 台 · 遥测中" : "10 台 · 无遥测 · 模拟值"
+                                            font.pixelSize: 10; color: root.escTelemActive() ? root.themeRoot.colOk : root.themeRoot.colText2
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
                                     }
                                     MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.mfoldOpen = !root.mfoldOpen }
                                 }
@@ -296,7 +313,7 @@ Item {
                                                         Text {
                                                             width: 102; text: root.fmt(Math.round(root.motorVal(modelData.i, modelData)),0) + " rpm   " + Math.round(root.motorTemp(modelData.i, modelData)) + "°C"
                                                             horizontalAlignment: Text.AlignRight; font.pixelSize: 11; font.family: "monospace"; font.bold: true
-                                                            color: root.motorTemp(modelData.i, modelData) > 65 ? root.themeRoot.colWarn : root.themeRoot.colText
+                                                            color: (root.escTelemActive() && root.motorTemp(modelData.i, modelData) > 65) ? root.themeRoot.colWarn : root.themeRoot.colText
                                                             verticalAlignment: Text.AlignVCenter
                                                         }
                                                     }
@@ -389,6 +406,12 @@ Item {
     function escReal(i) {
         return root.fcOnline() && bridge.fcEscCount() > i && bridge.fcEscRpm(i) > 0
     }
+    // 是否有任意真实 ESC 遥测（n>0，DroneCAN 电调回传）。无真实遥测时电机为本地模拟，
+    // 此时不用模拟温度触发告警、也不以模拟值为准标红，避免"假告警/假高温"误导。
+    function escTelemActive() {
+        void root.osdTick; void root.mfoldTick
+        return root.fcOnline() && bridge.fcEscCount() > 0
+    }
     function motorVal(i, cell) {
         void root.mfoldTick
         if (root.escReal(i))
@@ -401,13 +424,27 @@ Item {
             return bridge.fcEscTemp(i)
         return 40 + i*2.4 + (root.motorArr[i]!==undefined ? Math.round(root.motorArr[i]/100) : 0)
     }
-    // 电机温度告警（真实或模拟温度 >65℃ 均触发）
+    // 电机温度告警：仅在存在真实 ESC 遥测时判定（避免模拟温度触发假告警）；
+    // 无真实遥测时视为无告警。
     function anyHot() {
         void root.mfoldTick
+        if (!root.escTelemActive()) return false
         for (var i=0;i<10;i++){ if (root.motorTemp(i,{})>65) return true }
         return false
     }
     property int mfoldTick: 0
+    // 常驻刷新节拍（对齐 CameraView/MonitorView 的 osdTick 做法）：
+    // 飞控页 dataTick 依赖在初次创建时可能因 themeRoot 尚未注入而未能建立——
+    // 表现为"只显示打开那一刻的数据，之后飞控在动页面不更新"。
+    // 用本地 osdTick 常驻定时驱动 fc 读取绑定与地平仪重绘，保证姿态实时跟随。
+    property int osdTick: 0
+    Timer {
+        interval: 400; running: true; repeat: true
+        onTriggered: {
+            root.osdTick++
+            if (aiCanvas) aiCanvas.requestPaint()   // 强制地平仪重绘（读取最新 fc 姿态）
+        }
+    }
     // 地图右栏延后加载：等 main.qml 注入 themeRoot（本页 onLoaded 设置）后再启用，
     // 否则 MapView 首帧读取 themeRoot 为 null 报 TypeError
     Component.onCompleted: {

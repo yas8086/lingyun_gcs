@@ -42,23 +42,34 @@ Item {
         canvas.requestPaint()
     }
 
-    // 飞控 fc 遥测（左上角悬浮卡）：带 dataTick 依赖，随串口 fc 数据实时刷新
-    function fcLon() { void root.themeRoot.dataTick; const v=bridge.value("fc","lon"); return isNaN(v)?"--":v.toFixed(6)+"°" }
-    function fcLat() { void root.themeRoot.dataTick; const v=bridge.value("fc","lat"); return isNaN(v)?"--":v.toFixed(6)+"°" }
-    function fcAlt() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","alt"))?"--":bridge.value("fc","alt").toFixed(1)+" m" }
+    // 常驻刷新节拍（对齐 CameraView/FlightView 的 osdTick 做法）：
+    // 顶部悬浮卡的 fc 数据仅依赖 dataTick，初次创建时若 themeRoot 未注入则绑定依赖
+    // 未建立——表现为"悬浮窗数据不更新"。本地 osdTick 常驻定时兜底，保证实时刷新。
+    property int osdTick: 0
+    Timer {
+        interval: 400; running: true; repeat: true
+        onTriggered: { root.osdTick++; canvas.requestPaint() }
+    }
+
+    // 飞控 fc 遥测（左上角悬浮卡）：依赖 osdTick 常驻 + dataTick，实时刷新
+    function fcLon() { void root.osdTick; void root.themeRoot.dataTick; const v=bridge.value("fc","lon"); return isNaN(v)?"--":v.toFixed(6)+"°" }
+    function fcLat() { void root.osdTick; void root.themeRoot.dataTick; const v=bridge.value("fc","lat"); return isNaN(v)?"--":v.toFixed(6)+"°" }
+    function fcAlt() { void root.osdTick; void root.themeRoot.dataTick; return isNaN(bridge.value("fc","alt"))?"--":bridge.value("fc","alt").toFixed(1)+" m" }
     function fcGs() {
+        void root.osdTick
         void root.themeRoot.dataTick
         const vx=bridge.value("fc","vx"), vy=bridge.value("fc","vy")
         if (isNaN(vx)||isNaN(vy)) return "--"
         return Math.sqrt(vx*vx+vy*vy).toFixed(1)+" m/s"
     }
     function fcSigned(key) {
+        void root.osdTick
         void root.themeRoot.dataTick
         const v=bridge.value("fc", key)
         if (isNaN(v)) return "--"
         return (v>=0?"+":"")+v.toFixed(1)+" m/s"
     }
-    function fcYaw() { void root.themeRoot.dataTick; return isNaN(bridge.value("fc","yaw"))?"--":bridge.value("fc","yaw").toFixed(1)+"°" }
+    function fcYaw() { void root.osdTick; void root.themeRoot.dataTick; return isNaN(bridge.value("fc","yaw"))?"--":bridge.value("fc","yaw").toFixed(1)+"°" }
     function fcVz() { return root.fcSigned("vz") }
 
     // ===== 墨卡托投影 =====
