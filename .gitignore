@@ -6,6 +6,9 @@ build/
 # 运行期生成
 *.csv
 
+# 串口诊断产物（不入库）
+diag/
+
 # Subagent-Driven 工作台账（scratch，不入库）
 .superpowers/
 
