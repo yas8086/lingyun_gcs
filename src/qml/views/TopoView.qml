@@ -131,7 +131,8 @@ Item {
     property var pvHist: new Object()
     property real lastSampleTs: 0    // 最近一次温度采样时刻（时间对齐表本地时间基准）
     property var probeLive: new Object()  // pid -> bool（本轮采样拿到实机温度）
-    property real envPresPa: NaN         // LoRa 压力节点实时均值（Pa），无压力节点为 NaN
+    property var pressureMap: root.loadPressureMap()   // [{ei, ids:[LoRa节点号,...]}] 每囊压力传感器点位
+    property var envPresLive: new Object()   // ei -> {temp, pres}（该囊压力传感器的实时温度/压力，无则 NaN）
     property var cellIndex: new Object()   // "ei:r:c" -> probe（热力图 O(1) 查表）
     property int mappingRefresh: 0   // 探头映射编辑后自增，强制刷新映射表
     property int _diagTs: 0          // 临时诊断：上次打印 [TopoDiag] 日志的时间戳
@@ -142,6 +143,57 @@ Item {
     function loadProbes() {
         const arr = bridge.probeMapping()
         return arr || []   // 空值守卫：首次无映射文件等返回 null 时兜底为空数组
+    }
+    function loadPressureMap() {
+        const arr = bridge.pressureMapping()
+        return arr || []
+    }
+    function savePressureMap() {
+        bridge.savePressureMapping(root.pressureMap)
+        root.themeRoot.dataTick++   // 立即驱动 UI 重取（温度/压力显示随点位变化）
+    }
+    // 返回某囊的压力传感器点位（{ei,ids}），无配置返回 null
+    function pressureMapOf(ei) {
+        for (const it of root.pressureMap) if (it && it.ei === ei) return it
+        return null
+    }
+    // 某囊配置的压力节点号列表（无则空数组）
+    function pressureIdsOf(ei) {
+        const it = root.pressureMapOf(ei)
+        return (it && it.ids && it.ids.length) ? it.ids : []
+    }
+    // 点位编辑输入回填：ids 数组 → 逗号分隔文本
+    function pressureIdsText(ei) {
+        const ids = root.pressureIdsOf(ei)
+        return ids.length ? ids.join(",") : ""
+    }
+    // 点位编辑提交：文本 → 数字数组，更新 pressureMap 并持久化，重置该囊实时缓存待下轮刷新
+    function applyPressureIds(ei, text) {
+        const set = new Set()
+        for (const tok of String(text).split(",")) {
+            const v = parseInt(tok.trim(), 10)
+            if (!isNaN(v) && v > 0) set.add(v)
+        }
+        const ids = Array.from(set)
+        // 空则移除该囊点位；否则新增/更新
+        if (ids.length === 0) {
+            root.pressureMap = root.pressureMap.filter(it => it.ei !== ei)
+        } else {
+            const it = root.pressureMapOf(ei)
+            if (it) it.ids = ids
+            else root.pressureMap = root.pressureMap.concat({ei: ei, ids: ids})
+        }
+        root.envPresLive[ei] = NaN
+        root.savePressureMap()
+    }
+    // 某囊压力点位实时预览文本（内部温度/压力）
+    function pressPreview(ei) {
+        void root.themeRoot.dataTick
+        const d = root.envPresLive[ei]
+        if (!d) return "--"
+        const t = (d.temp != null && !isNaN(d.temp)) ? d.temp.toFixed(1) + "℃" : "--"
+        const p = (d.pres != null && !isNaN(d.pres)) ? (d.pres / 1000).toFixed(1) + " " + root.presLabel() : "--"
+        return "温度 " + t + " · 压力 " + p
     }
     // 由 probes 重建 cellIndex 查表（在 load/apply 后调用）
     function rebuildCellIndex() {
@@ -186,17 +238,18 @@ Item {
     // 点击探头方块 → 弹窗显示详情
     function showProbeDetail(p) {
         const env = root.envDef[p.ei]
-        const v = (root.probeLive[p.pid] === true && root.pvVals[p.pid] != null) ? root.pvVals[p.pid] : p.base
+        const live = root.probeLive[p.pid] === true && root.pvVals[p.pid] != null
+        const v = live ? root.pvVals[p.pid] : NaN   // 无实机数据不再回退基准值，显示 --
         const hist = root.pvHist[p.pid] || []
         const hi = hist.length ? Math.max(...hist) : NaN
         const lo = hist.length ? Math.min(...hist) : NaN
         probeDetailPid.text = p.pid + " · " + env.name + " 第" + p.row + "行 第" + p.col + "列"
-        probeDetailCur.text = v.toFixed(1) + " ℃"
+        probeDetailCur.text = live ? v.toFixed(1) + " ℃" : "--"
         probeDetailRange.text = (isNaN(hi)?"—":hi.toFixed(0)) + " / " + (isNaN(lo)?"—":lo.toFixed(0)) + " ℃"
-        probeDetailSrc.text = root.probeLive[p.pid]
+        probeDetailSrc.text = live
             ? "数据来源：实机采集（LoRa 节点 " + String(p.pid).replace(/^T/i, "") + " 在线）"
-            : "数据来源：基准值（节点离线或未绑定，基准 " + p.base + "℃）"
-        probeDetail.detailColor = root.pvColor(v)
+            : "数据来源：无实机数据（未接收或节点离线）"
+        probeDetail.detailColor = live ? root.pvColor(v) : root.themeRoot.colText2
         probeDetail.open()
     }
     function pvColor(t) {
@@ -271,20 +324,17 @@ Item {
         }
         return {count:cnt, max: mx>-Infinity?mx:NaN, avg: cnt?sum/cnt:NaN, alarm:alarm}
     }
-    // 囊体内部温度（实机）：该囊体在线探头的实时均值；无实机数据回退 envDef 静态基准
+    // 囊体内部温度（实机）：该囊压力传感器节点的实时温度均值；无配置/无数据返回 NaN（UI 显示 --）
     function envInnerT(ei) {
         void root.themeRoot.dataTick
-        let sum = 0, cnt = 0
-        for (const p of root.probes) {
-            if (p.ei !== ei) continue
-            if (root.probeLive[p.pid] && root.pvVals[p.pid] != null) { sum += root.pvVals[p.pid]; cnt++ }
-        }
-        return cnt > 0 ? sum / cnt : root.envDef[ei].innerT
+        const d = root.envPresLive[ei]
+        return (d && d.temp != null && !isNaN(d.temp)) ? d.temp : NaN
     }
-    // 囊体内部压力（实机）：LoRa 压力节点实时均值（Pa→kPa）；无压力节点回退 envDef 静态基准
+    // 囊体内部压力（实机）：该囊压力传感器节点的实时压力均值（Pa→kPa）；无配置/无数据返回 NaN
     function envPresKpa(ei) {
         void root.themeRoot.dataTick
-        return !isNaN(root.envPresPa) ? root.envPresPa / 1000 : root.envDef[ei].pres
+        const d = root.envPresLive[ei]
+        return (d && d.pres != null && !isNaN(d.pres)) ? d.pres / 1000 : NaN
     }
     // ===== 探头映射编辑（原型 applyProbes 逻辑）=====
     // 注意：delegate 中 modelData 是数组元素的私有拷贝（JS Array 不支持写回），
@@ -1084,6 +1134,8 @@ Item {
                                 id: envCard
                                 property var env: modelData
                                 property int envIndex: index
+                                property bool hasInnerT: { void root.themeRoot.dataTick; return !isNaN(root.envInnerT(envCard.envIndex)) }
+                                property bool hasInnerP: { void root.themeRoot.dataTick; return !isNaN(root.envPresKpa(envCard.envIndex)) }
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 Layout.preferredWidth: env.type === "main" ? 118 : 100
@@ -1120,8 +1172,8 @@ Item {
                                                 Text { text: "内部温度"; font.pixelSize: 10; color: root.themeRoot.colText2; anchors.horizontalCenter: parent.horizontalCenter }
                                                 Row {
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    Text { text: (root.envInnerT(envCard.envIndex)).toFixed(1); font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
-                                                    Text { text: "℃"; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                                    Text { text: envCard.hasInnerT ? root.envInnerT(envCard.envIndex).toFixed(1) : "--"; font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
+                                                    Text { text: "℃"; visible: envCard.hasInnerT; font.pixelSize: 10; color: root.themeRoot.colText2 }
                                                 }
                                             }
                                         }
@@ -1131,7 +1183,7 @@ Item {
                                                 Row {
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     Text { text: root.presStr(root.envPresKpa(envCard.envIndex)); font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
-                                                    Text { text: root.presLabel(); font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                                    Text { text: root.presLabel(); visible: envCard.hasInnerP; font.pixelSize: 10; color: root.themeRoot.colText2 }
                                                 }
                                             }
                                         }
@@ -1158,8 +1210,8 @@ Item {
                                                     Layout.fillWidth: true; Layout.fillHeight: true
                                                     Layout.preferredWidth: 1; Layout.preferredHeight: 1
                                                     radius: 3
-                                                    property bool hasProbe: root.cellProbe(envCard.envIndex, env.cols, index) !== null
-                                                    property bool live: hasProbe && root.probeLive[cellProbe?.pid ?? ""] === true
+                                                    property bool hasProbe: { void root.themeRoot.dataTick; return root.cellProbe(envCard.envIndex, env.cols, index) !== null }
+                                                    property bool live: { void root.themeRoot.dataTick; return hasProbe && root.probeLive[cellProbe?.pid ?? ""] === true }
                                                     property var cellProbe: root.cellProbe(envCard.envIndex, env.cols, index)
                                                     // 填充色：live=热力色；hasProbe 无数据=浅灰卡底；无探头=完全透明（跟随 Bg2 不突显）
                                                     color: {
@@ -1167,11 +1219,9 @@ Item {
                                                         if (hasProbe) return root.themeRoot.colCard2   // 白/深卡底：比 Bg2 更"实"，一眼看出有占位
                                                         return root.cellColor(envCard.envIndex, env.cols, index)   // 即 Bg2，和完全空单元格一致
                                                     }
-                                                    // 边框：live 用细黑实描边配合热力色；无数据但有探头用中灰实线（对比度足够，不依赖 colLine）；
-                                                    //       无探头=无边框，保持网格隐形
-                                                    border.width: (hasProbe || live) ? 1 : 0
-                                                    border.color: live ? root.themeRoot.colText
-                                                        : root.themeRoot.colText2   // 中灰：light=#64748b / dark=#8aa0bf，和任何背景都拉开 2+ 档对比度
+                                                    // 色块不加外边框，仅靠热力色/卡底底色区分格子（无数据占位块也仅用底色区分）
+                                                    border.width: 0
+                                                    border.color: "transparent"
 
                                                     Text {
                                                         id: cellTextItem
@@ -1376,6 +1426,37 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: 8
+                        // 压力传感器点位配置（内部温度/压力数据源：每囊对应各自压力节点）
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 168
+                            radius: 10
+                            color: root.themeRoot.colCard2
+                            border.color: root.themeRoot.colLine
+                            ColumnLayout {
+                                anchors.fill: parent; anchors.margins: 12
+                                spacing: 6
+                                Text { text: "压力传感器点位（每囊压力传感器对应的 LoRa 节点号，用逗号分隔；未配置或无数据时内部温度/压力显示 --）"; font.pixelSize: 12; font.bold: true; color: root.themeRoot.colText; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                Repeater {
+                                    model: root.envDef
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 12
+                                        Text { text: root.envDef[index].name; font.pixelSize: 12; color: root.themeRoot.colText2; Layout.preferredWidth: 90 }
+                                        TextField {
+                                            Layout.preferredWidth: 150
+                                            text: root.pressureIdsText(index)
+                                            font.pixelSize: 12; font.family: "monospace"
+                                            horizontalAlignment: Text.AlignHCenter
+                                            placeholderText: "空 = 无压力传感器"
+                                            validator: RegularExpressionValidator { regularExpression: /[0-9,\s]*/ }
+                                            onEditingFinished: root.applyPressureIds(index, text)
+                                        }
+                                        Text { text: root.pressPreview(index); font.pixelSize: 12; font.family: "monospace"; color: root.themeRoot.colText; Layout.fillWidth: true }
+                                    }
+                                }
+                            }
+                        }
                         // 统计条 + 按钮（原型 .tt-stat）
                         Rectangle {
                             Layout.fillWidth: true
@@ -2156,13 +2237,24 @@ Item {
             }
             // === 临时诊断日志结束 ===
             const loraMap = new Object()
-            let presSum = 0, presCnt = 0
             for (const n of lora) {
                 loraMap["" + n.id] = n
                 loraMap[n.id] = n
-                if (n.pressure > 0) { presSum += n.pressure; presCnt++ }   // 压力节点（Pa）
             }
-            root.envPresPa = presCnt > 0 ? presSum / presCnt : NaN
+            // 每囊内部温度/压力：按点位表取该囊压力节点（多节点取均值），无配置/无数据 → NaN
+            for (let ei = 0; ei < root.envDef.length; ei++) {
+                const ids = root.pressureIdsOf(ei)
+                let pSum = 0, pCnt = 0, tSum = 0, tCnt = 0
+                for (const idv of ids) {
+                    const n = loraMap[idv] || loraMap["" + idv]
+                    if (!n || !(n.pressure > 0)) continue   // 只看压力节点（Pa）
+                    pSum += n.pressure; pCnt++
+                    if (n.hasTemp) { tSum += n.temp; tCnt++ }   // 压力传感器自带温度检测
+                }
+                root.envPresLive[ei] = (pCnt > 0)
+                    ? {pres: pSum / pCnt, temp: tCnt > 0 ? tSum / tCnt : NaN}
+                    : NaN
+            }
             for (const p of root.probes) {
                 const k = p.pid
                 // pid 形如 T01/T1 → 数字节点 id（parseInt 去掉前导零再查表）

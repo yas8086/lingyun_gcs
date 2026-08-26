@@ -260,6 +260,11 @@ public:
     Q_INVOKABLE QVariant defaultProbeMapping() const;
     Q_INVOKABLE void resetProbeMapping();                 // 恢复默认布局（写回默认并持久化）
 
+    // 压力传感器点位映射：每囊压力传感器 LoRa 节点号列表（[{ei,ids:[...]}]）
+    Q_INVOKABLE QVariant pressureMapping() const;
+    Q_INVOKABLE void savePressureMapping(const QVariant &list);
+    Q_INVOKABLE void resetPressureMapping();
+
     // 运行时长（决策：状态栏）
     Q_INVOKABLE int uptimeSeconds() const;
 
@@ -323,5 +328,7 @@ private:
 
 // 温度探头映射文件路径（决策 #27）：供 rules/config 两个拆分部共用（配置导入导出需合并该文件，B8）
 QString probesFilePath();
+// 压力传感器点位映射文件路径：供 rules/config 共用（配置导入导出需合并该文件）
+QString pressureMapFilePath();
 
 } // namespace lgs

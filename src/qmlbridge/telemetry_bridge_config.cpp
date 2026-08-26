@@ -398,6 +398,13 @@ bool TelemetryBridge::exportConfig(const QString &path) const {
         if (pdoc.isArray())
             obj[QLatin1String("tempProbes")] = pdoc.array();
     }
+    QFile pmf(pressureMapFilePath());
+    if (pmf.open(QIODevice::ReadOnly)) {
+        const QJsonDocument pmdoc = QJsonDocument::fromJson(pmf.readAll());
+        pmf.close();
+        if (pmdoc.isArray())
+            obj[QLatin1String("pressureMap")] = pmdoc.array();
+    }
     QDir().mkpath(QFileInfo(path).absolutePath());
     QFile dst(path);
     if (!dst.open(QIODevice::WriteOnly | QIODevice::Text))
@@ -425,6 +432,10 @@ bool TelemetryBridge::importConfig(const QString &path) {
     const QJsonValue tp = doc.object().value(QLatin1String("tempProbes"));
     if (tp.isArray() && !tp.toArray().isEmpty())
         saveProbeMapping(tp.toArray().toVariantList());
+    // 压力传感器点位映射（pressureMap 数组）一并写回 temp_pressure.json
+    const QJsonValue pmv = doc.object().value(QLatin1String("pressureMap"));
+    if (pmv.isArray() && !pmv.toArray().isEmpty())
+        savePressureMapping(pmv.toArray().toVariantList());
     // 写回当前配置文件（含 BOM，便于 Windows 记事本打开）
     QDir().mkpath(QFileInfo(config_->filePath()).absolutePath());
     QFile dst(config_->filePath());

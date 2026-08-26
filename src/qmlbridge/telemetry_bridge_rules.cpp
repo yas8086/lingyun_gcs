@@ -19,6 +19,13 @@ QString probesFilePath() {
            + QStringLiteral("/temp_probes.json");
 }
 
+// 压力传感器点位映射文件路径：每个囊体（ei）配置其压力传感器对应的 LoRa 节点号列表，
+// 内部温度/压力按此逐囊对应显示；未配置的囊一律显示 "--"。
+QString pressureMapFilePath() {
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
+           + QStringLiteral("/temp_pressure.json");
+}
+
 namespace {
 AlarmRule ruleFromMap(const QVariantMap &m) {
     AlarmRule r;
@@ -226,6 +233,58 @@ void TelemetryBridge::saveProbeMapping(const QVariant &list) {
 
 void TelemetryBridge::resetProbeMapping() {
     saveProbeMapping(defaultProbeMapping());
+}
+
+// ---- 压力传感器点位映射（决策：内部温度/压力按囊对应各自压力传感器节点）----
+// 结构 [{ei:囊索引, ids:[LoRa节点号,...]}]；未配置的囊在 UI 显示 "--"。
+QVariant TelemetryBridge::pressureMapping() const {
+    QFile f(pressureMapFilePath());
+    if (!f.open(QIODevice::ReadOnly))
+        return QVariantList();
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    if (!doc.isArray())
+        return QVariantList();
+    QVariantList list;
+    for (const auto &v : doc.array()) {
+        const QJsonObject o = v.toObject();
+        QVariantMap m;
+        m["ei"] = o.value("ei").toInt();
+        QVariantList ids;
+        for (const auto &idv : o.value("ids").toArray())
+            ids.append(idv.toInt());
+        m["ids"] = ids;
+        list.append(m);
+    }
+    return list;
+}
+
+void TelemetryBridge::savePressureMapping(const QVariant &list) {
+    QJsonArray arr;
+    for (const auto &v : list.toList()) {
+        const QVariantMap m = v.toMap();
+        QJsonObject o;
+        o["ei"] = m.value("ei").toInt();
+        QJsonArray ids;
+        for (const auto &idv : m.value("ids").toList())
+            ids.append(idv.toInt());
+        o["ids"] = ids;
+        arr.append(o);
+    }
+    const QString path = pressureMapFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+        return;
+    QTextStream out(&f);
+    out.setGenerateByteOrderMark(true);
+    out << QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Indented));
+    out.flush();
+    f.close();
+}
+
+void TelemetryBridge::resetPressureMapping() {
+    savePressureMapping(QVariantList());
 }
 
 // ---- 温度历史与通用文本导出（决策 #28）----
