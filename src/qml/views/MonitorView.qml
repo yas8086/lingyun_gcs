@@ -174,11 +174,6 @@ Item {
         return root.fieldVis[dev].indexOf(fid) !== -1
     }
 
-    // ===== 电源总览（原型 power-strip）=====
-    function psPin()  { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("mppt1") ? 0 : bridge.value("mppt1","pv_p") }
-    function psPout() { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("dcdc") ? 0 : bridge.value("dcdc","out_p") }
-    function psBatt() { void root.osdTick; void root.themeRoot.dataTick; return root.devOff("bms") ? 0 : bridge.value("bms","pack_i") }
-    function psNet()  { return root.psPin() - root.psPout() }
 
     // ===== 外层滚动容器（窗口化/小高度时支持鼠标滚轮滑动查看全部模块）=====
     ScrollView {
@@ -317,57 +312,6 @@ Item {
                             }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.bold: true; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             onClicked: root.stripCollapsed = !root.stripCollapsed
-                        }
-                    }
-                }
-            }
-
-            // ===== 电源总览（原型 power-strip）=====
-            Rectangle {
-                visible: !root.themeRoot.isModuleHidden("power")
-                Layout.fillWidth: true
-                radius: 14
-                color: root.themeRoot.colCard
-                border.color: root.themeRoot.colLine
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 10
-                    Row {
-                        spacing: 14
-                        Text { text: "⚡ 电源总览"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
-                        Row {
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 10
-                            Text { text: "光伏 <b>" + Math.round(root.psPin()) + " W</b>"; font.pixelSize: 12; color: root.themeRoot.colText2; textFormat: Text.RichText }
-                            Text { text: "→"; color: root.themeRoot.colPrimary; font.bold: true }
-                            Text { text: "电池 <b>" + (root.psBatt()>=0?"+":"") + root.fmt(root.psBatt(),1) + " A</b>"; font.pixelSize: 12; color: root.themeRoot.colText2; textFormat: Text.RichText }
-                            Text { text: "→"; color: root.themeRoot.colPrimary; font.bold: true }
-                            Text { text: "DCDC <b>" + Math.round(root.psPout()) + " W</b>"; font.pixelSize: 12; color: root.themeRoot.colText2; textFormat: Text.RichText }
-                            Text { text: "→"; color: root.themeRoot.colPrimary; font.bold: true }
-                            Text { text: "负载 <b>" + Math.round(root.psPout()) + " W</b>"; font.pixelSize: 12; color: root.themeRoot.colText2; textFormat: Text.RichText }
-                        }
-                    }
-                    Grid {
-                        columns: root.width > 1500 ? 4 : 2
-                        columnSpacing: 8; rowSpacing: 8
-                        Layout.fillWidth: true
-                        // 输入功率 / 输出功率 / 净充放 / 电量趋势
-                        Repeater {
-                            model: [
-                                {k:"输入功率", v: Math.round(root.psPin()) + " W"},
-                                {k:"输出功率", v: Math.round(root.psPout()) + " W"},
-                                {k:"净充放功率", v: (root.psNet()>=0?"+":"") + Math.round(root.psNet()) + " W"},
-                                {k:"电量趋势", v: root.psNet()>5 ? "充电中" : (root.psNet()<-5 ? "放电中" : "平衡")}
-                            ]
-                            Rectangle {
-                                width: 200; height: 40; radius: 8; color: root.themeRoot.colCard2
-                                Column {
-                                    anchors.centerIn: parent
-                                    Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2; anchors.horizontalCenter: parent.horizontalCenter }
-                                    Text { text: modelData.v; font.pixelSize: 16; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText; anchors.horizontalCenter: parent.horizontalCenter }
-                                }
-                            }
                         }
                     }
                 }

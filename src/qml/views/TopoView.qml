@@ -53,10 +53,10 @@ Item {
     function tOut() { void root.themeRoot.dataTick; return root.off("dcdc") ? 0 : Math.round(bridge.value("dcdc","out_p")||0) }
     function tTemp(){ void root.themeRoot.dataTick; return root.off("dcdc") ? 0 : (bridge.value("dcdc","temp")||0) }
     function off(dev) { return !bridge.online(dev) }
-    // 电源链路完整数据（对齐原型 updateTopo）：真实字段 + 模拟派生（12S/电机/效率），MPPT1/MPPT2 均对接真实设备
+    // 电源链路完整数据（对齐原型 updateTopo）：全部字段来自真实遥测或其严格推导，
+    // 无传感器来源的项一律 NaN（UI 显示 "--"），不再使用静态/正弦模拟假值。
     function topoData() {
         void root.themeRoot.dataTick
-        const now = Date.now()
         const pvM  = root.off("mppt1") ? 0 : Math.round(bridge.value("mppt1","pv_p")||0)
         const pvMv = root.off("mppt1") ? 0 : (bridge.value("mppt1","pv_v")||0)
         const c1   = root.off("mppt1") ? 0 : (bridge.value("mppt1","charge_i")||0)
@@ -67,54 +67,64 @@ Item {
         const pv   = pvM + pvS
         const soc  = root.off("bms") ? 0 : (bridge.value("bms","soc")||0)
         const packv= root.off("bms") ? 0 : (bridge.value("bms","pack_v")||0)
-        const packi= root.off("bms") ? 0 : (bridge.value("bms","pack_i")||0)
+        const packi= root.off("bms") ? NaN : (bridge.value("bms","pack_i"))   // 充电为正，协议语义直接可用
         const op   = root.off("dcdc") ? 0 : Math.round(bridge.value("dcdc","out_p")||0)
         const outv = root.off("dcdc") ? 0 : (bridge.value("dcdc","out_v")||0)
         const temp = root.off("dcdc") ? 0 : (bridge.value("dcdc","temp")||0)
-        // MPPT 转换效率 / 12S 备用锂电（原型模拟）
-        const eff = 92 + Math.round(Math.sin(now/12000)*3)
-        const bkSoc = Math.round(86 + Math.sin(now/8000)*3)
-        const bkV   = 44 + Math.sin(now/7000)*0.8
-        // 第一级混动（MPPT1+MPPT2 并联 + 102S）
-        const motTot = Math.round(pv*0.45 + 120)
-        const mot1   = Math.round(motTot/4)
-        const bus1Load = motTot + op
-        const bat1   = Math.round(pv - bus1Load)   // >0 富余充电 / <0 放电补足
-        // 第二级混动（DCDC + 12S）
-        const smTot = Math.round(op*0.5)
-        const sm1   = Math.round(smTot/6)
-        const load48= Math.max(0, op - smTot)
-        const dcdcCap = 320
-        const bat2  = Math.round(dcdcCap - op)
-        // 电机转速（原型模拟）
-        const rpmMot = Math.round(280 + mot1*0.6 + Math.sin(now/6000)*25)
-        const rpmUp  = Math.round(1800 + Math.sin(now/7000)*80)
-        const rpmDn  = Math.round(1200 + Math.sin(now/8000)*60)
-        return {pvM,pvMv,pvS,pvSv,c1,c2,pv,soc,packv,packi,op,outv,temp,eff,bkSoc,bkV,
-                motTot,mot1,bus1Load,bat1,smTot,sm1,load48,dcdcCap,bat2,rpmMot,rpmUp,rpmDn}
+        // MPPT 实测转换效率 = 输出功率(batt_v×charge_i) / 光伏输入功率(pv_p)；无光伏输入时无意义 → NaN
+        const mEff = function(pvp, bv, ci) {
+            if (!pvp || pvp <= 0 || isNaN(bv) || isNaN(ci)) return NaN
+            return Math.round(bv * ci / pvp * 100)
+        }
+        const eff1 = root.off("mppt1") ? NaN : mEff(bridge.value("mppt1","pv_p"), bridge.value("mppt1","batt_v"), c1)
+        const eff2 = root.off("mppt2") ? NaN : mEff(bridge.value("mppt2","pv_p"), bridge.value("mppt2","batt_v"), c2)
+        // 12S 备用锂电：协议 backup.soc / pack_v 真实遥测
+        const bkOff = root.off("backup")
+        const bkSoc = bkOff ? NaN : bridge.value("backup","soc")
+        const bkV   = bkOff ? NaN : bridge.value("backup","pack_v")
+        const bkI   = bkOff ? NaN : bridge.value("backup","pack_i")           // 充电为正
+        // 推进电机：飞控 ESC 电调遥测（协议 5.5，n>0 时索引 < n 可信；PWM 电调 n=0 无遥测 → NaN）
+        const escN = bridge.fcEscCount()
+        const mots = []
+        for (let i = 0; i < 4; i++) {
+            if (i < escN && !root.fcOffline()) {
+                const ev = bridge.fcEscVolt(i), ec = bridge.fcEscCur(i)
+                const powerOK = !isNaN(ev) && !isNaN(ec)
+                mots.push({p: powerOK ? Math.round(ev * ec) : NaN, rpm: isNaN(bridge.fcEscRpm(i)) ? NaN : Math.round(bridge.fcEscRpm(i))})
+            } else {
+                mots.push({p: NaN, rpm: NaN})
+            }
+        }
+        const escTot = mots.some(m => !isNaN(m.p)) ? mots.reduce((s,m) => s + (isNaN(m.p)?0:m.p), 0) : NaN
+        return {pvM,pvMv,pvS,pvSv,c1,c2,pv,soc,packv,packi,op,outv,temp,
+                eff1,eff2,bkSoc,bkV,bkI,mots,escTot}
     }
+    function fcOffline() { return !bridge.online("fc") }
+    // 数值安全格式：NaN/null → "--"，否则按小数位格式化
+    function nn(v, dp) { return (v == null || isNaN(v)) ? "--" : v.toFixed(dp === undefined ? 0 : dp) }
     // 电源链路节点悬停详情（对齐原型 tpTitle，\n 换行多行提示）
     function topoHover(id) {
         const d = root.topoData()
         switch (id) {
             case "pv1": return "光伏主囊\n功率 " + d.pvM + " W\n电压 " + d.pvMv.toFixed(1) + " V\n向 MPPT 1 供电"
             case "pv2": return "光伏副囊\n功率 " + d.pvS + " W\n电压 " + d.pvSv.toFixed(1) + " V\n向 MPPT 2 供电"
-            case "mppt1": return "MPPT 1\n光伏输入 " + d.pvM + " W\n充电电流 " + d.c1.toFixed(1) + " A\n转换效率 " + d.eff + "%"
-            case "mppt2": return "MPPT 2\n光伏输入 " + d.pvS + " W\n充电电流 " + d.c2.toFixed(1) + " A\n转换效率 " + d.eff + "%"
-            case "bms": return "102S 主电池组\n荷电状态 SOC " + Math.round(d.soc) + "%\n总压 " + d.packv.toFixed(1) + " V\n总电流 " + d.packi.toFixed(1) + " A"
+            case "mppt1": return "MPPT 1\n光伏输入 " + d.pvM + " W\n充电电流 " + d.c1.toFixed(1) + " A\n转换效率 " + root.nn(d.eff1) + "%"
+            case "mppt2": return "MPPT 2\n光伏输入 " + d.pvS + " W\n充电电流 " + d.c2.toFixed(1) + " A\n转换效率 " + root.nn(d.eff2) + "%"
+            case "bms": return "102S 主电池组\n荷电状态 SOC " + Math.round(d.soc) + "%\n总压 " + d.packv.toFixed(1) + " V\n总电流 " + root.nn(d.packi,1) + " A"
             case "mot1": case "mot2": case "mot3": case "mot4": {
                 const name = ["左前","左后","右后","右前"][parseInt(id.slice(3),10)-1]
-                return "推进电机 · " + name + "\n功率 " + d.mot1 + " W\n转速 " + Math.round(d.rpmMot) + " rpm"
+                const m = d.mots[parseInt(id.slice(3),10)-1] || {p:NaN,rpm:NaN}
+                return "推进电机 · " + name + "\n功率 " + root.nn(m.p) + " W\n转速 " + root.nn(m.rpm) + " rpm" + (isNaN(m.rpm) ? "\n（无电调遥测）" : "")
             }
             case "dcdc": return "DCDC 模块\n输出功率 " + d.op + " W\n输出电压 " + d.outv.toFixed(1) + " V\n散热温度 " + d.temp.toFixed(1) + " ℃"
-            case "bk": return "12S 备用锂电\n荷电状态 " + d.bkSoc + "%\n电压 " + d.bkV.toFixed(1) + " V\n与 DCDC 构成 48V 混动"
-            case "s1": return "左前上升电机\n转速 " + Math.round(d.rpmUp) + " rpm\n由 48V 母线供电"
-            case "s2": return "左后上升电机\n转速 " + Math.round(d.rpmUp) + " rpm\n由 48V 母线供电"
-            case "s3": return "前下降电机\n转速 " + Math.round(d.rpmDn) + " rpm\n由 48V 母线供电"
-            case "load": return "其他载荷\n功率 " + d.load48 + " W\n48V 弱电负载"
-            case "s4": return "后下降电机\n转速 " + Math.round(d.rpmDn) + " rpm\n由 48V 母线供电"
-            case "s5": return "右后上升电机\n转速 " + Math.round(d.rpmUp) + " rpm\n由 48V 母线供电"
-            case "s6": return "右前上升电机\n转速 " + Math.round(d.rpmUp) + " rpm\n由 48V 母线供电"
+            case "bk": return "12S 备用锂电\n荷电状态 " + root.nn(d.bkSoc) + "%\n电压 " + root.nn(d.bkV,1) + " V\n与 DCDC 构成 48V 混动"
+            case "s1": return "左前上升电机\n遥测暂未接入\n由 48V 母线供电"
+            case "s2": return "左后上升电机\n遥测暂未接入\n由 48V 母线供电"
+            case "s3": return "前下降电机\n遥测暂未接入\n由 48V 母线供电"
+            case "load": return "其他载荷\n遥测暂未接入\n48V 弱电负载"
+            case "s4": return "后下降电机\n遥测暂未接入\n由 48V 母线供电"
+            case "s5": return "右后上升电机\n遥测暂未接入\n由 48V 母线供电"
+            case "s6": return "右前上升电机\n遥测暂未接入\n由 48V 母线供电"
         }
         return ""
     }
@@ -529,7 +539,7 @@ Item {
                 anchors.fill: parent; anchors.margins: 16
                 Text { text: "图示"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
                 Text {
-                    text: ["电源链路","温度监测","实时曲线"][root.treeNode]
+                    text: ["能源拓扑","温度监测","实时曲线"][root.treeNode]
                     font.pixelSize: 12; font.weight: Font.DemiBold; color: root.themeRoot.colText2
                 }
                 Item { Layout.fillWidth: true }
@@ -559,7 +569,7 @@ Item {
                         font.letterSpacing: 0.5
                         bottomPadding: 6
                     }
-                    // 电源链路
+                    // 能源拓扑
                     Rectangle {
                         width: parent.width; height: 46; radius: 10
                         color: root.treeNode === 0 ? root.themeRoot.colPrimarySoft : "transparent"
@@ -567,7 +577,7 @@ Item {
                             anchors.centerIn: parent; spacing: 10
                             Text { text: "◎"; font.pixelSize: 16; color: root.treeNode===0 ? root.themeRoot.colPrimary : root.themeRoot.colText2 }
                             Text {
-                                text: root.themeRoot.dense ? "" : "电源链路"
+                                text: root.themeRoot.dense ? "" : "能源拓扑"
                                 font.pixelSize: 15; font.weight: Font.DemiBold
                                 color: root.treeNode===0 ? root.themeRoot.colPrimary : root.themeRoot.colText2
                             }
@@ -688,10 +698,12 @@ Item {
 
                     // 虚线流动动画（对齐原型 @keyframes flow 1s / flow-bi 1.2s）
                     Timer {
-                        interval: 50; repeat: true; running: topoCanvas.visible
+                        // 30fps 步进保持虚线流动连贯；相位不在此处取模——
+                        // 图案周期随 sc 缩放，取模必须放在绘制处按真实周期做，否则回绕顿挫
+                        interval: 33; repeat: true; running: topoCanvas.visible
                         onTriggered: {
-                            topoCanvas.flowOff = (topoCanvas.flowOff + 0.7) % 14
-                            topoCanvas.flowOffBi = (topoCanvas.flowOffBi + 0.333) % 8
+                            topoCanvas.flowOff += 0.47     // ≈14 px/s
+                            topoCanvas.flowOffBi += 0.22   // ≈6.6 px/s
                             topoCanvas.requestPaint()
                         }
                     }
@@ -867,9 +879,9 @@ Item {
                             ctx.fillText(tag, topoCanvas.mx(tagX), topoCanvas.my(tagY))
                         }
                         bus(topoCanvas._bus1Y, topoCanvas._bus1J,
-                            "第一级母线 · " + Math.round(D.packv) + "V · 负载 " + D.bus1Load + "W", 110, 201)
+                            "第一级母线 · " + Math.round(D.packv) + "V", 110, 201)
                         bus(topoCanvas._bus2Y, topoCanvas._bus2J,
-                            "第二级母线 · 48V · 负载 " + D.op + "W", 140, 603)
+                            "第二级母线 · 48V · DCDC 负载 " + D.op + "W", 140, 603)
 
                         // ===== 连线（虚线 + 流动 + 箭头 + 标注；离线置灰停动画）=====
                         // 线状态（对齐原型 updateTopo 离线联动）
@@ -879,33 +891,46 @@ Item {
                             if (mpptOff && (f==="l1a"||f==="l1b"||f==="l2a"||f==="l2b")) return true
                             return false
                         }
-                        // 连线标注值（对齐原型 updateTopo）
+                        // 连线标注值（真实遥测/严格推导；无传感器来源的支路显示 "--"）
                         function linkVal(f, d) {
                             if (f==="l1a") return d.pvM+" W"
                             if (f==="l1b") return d.pvS+" W"
                             if (f==="l2a") return d.c1.toFixed(1)+" A"
                             if (f==="l2b") return d.c2.toFixed(1)+" A"
-                            if (/^l3[a-d]$/.test(f)) return (d.mot1/(d.packv||1)).toFixed(1)+" A"
-                            if (f==="l4") return (d.op/(d.packv||1)).toFixed(1)+" A"
-                            if (f==="l5") return (d.op/48).toFixed(1)+" A"
-                            if (/^l6[a-f]$/.test(f)) return (d.sm1/48).toFixed(1)+" A"
-                            if (f==="l7") return (d.load48/48).toFixed(1)+" A"
+                            // l3a-d 电机支路：有电调遥测时按各路电流，否则 --（原按虚构均分计算已删）
+                            if (/^l3[a-d]$/.test(f)) {
+                                const mi = parseInt(f.slice(-1),10)-1
+                                const m = d.mots[mi]
+                                if (!m || isNaN(m.p) || !d.packv) return "--"
+                                const ec = bridge.fcEscCur(mi)
+                                return isNaN(ec) ? "--" : ec.toFixed(1)+" A"
+                            }
+                            if (f==="l4") return d.op && d.packv ? (d.op/(d.packv)).toFixed(1)+" A" : "--"
+                            if (f==="l5") return d.op ? (d.op/48).toFixed(1)+" A" : "--"
+                            // l6 舵机支路 / l7 其他载荷：无独立电流测量
+                            if (/^l6[a-f]$/.test(f)) return "--"
+                            if (f==="l7") return "--"
                             return ""
                         }
-                        // 双向线充放电标注（对齐原型 setBatFlow）
-                        function batFlow(batP, volts) {
-                            const cur = Math.abs(batP)/(volts||1)
-                            return batP>=0 ? "充电 "+cur.toFixed(1)+" A" : "放电 "+cur.toFixed(1)+" A"
+                        // 双向线充放电标注（真实电池电流，充电为正）
+                        function batFlow(cur) {
+                            if (cur == null || isNaN(cur)) return "充放 --"
+                            const a = Math.abs(cur)
+                            return cur>=0 ? "充电 "+a.toFixed(1)+" A" : "放电 "+a.toFixed(1)+" A"
                         }
-                        // 双向线流动反向（放电 reverse）
-                        const lb1Rev = D.bat1 < 0, lb2Rev = D.bat2 < 0
-                        const biDir = {lb1: lb1Rev, lb2: lb2Rev}
 
                         for (const l of topoCanvas._links) {
                             const off = linkOff(l.id)
                             const col = off ? T.colOff : T.colPrimary
                             const x1 = topoCanvas.mx(l.x1), y1 = topoCanvas.my(l.y1)
                             const x2 = topoCanvas.mx(l.x2), y2 = topoCanvas.my(l.y2)
+                            // 端点统一回退：所有连线与母线/模块边框保持一致间距，箭头不压端子
+                            const dxv = x2-x1, dyv = y2-y1
+                            const segLen = Math.hypot(dxv, dyv) || 1
+                            const ux = dxv/segLen, uy = dyv/segLen
+                            const pad = 10*sc
+                            const ax1 = x1+ux*pad, ay1 = y1+uy*pad
+                            const ax2 = x2-ux*pad, ay2 = y2-uy*pad
                             const wl = Math.max(1.5, 2.5*sc)
                             ctx.strokeStyle = col
                             ctx.lineWidth = wl
@@ -913,19 +938,36 @@ Item {
                             // 虚线：普通 8 6 / 双向 4 4；离线不流动
                             if (l.bi) { ctx.setLineDash([4*sc, 4*sc]) } else { ctx.setLineDash([8*sc, 6*sc]) }
                             if (!off) {
-                                const offpx = l.bi ? topoCanvas.flowOffBi : topoCanvas.flowOff
-                                ctx.lineDashOffset = (l.bi && biDir[l.id]) ? offpx : -offpx
+                                // 相位按该线真实图案周期取模（周期随 sc 缩放，固定取模会顿挫）
+                                const per = l.bi ? 8*sc : 14*sc
+                                const ph = l.bi ? topoCanvas.flowOffBi : topoCanvas.flowOff
+                                const dashOff = ((ph % per) + per) % per
+                                // 流动统一语义（真机三校准）：虚线永远流向「箭头指向」的方向
+                                // 单向线：仅终点一支箭头指向受电端 ⇒ 虚线向终点流 = -dashOff
+                                // 双向 lb1/lb2 端点均为 x1=电池侧、x2=母线侧，两端箭头分别指向
+                                // 各自连接的设备（母线端箭头指向母线 / 电池端箭头指向电池）；
+                                // pack_i/bk_i 充电为正：
+                                //   放电(电流<0)：能量 电池→母线（流向母线端箭头指向）= -dashOff
+                                //   充电(电流>=0)：能量 母线→电池（流向电池端箭头指向）= +dashOff
+                                //   电流未知(NaN)：充放状态不明，虚线静止
+                                let dashSign = -1   // 默认：单向线正向（流向箭头指向）
+                                if (l.bi) {
+                                    const cur = l.id==="lb1" ? D.packi : D.bkI
+                                    if (isNaN(cur)) dashSign = 0    // 充放状态不明：虚线静止
+                                    else dashSign = (cur < 0) ? -1 : +1
+                                }
+                                if (dashSign !== 0)
+                                    ctx.lineDashOffset = dashSign * dashOff
                             }
-                            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+                            ctx.beginPath(); ctx.moveTo(ax1, ay1); ctx.lineTo(ax2, ay2); ctx.stroke()
                             ctx.setLineDash([]); ctx.lineDashOffset = 0
                             // 标注（箭头统一在 onPaint 末尾最上层绘制，避免被母线/节点遮挡）
                             let txt = ""
                             let tcol = T.colText2
                             if (l.bi) {
-                                const dV = l.id==="lb1" ? D.bat1 : D.bat2
-                                const dVt = l.id==="lb1" ? (D.packv||1) : 48
-                                txt = batFlow(dV, dVt)
-                                tcol = dV>=0 ? T.colOk : T.colErr   // 充电绿 / 放电红（对齐 .charge/.discharge）
+                                const dV = l.id==="lb1" ? D.packi : D.bkI   // 真实电池电流（充电为正）
+                                txt = batFlow(dV)
+                                tcol = !isNaN(dV) ? (dV>=0 ? T.colOk : T.colErr) : T.colOff   // 充电绿 / 放电红
                                 if (off) tcol = T.colOff
                             } else {
                                 txt = linkVal(l.id, D)
@@ -940,37 +982,44 @@ Item {
                         // ===== 节点卡（框 + 图标 + 标题 + 主值 + 副值；告警黄框 / 离线置灰）=====
                         // 节点离线规则（对齐原型 updateTopo）
                         function nodeOff(id) {
-                            if (dcdcOff && (id==="dcdc"||id==="bk"||/^s\d$/.test(id)||id==="load")) return true
+                            if (dcdcOff && (id==="dcdc"||/^s\d$/.test(id)||id==="load")) return true
+                            if (root.off("backup") && id==="bk") return true   // 12S 备电按自身在线状态
                             if (bmsOff && id==="bms") return true
                             if (mpptOff && (id==="mppt1"||id==="mppt2")) return true
                             return false
                         }
-                        // 节点内容（对齐原型 updateTopo）
+                        // 节点内容（真实遥测；无传感器来源显示 "--"）
                         function nodeVal(id, d) {
                             switch (id) {
                                 case "pv1": return {v: d.pvM+" W", s: d.pvMv.toFixed(1)+" V", ic:"sun"}
                                 case "pv2": return {v: d.pvS+" W", s: d.pvSv.toFixed(1)+" V", ic:"sun"}
-                                case "mppt1": return {v: d.c1.toFixed(1)+" A", s:"效率 "+d.eff+"%", ic:"bolt"}
-                                case "mppt2": return {v: d.c2.toFixed(1)+" A", s:"效率 "+d.eff+"%", ic:"bolt"}
+                                case "mppt1": return {v: d.c1.toFixed(1)+" A", s:"效率 "+root.nn(d.eff1)+"%", ic:"bolt"}
+                                case "mppt2": return {v: d.c2.toFixed(1)+" A", s:"效率 "+root.nn(d.eff2)+"%", ic:"bolt"}
                                 case "bms": return {v: Math.round(d.soc)+"%", s: d.packv.toFixed(1)+" V", ic:"bat"}
                                 case "dcdc": return {v: d.op+" W", s: d.temp.toFixed(1)+" ℃", ic:"bolt"}
-                                case "bk": return {v: d.bkSoc+"%", s: d.bkV.toFixed(1)+" V", ic:"bat"}
-                                case "mot1": case "mot2": case "mot3": case "mot4": return {v: d.rpmMot+" rpm", s:"在线", ic:"mH"}
-                                case "s1": case "s2": case "s5": case "s6": return {v: d.rpmUp+" rpm", s:"在线", ic:"mV"}
-                                case "s3": case "s4": return {v: d.rpmDn+" rpm", s:"在线", ic:"mD"}
-                                case "load": return {v: d.load48+" W", s:"在线", ic:"gear"}
+                                case "bk": {
+                                    if (isNaN(d.bkSoc)) return {v:"--", s:"-- V", ic:"bat"}
+                                    return {v: Math.round(d.bkSoc)+"%", s: d.bkV.toFixed(1)+" V", ic:"bat"}
+                                }
+                                case "mot1": case "mot2": case "mot3": case "mot4": {
+                                    const m = d.mots[parseInt(id.slice(3),10)-1] || {p:NaN,rpm:NaN}
+                                    return isNaN(m.rpm) ? {v:"-- rpm", s:"无遥测", ic:"mH"}
+                                                        : {v: m.rpm+" rpm", s: root.nn(m.p)+" W", ic:"mH"}
+                                }
+                                case "s1": case "s2": case "s5": case "s6":
+                                case "s3": case "s4": return {v:"-- rpm", s:"无遥测", ic:"mV"}
+                                case "load": return {v:"-- W", s:"无遥测", ic:"gear"}
                             }
                             return {v:"", s:"", ic:""}
                         }
-                        // 节点告警规则（对齐原型 updateTopo）
+                        // 节点告警规则（仅对有真实遥测的节点判定，无数据源不误报）
                         function nodeWarn(id, d) {
                             if (dcdcOff && (id==="dcdc"||/^s\d$/.test(id))) return false
                             if (id==="dcdc") return d.temp > 43
                             if (id==="bms") return d.soc < 20
-                            if (id==="mppt1"||id==="mppt2") return d.eff < 90
-                            if (/^mot[1-4]$/.test(id)) return d.rpmMot > 520
-                            if (/^(s1|s2|s5|s6)$/.test(id)) return d.rpmUp > 2200
-                            if (/^(s3|s4)$/.test(id)) return d.rpmDn > 1500
+                            if (id==="mppt1") return !isNaN(d.eff1) && d.eff1 < 90
+                            if (id==="mppt2") return !isNaN(d.eff2) && d.eff2 < 90
+                            // 电机/舵机/载荷：无阈值遥测，不虚构告警
                             return false
                         }
                         for (const n of topoCanvas._nodes) {
@@ -1009,21 +1058,28 @@ Item {
                             ctx.fillText(cv.s, cx, cy + 33*sc)
                         }
 
-                        // ===== 箭头统一绘制（最上层，保证不被母线/节点遮挡）=====
+                        // ===== 箭头统一绘制（最上层，保证不被母线/节点遮挡；端点已回退 pad）=====
                         for (const l of topoCanvas._links) {
                             const off = linkOff(l.id)
                             const col = off ? T.colOff : T.colPrimary
                             const x1 = topoCanvas.mx(l.x1), y1 = topoCanvas.my(l.y1)
                             const x2 = topoCanvas.mx(l.x2), y2 = topoCanvas.my(l.y2)
+                            const dxv = x2-x1, dyv = y2-y1
+                            const segLen = Math.hypot(dxv, dyv) || 1
+                            const ux = dxv/segLen, uy = dyv/segLen
+                            const pad = 10*sc
+                            const ax1 = x1+ux*pad, ay1 = y1+uy*pad
+                            const ax2 = x2-ux*pad, ay2 = y2-uy*pad
                             const ang = Math.atan2(y2-y1, x2-x1)
                             const as = Math.max(3, 6*sc)
                             ctx.save()
                             ctx.fillStyle = col
-                            // 双向线两端箭头；单向线终点箭头
-                            const ends = l.bi ? [[x1,y1],[x2,y2]] : [[x2,y2]]
+                            // 双向线：两端各一支、方向相对——终点侧指向母线(x2 向)、起点侧指向电池组(x1 向)；
+                            // 单向线：仅终点一支，沿路径方向
+                            const ends = l.bi ? [[ax2,ay2,ang],[ax1,ay1,ang+Math.PI]] : [[ax2,ay2,ang]]
                             for (const e of ends) {
                                 ctx.save()
-                                ctx.translate(e[0], e[1]); ctx.rotate(ang)
+                                ctx.translate(e[0], e[1]); ctx.rotate(e[2])
                                 ctx.beginPath(); ctx.moveTo(as, 0); ctx.lineTo(-as*0.6, -as*0.6); ctx.lineTo(-as*0.6, as*0.6); ctx.closePath(); ctx.fill()
                                 ctx.restore()
                             }

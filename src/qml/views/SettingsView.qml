@@ -729,7 +729,7 @@ Item {
                         spacing: 18
                         Repeater {
                             model: [
-                                ["strip","飞艇横幅"],["power","电源总览"],
+                                ["strip","飞艇横幅"],
                                 ["mppt_main","主囊 MPPT"],["mppt_sub","副囊 MPPT"],
                                 ["bms","102S 主电源"],["backup","12S 备用电源"],
                                 ["dcdc","DCDC 电源模块"],["lora","温度/压力采集"],
