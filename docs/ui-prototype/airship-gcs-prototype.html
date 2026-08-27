@@ -276,8 +276,16 @@
   .check-item .ci-dev{font-size:11px;color:var(--text-2);width:48px;flex-shrink:0;font-weight:700}
   .check-item .ci-name{flex:1;font-weight:600}
   .check-item .ci-val{font-family:ui-monospace,monospace;font-size:13px;color:var(--text-2)}
+  .check-item .ci-th{font-family:ui-monospace,monospace;font-size:11px;color:var(--text-2);background:var(--bg-2);padding:2px 8px;border-radius:6px;flex-shrink:0}
+  .check-item .ci-off{font-size:10px;padding:1px 6px;border-radius:5px;background:var(--bg-2);color:var(--text-2);font-weight:600;margin-left:6px}
+  .check-item .ci-cfg{width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer;transition:all .15s}
+  .check-item .ci-cfg svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .check-item .ci-cfg:hover{background:var(--card);border-color:var(--line);color:var(--primary)}
   .check-item.fail .ci-name{color:var(--err)}
   .check-item.fail{border-color:var(--err);background:var(--err-soft)}
+  .check-item.skip{opacity:.72}
+  .check-item.skip .st{background:var(--bg-2);color:var(--text-2)}
+  .check-item.skip .ci-name{color:var(--text-2)}
   /* ===== 占位视图 ===== */
   .placeholder{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-2);border:2px dashed var(--line);border-radius:var(--r-lg);background:var(--card)}
   .placeholder .ic{width:52px;height:52px;opacity:.5;stroke-width:1.5;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
@@ -1823,36 +1831,120 @@ function evalRules(){
 }
 renderRules();
 let checkState=[]; // 保存最近一次自检结果，供就绪度使用
+/* 自检项定义（参数可编辑，持久化于 localStorage gcs_checkcfg） */
+const CK_GEAR_SVG='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>';
+const CHECK_DEFS=[
+  {id:'bms_online',dev:'BMS',name:'链路在线',fid:'',unit:'',mode:'none',cmp:'gt',min:null,max:null,val:null,en:true},
+  {id:'bms_packv',dev:'BMS',name:'总压正常',fid:'pack_v',unit:'V',mode:'range',min:360,max:380,val:null,en:true},
+  {id:'bms_soc',dev:'BMS',name:'SOC 充足',fid:'soc',unit:'%',mode:'single',cmp:'gt',min:null,max:null,val:30,en:true},
+  {id:'bms_maxt',dev:'BMS',name:'最高温度',fid:'max_t',unit:'℃',mode:'single',cmp:'lt',min:null,max:null,val:50,en:true},
+  {id:'bms_diffv',dev:'BMS',name:'单体压差',fid:'diff_v',unit:'V',mode:'single',cmp:'lte',min:null,max:null,val:0.05,en:true},
+  {id:'mppt_online',dev:'MPPT',name:'链路在线',fid:'',unit:'',mode:'none',cmp:'gt',min:null,max:null,val:null,en:true},
+  {id:'mppt_pvv',dev:'MPPT',name:'光伏电压',fid:'pv_v',unit:'V',mode:'range',min:20,max:120,val:null,en:true},
+  {id:'mppt_chargei',dev:'MPPT',name:'充电电流',fid:'charge_i',unit:'A',mode:'single',cmp:'gt',min:null,max:null,val:0,en:true},
+  {id:'dcdc_online',dev:'DCDC',name:'链路在线',fid:'',unit:'',mode:'none',cmp:'gt',min:null,max:null,val:null,en:true},
+  {id:'dcdc_outv',dev:'DCDC',name:'输出电压',fid:'out_v',unit:'V',mode:'range',min:40,max:60,val:null,en:true},
+  {id:'dcdc_temp',dev:'DCDC',name:'散热温度',fid:'temp',unit:'℃',mode:'single',cmp:'lt',min:null,max:null,val:45,en:true}
+];
+const CK_STORE='gcs_checkcfg';
+function loadCheckCfg(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(CK_STORE));
+    if(saved&&Array.isArray(saved))return CHECK_DEFS.map(d=>{const s=saved.find(x=>x.id===d.id);return s?{...d,...s}:{...d};});
+  }catch(e){}
+  return CHECK_DEFS.map(d=>({...d}));
+}
+function saveCheckCfg(defs){try{localStorage.setItem(CK_STORE,JSON.stringify(defs.map(d=>({id:d.id,en:d.en,mode:d.mode,cmp:d.cmp,min:d.min,max:d.max,val:d.val}))))}catch(e){}}
+const CK_CMP={gt:['>','大于 >'],lt:['<','小于 <'],gte:['≥','大于等于 ≥'],lte:['≤','小于等于 ≤']};
+function ckThText(def){
+  if(def.mode==='none')return '';
+  return def.mode==='range'?def.min+'~'+def.max+def.unit:(CK_CMP[def.cmp]?CK_CMP[def.cmp][0]:'>')+def.val+def.unit;
+}
+function ckFmt(def,v){
+  if(def.unit==='%')return Math.round(v)+'%';
+  if(def.unit==='V'&&Math.abs(v)<1)return v.toFixed(2)+'V';
+  return v.toFixed(1)+def.unit;
+}
+function ckEval(def){
+  if(!def.en)return {ok:null,val:'已停用'};
+  if(def.mode==='none')return {ok:true,val:'在线'};
+  const v=getVal(def.dev.toLowerCase(),def.fid);
+  if(isNaN(v))return {ok:false,val:'—'};
+  if(def.mode==='range')return {ok:v>def.min&&v<def.max,val:ckFmt(def,v)};
+  const hit=def.cmp==='gt'?v>def.val:def.cmp==='gte'?v>=def.val:def.cmp==='lte'?v<=def.val:v<def.val;
+  return {ok:hit,val:ckFmt(def,v)};
+}
 function runCheck(){
-  const checks=[
-    ['BMS','链路在线',null],
-    ['BMS','总压正常 (360–380V)',()=>{const v=getVal('bms','pack_v');return{ok:!isNaN(v)&&v>360&&v<380,val:isNaN(v)?'—':v.toFixed(1)+'V'};}],
-    ['BMS','SOC 充足 (>30%)',()=>{const v=getVal('bms','soc');return{ok:!isNaN(v)&&v>30,val:isNaN(v)?'—':Math.round(v)+'%'};}],
-    ['BMS','最高温度 <50℃',()=>{const v=getVal('bms','max_t');return{ok:!isNaN(v)&&v<50,val:isNaN(v)?'—':v.toFixed(1)+'℃'};}],
-    ['BMS','单体压差 <0.05V',()=>{const v=getVal('bms','diff_v');return{ok:!isNaN(v)&&v<0.05,val:isNaN(v)?'—':v.toFixed(2)+'V'};}],
-    ['MPPT','链路在线',null],
-    ['MPPT','光伏电压 20–120V',()=>{const v=getVal('mppt','pv_v');return{ok:!isNaN(v)&&v>20&&v<120,val:isNaN(v)?'—':v.toFixed(1)+'V'};}],
-    ['MPPT','充电电流 >0A',()=>{const v=getVal('mppt','charge_i');return{ok:!isNaN(v)&&v>0,val:isNaN(v)?'—':v.toFixed(1)+'A'};}],
-    ['DCDC','链路在线',null],
-    ['DCDC','输出电压 40–60V',()=>{const v=getVal('dcdc','out_v');return{ok:!isNaN(v)&&v>40&&v<60,val:isNaN(v)?'—':v.toFixed(1)+'V'};}],
-    ['DCDC','散热温度 <45℃',()=>{const v=getVal('dcdc','temp');return{ok:!isNaN(v)&&v<45,val:isNaN(v)?'—':v.toFixed(1)+'℃'};}],
-  ];
+  const defs=loadCheckCfg();
   const list=$('checkList');list.innerHTML='';
   checkState=[];let all=true;
-  checks.forEach(([dev,name,fn])=>{
-    let pass=true,val='在线';
-    if(fn!==null){const r=fn();pass=r.ok;val=r.val;}
-    if(!pass)all=false;
-    checkState.push({dev,name,pass,val});
+  defs.forEach(def=>{
+    const r=ckEval(def);
     const item=document.createElement('div');
-    item.className='check-item '+(pass?'pass':'fail');
-    item.innerHTML=`<span class="st">${pass?'✓':'✗'}</span><span class="ci-dev">${dev}</span><span class="ci-name">${name}</span><span class="ci-val">${val}</span><span class="ci-block">阻塞起飞</span>`;
+    if(!def.en){ /* 停用：跳过态，不参与就绪度统计 */
+      item.className='check-item skip';
+      item.innerHTML=`<span class="st">–</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}<span class="ci-off">已停用</span></span><span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>`;
+    }else{
+      if(!r.ok)all=false;
+      checkState.push({dev:def.dev,name:def.name,pass:r.ok,val:r.val});
+      item.className='check-item '+(r.ok?'pass':'fail');
+      item.innerHTML=`<span class="st">${r.ok?'✓':'✗'}</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}</span>${def.mode!=='none'?`<span class="ci-th">${ckThText(def)}</span>`:''}<span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>${r.ok?'':'<span class="ci-block">阻塞起飞</span>'}`;
+    }
     list.appendChild(item);
   });
   $('checkResult').textContent=all?'全部通过':'有项未通过';
   $('checkResult').className='result '+(all?'pass':'fail');
   updateReadiness();
 }
+/* 自检参数编辑弹窗 */
+function openCheckEditor(def){
+  const mOpt=(m,l)=>`<option value="${m}" ${def.mode===m?'selected':''}>${l}</option>`;
+  const cOpt=Object.entries(CK_CMP).map(([v,[,l]])=>`<option value="${v}" ${def.cmp===v?'selected':''}>${l}</option>`).join('');
+  openModal('自检参数 · '+def.dev+' '+def.name,`
+    <div class="set-group" style="display:flex;flex-direction:column;gap:2px">
+      <label class="cfg-item"><input type="checkbox" id="ckEn" ${def.en?'checked':''}><span>启用此自检项</span></label>
+      <div class="set-row"><label>检查方式</label><select id="ckMode" class="mp-sel">${mOpt('none','无（仅在线）')}${mOpt('single','单阈值')}${mOpt('range','范围（下限~上限）')}</select></div>
+      <div class="set-row" id="ckRowCmp" style="${def.mode==='single'?'':'display:none'}"><label>比较符</label><select id="ckCmp" class="mp-sel">${cOpt}</select></div>
+      <div class="set-row" id="ckRowVal" style="${def.mode==='single'?'':'display:none'}"><label>阈值数值</label><input id="ckVal" class="mp-num" type="number" step="any" value="${def.val!=null?def.val:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
+      <div class="set-row" id="ckRowMin" style="${def.mode==='range'?'':'display:none'}"><label>下限</label><input id="ckMin" class="mp-num" type="number" step="any" value="${def.min!=null?def.min:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
+      <div class="set-row" id="ckRowMax" style="${def.mode==='range'?'':'display:none'}"><label>上限</label><input id="ckMax" class="mp-num" type="number" step="any" value="${def.max!=null?def.max:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn ghost" onclick="document.getElementById('modalClose').click()">取消</button>
+      <button class="btn" id="ckSave">保存</button>
+    </div>`);
+  const sync=()=>{
+    const m=$('ckMode').value;
+    $('ckRowCmp').style.display=m==='single'?'':'none';
+    $('ckRowVal').style.display=m==='single'?'':'none';
+    $('ckRowMin').style.display=m==='range'?'':'none';
+    $('ckRowMax').style.display=m==='range'?'':'none';
+  };
+  $('ckMode').onchange=sync;
+  const readNum=(id)=>{const s=$(id).value.trim();return s===''||isNaN(parseFloat(s))?null:parseFloat(s);};
+  $('ckSave').onclick=()=>{
+    const m=$('ckMode').value;
+    /* 校验：单阈值/范围模式需有效数值；范围要求 min<max */
+    if(m==='single'){
+      const v=readNum('ckVal');
+      if(v===null){toast('请输入有效的阈值数值','err');$('ckVal').focus();return;}
+    }else if(m==='range'){
+      const mn=readNum('ckMin'),mx=readNum('ckMax');
+      if(mn===null||mx===null){toast('请输入有效的下限和上限','err');return;}
+      if(mn>=mx){toast('下限必须小于上限','err');return;}
+    }
+    const defs=loadCheckCfg(),d=defs.find(x=>x.id===def.id);
+    d.en=$('ckEn').checked;d.mode=m;d.cmp=$('ckCmp').value;
+    if(m==='single'){d.val=readNum('ckVal');}          /* 未涉及的隐藏字段保持原值，不被污染 */
+    else if(m==='range'){d.min=readNum('ckMin');d.max=readNum('ckMax');}
+    saveCheckCfg(defs);runCheck();$('modalClose').click();toast('自检参数已保存');
+  };
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-cfg]');if(!b)return;
+  const def=loadCheckCfg().find(d=>d.id===b.dataset.cfg);
+  if(def)openCheckEditor(def);
+});
 $('recheck').onclick=runCheck;
 setInterval(runCheck,10000); // 自检自动刷新
 
