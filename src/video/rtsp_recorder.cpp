@@ -33,6 +33,7 @@ bool RtspRecorder::start(const QString &url, const QString &filePath)
     if (url.isEmpty() || filePath.isEmpty())
         return false;
     fileName_ = QFileInfo(filePath).fileName();
+    keySeen_ = false;   // 重置关键帧门卫（每次录制从 IDR 重新对齐）
 
     // 程序化构建（与 RtspStream 同思路）：g_object_set 直接设置 location，
     // 避免 gst_parse_launch 对 URL 的字符串解析陷阱。
@@ -60,6 +61,9 @@ bool RtspRecorder::start(const QString &url, const QString &filePath)
     g_object_set(sink, "location", filePath.toUtf8().constData(), nullptr);
 
     gst_bin_add_many(GST_BIN(pipeline_), src, parse, mux, sink, nullptr);
+    // 把 recorder 实例挂到 mux 元素上：onPadAdded 为静态回调，user_data 已被
+    // 下游元素占用，probe 需要的 this 经由此处透传（mux 生存期覆盖整次录制）
+    g_object_set_data(G_OBJECT(mux), "lgs_rec", this);
     // matroskamux src pad 为 always，可与 filesink 静态链接
     if (!gst_element_link(mux, sink)) {
         qWarning() << "[RtspRecorder] 静态链接失败（matroskamux→filesink）";
@@ -72,6 +76,9 @@ bool RtspRecorder::start(const QString &url, const QString &filePath)
     // parsebin→mux（向 mux 请求 video_%u pad）
     g_signal_connect(src, "pad-added", G_CALLBACK(RtspRecorder::onPadAdded), parse);
     g_signal_connect(parse, "pad-added", G_CALLBACK(RtspRecorder::onPadAdded), mux);
+    // parsebin 自动创建 h264parse/h265parse 时注入 config-interval=-1（见头文件说明）：
+    // 云卓 HEVC 流必须每个关键帧前带内补发参数集，否则录制文件持续花屏
+    g_signal_connect(parse, "child-added", G_CALLBACK(RtspRecorder::onChildAdded), this);
 
     GstBus *bus = gst_element_get_bus(pipeline_);
     if (bus) {
@@ -171,6 +178,7 @@ void RtspRecorder::onPadAdded(GstElement *, GstPad *newPad, gpointer user_data)
     if (!caps)
         return;
     bool isVideo = false;
+    bool isEncoded = false;   // parsebin 输出的编码流（video/*），区别于 rtp 侧
     const GstStructure *s = gst_caps_get_structure(caps, 0);
     if (s) {
         const gchar *name = gst_structure_get_name(s);
@@ -179,11 +187,26 @@ void RtspRecorder::onPadAdded(GstElement *, GstPad *newPad, gpointer user_data)
             isVideo = (media && g_strcmp0(media, "video") == 0);
         } else {
             isVideo = g_str_has_prefix(name, "video/");
+            isEncoded = isVideo;
         }
     }
     gst_caps_unref(caps);
     if (!isVideo)
         return;
+
+    // 关键帧门卫（仅挂编码流输出侧，即 parsebin→mux 的 pad；rtp 侧无关键帧语义）：
+    // 首个 IDR（无 DELTA_UNIT 标志）之前的 buffer 全部丢弃，保证 mkv 从关键帧起步。
+    // 挂在 newPad（parsebin 输出）而非 mux 请求 pad：drop 阻止数据进入 mux。
+    // recorder 实例从 mux 元素的 g_object_data 取回（静态回调无法直接持 this）。
+    if (isEncoded) {
+        auto *self = static_cast<RtspRecorder *>(
+            g_object_get_data(G_OBJECT(next), "lgs_rec"));
+        if (self) {
+            self->keySeen_ = false;   // 新 pad 到来重置（多视频流各对齐一次）
+            gst_pad_add_probe(newPad, GST_PAD_PROBE_TYPE_BUFFER,
+                              &RtspRecorder::onKeyProbe, self, nullptr);
+        }
+    }
 
     // parsebin 的 sink 是静态 pad；matroskamux 需请求 video_%u pad
     // P2-7：get_static_pad / request_pad_simple 返回的 pad 均为调用者持有 +1 引用，
@@ -200,6 +223,38 @@ void RtspRecorder::onPadAdded(GstElement *, GstPad *newPad, gpointer user_data)
     if (GST_PAD_LINK_FAILED(gst_pad_link(newPad, sinkPad)))
         qWarning() << "[RtspRecorder] 动态 pad 链接失败";
     gst_object_unref(sinkPad);
+}
+
+void RtspRecorder::onChildAdded(GstBin *, GstElement *child, gpointer user_data)
+{
+    Q_UNUSED(user_data);
+    if (!child)
+        return;
+    // 按元素工厂名匹配 h264parse/h265parse，注入 config-interval=-1：
+    // 每个关键帧前重新发送 VPS/SPS/PPS（H.265）/ SPS/PPS（H.264）带内参数集。
+    // 实测（云卓 C14PRO HEVC）：不加则 mkv 中途参数集缺失，POC 参考错误 40 条持续花屏；
+    // 加后 1 条（仅起始对齐帧），画面全程清晰。
+    GstElementFactory *f = gst_element_get_factory(child);
+    if (!f)
+        return;
+    const gchar *fname = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(f));
+    if (g_strcmp0(fname, "h264parse") == 0 || g_strcmp0(fname, "h265parse") == 0)
+        g_object_set(child, "config-interval", -1, nullptr);
+}
+
+GstPadProbeReturn RtspRecorder::onKeyProbe(GstPad *, GstPadProbeInfo *info, gpointer user_data)
+{
+    auto *self = static_cast<RtspRecorder *>(user_data);
+    if (self->keySeen_.load())
+        return GST_PAD_PROBE_OK;   // 已对齐：全量放行
+    GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
+    // 无 DELTA_UNIT 标志 = 关键帧（IDR）：从它开始放行写入
+    if (buf && !GST_BUFFER_FLAG_IS_SET(buf, GST_BUFFER_FLAG_DELTA_UNIT)) {
+        self->keySeen_.store(true);
+        qInfo() << "[RtspRecorder] 首个关键帧已到达，开始写流:" << self->fileName_;
+        return GST_PAD_PROBE_OK;
+    }
+    return GST_PAD_PROBE_DROP;   // 关键帧前的 P/B 帧：丢弃（无参考基准，写入即花屏）
 }
 
 GstBusSyncReply RtspRecorder::onBusSync(GstBus *, GstMessage *msg, gpointer)
