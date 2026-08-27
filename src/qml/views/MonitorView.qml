@@ -22,7 +22,7 @@ Item {
         repeat: true
         onTriggered: root.osdTick++
     }
-    function bridgeReadiness() { void root.osdTick; void root.themeRoot.dataTick; return bridge.readinessState() }
+    function bridgeReadiness() { void root.osdTick; void root.themeRoot.dataTick; return checkEngine.readyLevel }
 
     function fmt(v, dp) { return isNaN(v) ? "--" : Number(v).toFixed(dp); }
     function fmtInt(v) { return isNaN(v) ? "--" : Math.round(v); }

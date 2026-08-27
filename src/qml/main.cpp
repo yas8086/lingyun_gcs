@@ -14,6 +14,7 @@
 #include "core/config_manager.h"
 #include "map/tile_provider.h"
 #include "qmlbridge/telemetry_bridge.h"
+#include "qmlbridge/check_engine.h"
 #include "video/rtsp_stream.h"
 #include "video/video_surface.h"
 
@@ -126,6 +127,9 @@ int main(int argc, char *argv[]) {
         QStringLiteral("RtspStream 通过 bridge.videoStream(camId) 获取"));
     engine.rootContext()->setContextProperty("bridge", &bridge);
     engine.rootContext()->setContextProperty("tileProvider", &tileProvider);
+    // 自检引擎（对齐原型自检模块）：11 项预置+自定义项动态增删+三态判定+就绪度聚合
+    lgs::CheckEngine checkEngine(&bridge);
+    engine.rootContext()->setContextProperty("checkEngine", &checkEngine);
     engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
     if (engine.rootObjects().isEmpty())
         return -1;

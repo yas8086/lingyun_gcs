@@ -37,6 +37,7 @@ add_executable(LingyunGCS
     src/qmlbridge/telemetry_bridge_config.cpp
     src/qmlbridge/telemetry_bridge_rules.cpp
     src/qmlbridge/telemetry_bridge_record.cpp
+    src/qmlbridge/check_engine.cpp
     src/video/rtsp_stream.cpp
     src/video/rtsp_recorder.cpp
     src/video/siyi_sdk_client.cpp
@@ -59,6 +60,8 @@ qt_add_resources(LingyunGCS "qml_res"
           src/qml/img/airship-blue.svg
           src/qml/img/camera.svg
           src/qml/img/camera-nav.svg
+          src/qml/img/check-gear.svg
+          src/qml/img/check-trash.svg
           src/qml/img/flight-data.svg
 )
 

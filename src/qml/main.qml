@@ -543,6 +543,17 @@ ApplicationWindow {
                         Column {
                             spacing: 8
                             Text { text: "整机就绪度 · 原因明细"; font.bold: true; font.pixelSize: 17; color: root.colText }
+                            // 空态（未自检/全部停用）：对齐原型"! 尚未执行自检"提示行
+                            Row {
+                                visible: root.readItems.length === 0
+                                spacing: 8
+                                Rectangle {
+                                    width: 22; height: 22; radius: 11
+                                    color: root.colErr
+                                    Text { anchors.centerIn: parent; text: "!"; color: "white"; font.pixelSize: 13; font.bold: true }
+                                }
+                                Text { text: "尚未执行自检"; font.pixelSize: 14; color: root.colText }
+                            }
                             Repeater {
                                 model: root.readItems
                                 Row {
@@ -709,9 +720,11 @@ ApplicationWindow {
     }
 
     function openReadPop(sourceItem) {
-        // 就绪度明细：单源消费 C++ readinessDetail()（与 readinessState() 阈值一致，
-        // 消除 QML 侧重复硬编码导致的阈值漂移，B4）
-        root.readItems = bridge.readinessDetail()
+        // 就绪度明细：单源消费 CheckEngine.checkState()（与 readyLevel 同一引擎同一轮结果，
+        // 阈值随自检页参数编辑实时生效，消除旧硬编码漂移）
+        root.readItems = checkEngine.checkState().map(function(c) {
+            return { name: c.dev + " · " + c.name, ok: !!c.pass, val: String(c.val) }
+        })
         // 相对窗口定位，水平居中于胶囊，紧贴按钮下方 2px，并做屏幕边界钳制防止右侧溢出
         if (sourceItem) {
             var pt = sourceItem.mapToItem(null, 0, sourceItem.height + 2)
@@ -726,6 +739,16 @@ ApplicationWindow {
     // 恢复后 append 操作不会自动生效，需手动触发 rtcTick 使 chartPanel 重同步。
     onActiveChanged: {
         if (root.active) root.rtcTick++
+    }
+
+    // ===== 自检引擎节拍（对齐原型 setInterval(runCheck, 10000)）：全局周期重跑 =====
+    // 启动立即先跑一轮（避免就绪度胶囊长时间停留在"待自检"），此后每 10s 刷新
+    Timer {
+        interval: 10000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: checkEngine.runAll()
     }
 
     // ===== Toast 通知（对齐原型 .toast-wrap/.toast：右上角堆叠，三色卡片 + 滑入滑出）=====

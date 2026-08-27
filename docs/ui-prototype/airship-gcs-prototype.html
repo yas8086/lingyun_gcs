@@ -281,6 +281,7 @@
   .check-item .ci-cfg{width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer;transition:all .15s}
   .check-item .ci-cfg svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .check-item .ci-cfg:hover{background:var(--card);border-color:var(--line);color:var(--primary)}
+  .check-item .ci-cfg.danger:hover{color:var(--err);border-color:var(--err)}
   .check-item.fail .ci-name{color:var(--err)}
   .check-item.fail{border-color:var(--err);background:var(--err-soft)}
   .check-item.skip{opacity:.72}
@@ -1071,6 +1072,7 @@
           <div class="check-head">
             <span class="t">系统自检 · 起飞前检查</span>
             <span class="result" id="checkResult">未自检</span>
+            <button class="btn ghost" id="ckAdd">＋ 新增自检项</button>
             <button class="btn" id="recheck">重新自检</button>
           </div>
           <div class="check-list" id="checkList"></div>
@@ -1847,14 +1849,23 @@ const CHECK_DEFS=[
   {id:'dcdc_temp',dev:'DCDC',name:'散热温度',fid:'temp',unit:'℃',mode:'single',cmp:'lt',min:null,max:null,val:45,en:true}
 ];
 const CK_STORE='gcs_checkcfg';
+const CK_TRASH_SVG='<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>';
 function loadCheckCfg(){
+  let defs=CHECK_DEFS.map(d=>({...d}));
   try{
     const saved=JSON.parse(localStorage.getItem(CK_STORE));
-    if(saved&&Array.isArray(saved))return CHECK_DEFS.map(d=>{const s=saved.find(x=>x.id===d.id);return s?{...d,...s}:{...d};});
+    if(saved&&Array.isArray(saved)){
+      /* 内置项：按 id 覆盖用户改动 */
+      defs=defs.map(d=>{const s=saved.find(x=>x&&x.id===d.id);return s?{...d,...s}:d;});
+      /* 自定义项：不在 CHECK_DEFS 中的保存条目，原样追加 */
+      saved.filter(s=>s&&s.id&&!CHECK_DEFS.some(d=>d.id===s.id)).forEach(s=>{
+        defs.push({dev:'自定义',name:'未命名',fid:'',unit:'',mode:'single',cmp:'gt',min:null,max:null,val:null,en:true,...s,custom:true});
+      });
+    }
   }catch(e){}
-  return CHECK_DEFS.map(d=>({...d}));
+  return defs;
 }
-function saveCheckCfg(defs){try{localStorage.setItem(CK_STORE,JSON.stringify(defs.map(d=>({id:d.id,en:d.en,mode:d.mode,cmp:d.cmp,min:d.min,max:d.max,val:d.val}))))}catch(e){}}
+function saveCheckCfg(defs){try{localStorage.setItem(CK_STORE,JSON.stringify(defs.map(d=>({...d}))))}catch(e){}}
 const CK_CMP={gt:['>','大于 >'],lt:['<','小于 <'],gte:['≥','大于等于 ≥'],lte:['≤','小于等于 ≤']};
 function ckThText(def){
   if(def.mode==='none')return '';
@@ -1881,14 +1892,15 @@ function runCheck(){
   defs.forEach(def=>{
     const r=ckEval(def);
     const item=document.createElement('div');
+    const delBtn=def.custom?`<button class="ci-cfg danger" data-del="${def.id}" title="删除此自检项">${CK_TRASH_SVG}</button>`:'';
     if(!def.en){ /* 停用：跳过态，不参与就绪度统计 */
       item.className='check-item skip';
-      item.innerHTML=`<span class="st">–</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}<span class="ci-off">已停用</span></span><span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>`;
+      item.innerHTML=`<span class="st">–</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}<span class="ci-off">已停用</span></span><span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>${delBtn}`;
     }else{
       if(!r.ok)all=false;
       checkState.push({dev:def.dev,name:def.name,pass:r.ok,val:r.val});
       item.className='check-item '+(r.ok?'pass':'fail');
-      item.innerHTML=`<span class="st">${r.ok?'✓':'✗'}</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}</span>${def.mode!=='none'?`<span class="ci-th">${ckThText(def)}</span>`:''}<span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>${r.ok?'':'<span class="ci-block">阻塞起飞</span>'}`;
+      item.innerHTML=`<span class="st">${r.ok?'✓':'✗'}</span><span class="ci-dev">${def.dev}</span><span class="ci-name">${def.name}</span>${def.mode!=='none'?`<span class="ci-th">${ckThText(def)}</span>`:''}<span class="ci-val">${r.val}</span><button class="ci-cfg" data-cfg="${def.id}" title="编辑自检参数">${CK_GEAR_SVG}</button>${delBtn}${r.ok?'':'<span class="ci-block">阻塞起飞</span>'}`;
     }
     list.appendChild(item);
   });
@@ -1898,16 +1910,26 @@ function runCheck(){
 }
 /* 自检参数编辑弹窗 */
 function openCheckEditor(def){
+  const isNew=!def.id;
+  const isCustom=!!def.custom;
+  const escH=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const mOpt=(m,l)=>`<option value="${m}" ${def.mode===m?'selected':''}>${l}</option>`;
   const cOpt=Object.entries(CK_CMP).map(([v,[,l]])=>`<option value="${v}" ${def.cmp===v?'selected':''}>${l}</option>`).join('');
-  openModal('自检参数 · '+def.dev+' '+def.name,`
+  /* 自定义项（新建或已有）额外展示元信息行 */
+  const metaRows=isCustom?`
+      <div class="set-row"><label>项目名称</label><input id="ckName" type="text" style="width:200px" maxlength="20" value="${escH(def.name)}" placeholder="如：输入电压"></div>
+      <div class="set-row"><label>设备标识</label><input id="ckDev" type="text" style="width:200px" maxlength="10" value="${escH(def.dev)}" placeholder="如：DCDC（判定取其小写前缀）"></div>
+      <div class="set-row"><label>数据字段 fid</label><input id="ckFid" type="text" style="width:200px" maxlength="24" value="${escH(def.fid)}" placeholder="监控页字段 id，如 out_i / in_v"></div>
+      <div class="set-row"><label>单位</label><input id="ckUnit" type="text" style="width:200px" maxlength="8" value="${escH(def.unit)}" placeholder="V / ℃ / A…，可留空"></div>`:'';
+  openModal(isNew?'新增自检项':'自检参数 · '+def.dev+' '+def.name,`
     <div class="set-group" style="display:flex;flex-direction:column;gap:2px">
       <label class="cfg-item"><input type="checkbox" id="ckEn" ${def.en?'checked':''}><span>启用此自检项</span></label>
+      ${metaRows}
       <div class="set-row"><label>检查方式</label><select id="ckMode" class="mp-sel">${mOpt('none','无（仅在线）')}${mOpt('single','单阈值')}${mOpt('range','范围（下限~上限）')}</select></div>
       <div class="set-row" id="ckRowCmp" style="${def.mode==='single'?'':'display:none'}"><label>比较符</label><select id="ckCmp" class="mp-sel">${cOpt}</select></div>
-      <div class="set-row" id="ckRowVal" style="${def.mode==='single'?'':'display:none'}"><label>阈值数值</label><input id="ckVal" class="mp-num" type="number" step="any" value="${def.val!=null?def.val:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
-      <div class="set-row" id="ckRowMin" style="${def.mode==='range'?'':'display:none'}"><label>下限</label><input id="ckMin" class="mp-num" type="number" step="any" value="${def.min!=null?def.min:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
-      <div class="set-row" id="ckRowMax" style="${def.mode==='range'?'':'display:none'}"><label>上限</label><input id="ckMax" class="mp-num" type="number" step="any" value="${def.max!=null?def.max:''}"><span style="font-size:12px;color:var(--text-2)">${def.unit}</span></div>
+      <div class="set-row" id="ckRowVal" style="${def.mode==='single'?'':'display:none'}"><label>阈值数值</label><input id="ckVal" class="mp-num" type="number" step="any" value="${def.val!=null?def.val:''}"><span style="font-size:12px;color:var(--text-2)">${escH(def.unit)}</span></div>
+      <div class="set-row" id="ckRowMin" style="${def.mode==='range'?'':'display:none'}"><label>下限</label><input id="ckMin" class="mp-num" type="number" step="any" value="${def.min!=null?def.min:''}"><span style="font-size:12px;color:var(--text-2)">${escH(def.unit)}</span></div>
+      <div class="set-row" id="ckRowMax" style="${def.mode==='range'?'':'display:none'}"><label>上限</label><input id="ckMax" class="mp-num" type="number" step="any" value="${def.max!=null?def.max:''}"><span style="font-size:12px;color:var(--text-2)">${escH(def.unit)}</span></div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
       <button class="btn ghost" onclick="document.getElementById('modalClose').click()">取消</button>
@@ -1933,18 +1955,42 @@ function openCheckEditor(def){
       if(mn===null||mx===null){toast('请输入有效的下限和上限','err');return;}
       if(mn>=mx){toast('下限必须小于上限','err');return;}
     }
-    const defs=loadCheckCfg(),d=defs.find(x=>x.id===def.id);
-    d.en=$('ckEn').checked;d.mode=m;d.cmp=$('ckCmp').value;
-    if(m==='single'){d.val=readNum('ckVal');}          /* 未涉及的隐藏字段保持原值，不被污染 */
-    else if(m==='range'){d.min=readNum('ckMin');d.max=readNum('ckMax');}
-    saveCheckCfg(defs);runCheck();$('modalClose').click();toast('自检参数已保存');
+    const defs=loadCheckCfg();
+    /* 元信息校验与收集（仅自定义项） */
+    let patch={en:$('ckEn').checked,mode:m,cmp:$('ckCmp').value};
+    if(m==='single')patch.val=readNum('ckVal');               /* 未涉及的隐藏字段保持原值，不被污染 */
+    else if(m==='range'){patch.min=readNum('ckMin');patch.max=readNum('ckMax');}
+    if(isCustom){
+      const name=$('ckName').value.trim(),dev=$('ckDev').value.trim(),fid=$('ckFid').value.trim();
+      if(!name){toast('请输入项目名称','err');$('ckName').focus();return;}
+      if(!dev){toast('请输入设备标识','err');$('ckDev').focus();return;}
+      if(m!=='none'&&!fid){toast('请输入数据字段 fid','err');$('ckFid').focus();return;}
+      patch.name=name;patch.dev=dev;patch.fid=fid;patch.unit=$('ckUnit').value.trim();
+    }
+    if(isNew){
+      let id='ck_'+Date.now();
+      while(defs.some(x=>x.id===id))id+='x';
+      defs.push({id,custom:true,min:null,max:null,val:null,...patch});
+    }else{
+      Object.assign(defs.find(x=>x.id===def.id),patch);
+    }
+    saveCheckCfg(defs);runCheck();$('modalClose').click();
+    toast(isNew?'自检项已添加':'自检参数已保存');
   };
 }
 document.addEventListener('click',e=>{
+  const del=e.target.closest('[data-del]');
+  if(del){
+    const defs=loadCheckCfg(),d=defs.find(x=>x.id===del.dataset.del);
+    if(d&&d.custom){saveCheckCfg(defs.filter(x=>x.id!==del.dataset.del));runCheck();toast('已删除自检项：'+d.name);}
+    return;
+  }
   const b=e.target.closest('[data-cfg]');if(!b)return;
   const def=loadCheckCfg().find(d=>d.id===b.dataset.cfg);
   if(def)openCheckEditor(def);
 });
+/* 新增自定义自检项 */
+$('ckAdd').onclick=()=>openCheckEditor({id:'',custom:true,en:true,mode:'single',cmp:'gt',val:0,min:0,max:100,name:'',dev:'',fid:'',unit:''});
 $('recheck').onclick=runCheck;
 setInterval(runCheck,10000); // 自检自动刷新
 
