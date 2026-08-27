@@ -5,6 +5,7 @@
 #include <QScreen>
 #include <QTime>
 #include <QThread>
+#include <QTimer>
 #include <QMetaObject>
 #include "comms/serial_manager.h"
 #include "comms/udp_link_source.h"
@@ -132,18 +133,21 @@ int main(int argc, char *argv[]) {
     // 显式确保根窗口背景色不透明
     if (auto *win = qobject_cast<QQuickWindow*>(engine.rootObjects().first())) {
         win->setColor(QColor("#eef2f7"));
-        // 窗口初始为隐藏（QML visible:false），未分配有效几何。
-        // 必须在 showMaximized() 之前先把窗口几何设为屏幕可用尺寸：
-        // 最大化状态由窗口管理器异步处理，若直接以默认小尺寸映射，
-        // 在 WM 完成调整前的第一帧会闪现小窗口（真机有 WM 时可见）。
-        // 先铺满可用区域，再请求最大化，即可完全消除小窗口闪现。
+        // 启动最大化（X11 + GNOME/Mutter 真机定案）：
+        // ① 先铺满可用区（QML visible:false 初始无几何，不铺满会在 map 首帧闪现小窗）——
+        //    Normal 态窗口几何即全屏，最大化瞬间只有圆角消失，无大小跳变；
+        // ② show() 后事件循环启动（窗口完全 mapped）再请求最大化。
+        //    真机证据：首帧窗口带圆角=实际是 Normal 大窗而非最大化（用户观察证实），
+        //    map 前预置状态 / show 后同步连发状态消息都会被 Mutter 吞掉或错序；
+        //    而 mapped 之后经 QTimer(0) 请求最大化，与用户手点标题栏按钮走完全
+        //    相同的 _NET_WM_STATE 消息路径，按钮状态必然同步为"还原"。
         win->setGeometry(win->screen()->availableGeometry());
-        // 用 setWindowState(Maximized) + show() 替代 showMaximized()：
-        // 两者最终都请求 WM 最大化，但 setWindowState 显式同步窗口状态标志，
-        // 标题栏"最大化/还原"按钮会立即反映当前状态（显示为"还原"），
-        // 避免 showMaximized 后按钮仍停留在"最大化"导致首次点击无响应。
-        win->setWindowState(Qt::WindowMaximized);
         win->show();
+        // 延迟最大化：社区共识（Qt Forum/runebook/CSDN 同问题帖）——0ms 在事件循环
+        // 第一拍触发时，X server 的 map/reparent 通知尚未走完、WM（Mutter）还没
+        // 注册完窗口，最大化请求会被静默吞掉（表现为 Normal 大窗 + 按钮"最大化"）。
+        // 100ms 是多平台验证的稳定延迟；铺满几何保证此间视觉与最大化一致。
+        QTimer::singleShot(100, win, [win] { win->setWindowState(Qt::WindowMaximized); });
         // 注意：不再 setMinimumSize/setMaximumSize 锁定尺寸。
         // 固定像素尺寸在换不同分辨率屏幕时会导致显示异常（过大/过小/留边）。
         // 窗口保持最大化状态即可由 WM 自动适配任意分辨率；用户可通过标题栏

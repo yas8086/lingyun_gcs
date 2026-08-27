@@ -8,14 +8,13 @@ import QtQuick.Effects
 // 本文件承担：主题 token 体系、左侧导航、顶栏、内容视图切换、底部状态栏、Toast、紧急操作。
 ApplicationWindow {
     id: root
-    // visible 由 visibility: Window.Maximized 隐式控制，不要显式声明 visible
-    // 避免 "Conflicting properties 'visible' and 'visibility'" 警告。
+    // 保持隐藏，等 main.cpp 的 show()：启动最大化由 C++ 单一路径负责
+    // （setGeometry 铺满可用区防首帧小窗闪现 + setWindowState(Maximized) 同步按钮态）。
+    // 不要在此再声明 visibility: Window.Maximized——QML 在 engine.load() 时会提前请求一次
+    // 最大化，与 C++ 的二次设置互相踩踏，WM 状态位错序导致标题栏按钮初态显示"最大化"、
+    // 点一下才变"还原"（真机已复现）。
+    visible: false
     title: "灵云01号 飞艇地面站"
-    // 启动时默认最大化（与 C++ 侧 setWindowState + show() 互补）。
-    // 某些窗口管理器下 C++ 设状态后按钮图标会有一拍异步延迟；这里显式声明
-    // visibility 让 QML 属性系统直接控制标题栏按钮图标，保证首帧即为"还原"
-    // 按钮（而不是"最大化"），避免用户误连点两次。
-    visibility: Window.Maximized
     // 窗口 flags：保持 Qt 默认（标题栏含最小化/最大化/关闭三按钮）。
     // 之前移除 WindowMaximizeButtonHint 会在部分 WM 下出现"显示但点不了"的
     // 假最大化按钮；现恢复默认 flags，允许用户正常使用最大化/还原与拖拽调整
