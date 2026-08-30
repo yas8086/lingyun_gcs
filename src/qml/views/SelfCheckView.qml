@@ -25,6 +25,133 @@ Item {
     readonly property bool editIsCustom: isNew ? true : (editDef.custom === true)
     property string dlgTitle: ""        // 弹窗标题（不能用 Dialog.title：原生模板会额外画一个标题）
 
+    // ===== 设备/字段可选字典（对用户屏蔽内部协议键：设备下拉固定取值，fid 随设备联动）=====
+    // dev 存储值经 CheckEngine::devKeyOf 映射为 bridge 设备键（小写/中文映射）
+    readonly property var devModelBase: [
+        { label: "BMS", dev: "BMS" },
+        { label: "MPPT 1", dev: "MPPT1" },
+        { label: "MPPT 2", dev: "MPPT2" },
+        { label: "DCDC", dev: "DCDC" },
+        { label: "备用电源", dev: "备用电源" },
+        { label: "飞控", dev: "飞控" }
+    ]
+    property var devModel: devModelBase.slice()   // 动态副本：回显历史自定义项的未知 dev 时临时追加
+    // fid 字典：label 用户可读名（含 fid），v=存储 fid，u=默认单位（选中自动带出，可改）
+    readonly property var fidDict: ({
+        "BMS": [
+            { label: "总压 (pack_v)", v: "pack_v", u: "V" },
+            { label: "电流 (pack_i)", v: "pack_i", u: "A" },
+            { label: "SOC (soc)", v: "soc", u: "%" },
+            { label: "剩余电量 (rsoc)", v: "rsoc", u: "%" },
+            { label: "SOH (soh)", v: "soh", u: "%" },
+            { label: "最高单体电压 (max_v)", v: "max_v", u: "V" },
+            { label: "最低单体电压 (min_v)", v: "min_v", u: "V" },
+            { label: "单体压差 (diff_v)", v: "diff_v", u: "V" },
+            { label: "最高温度 (max_t)", v: "max_t", u: "℃" },
+            { label: "最低温度 (min_t)", v: "min_t", u: "℃" },
+            { label: "平均温度 (avg_t)", v: "avg_t", u: "℃" },
+            { label: "单体温差 (diff_t)", v: "diff_t", u: "℃" },
+            { label: "正极对地电阻 (riso_p)", v: "riso_p", u: "" },
+            { label: "负极对地电阻 (riso_n)", v: "riso_n", u: "" },
+            { label: "告警码 (alarm)", v: "alarm", u: "" },
+            { label: "故障码1 (fault1)", v: "fault1", u: "" },
+            { label: "故障码2 (fault2)", v: "fault2", u: "" },
+            { label: "故障码3 (fault3)", v: "fault3", u: "" }
+        ],
+        "MPPT1": [
+            { label: "光伏电压 (pv_v)", v: "pv_v", u: "V" },
+            { label: "光伏功率 (pv_p)", v: "pv_p", u: "W" },
+            { label: "电池电压 (batt_v)", v: "batt_v", u: "V" },
+            { label: "充电电流 (charge_i)", v: "charge_i", u: "A" },
+            { label: "环境温度 (air_t)", v: "air_t", u: "℃" },
+            { label: "组件温度 (mod_t)", v: "mod_t", u: "℃" },
+            { label: "今日发电 (today)", v: "today", u: "" },
+            { label: "本月发电 (month)", v: "month", u: "" },
+            { label: "累计发电 (total)", v: "total", u: "" },
+            { label: "额定电压 (rated_v)", v: "rated_v", u: "V" },
+            { label: "额定电流 (rated_i)", v: "rated_i", u: "A" },
+            { label: "状态码 (cs)", v: "cs", u: "" },
+            { label: "工作模式 (mode)", v: "mode", u: "" },
+            { label: "充电使能 (chg_on)", v: "chg_on", u: "" },
+            { label: "故障码 (fault)", v: "fault", u: "" }
+        ],
+        "MPPT2": [
+            { label: "光伏电压 (pv_v)", v: "pv_v", u: "V" },
+            { label: "光伏功率 (pv_p)", v: "pv_p", u: "W" },
+            { label: "电池电压 (batt_v)", v: "batt_v", u: "V" },
+            { label: "充电电流 (charge_i)", v: "charge_i", u: "A" },
+            { label: "环境温度 (air_t)", v: "air_t", u: "℃" },
+            { label: "组件温度 (mod_t)", v: "mod_t", u: "℃" },
+            { label: "今日发电 (today)", v: "today", u: "" },
+            { label: "本月发电 (month)", v: "month", u: "" },
+            { label: "累计发电 (total)", v: "total", u: "" },
+            { label: "额定电压 (rated_v)", v: "rated_v", u: "V" },
+            { label: "额定电流 (rated_i)", v: "rated_i", u: "A" },
+            { label: "状态码 (cs)", v: "cs", u: "" },
+            { label: "工作模式 (mode)", v: "mode", u: "" },
+            { label: "充电使能 (chg_on)", v: "chg_on", u: "" },
+            { label: "故障码 (fault)", v: "fault", u: "" }
+        ],
+        "DCDC": [
+            { label: "输入电压 (in_v)", v: "in_v", u: "V" },
+            { label: "输出电压 (out_v)", v: "out_v", u: "V" },
+            { label: "输出电流 (out_i)", v: "out_i", u: "A" },
+            { label: "输出功率 (out_p)", v: "out_p", u: "W" },
+            { label: "温度 (temp)", v: "temp", u: "℃" },
+            { label: "故障码 (fault)", v: "fault", u: "" },
+            { label: "输出使能 (enabled)", v: "enabled", u: "" }
+        ],
+        "备用电源": [
+            { label: "总压 (pack_v)", v: "pack_v", u: "V" },
+            { label: "电流 (pack_i)", v: "pack_i", u: "A" },
+            { label: "SOC (soc)", v: "soc", u: "%" },
+            { label: "SOH (soh)", v: "soh", u: "%" },
+            { label: "最高单体电压 (max_v)", v: "max_v", u: "V" },
+            { label: "最低单体电压 (min_v)", v: "min_v", u: "V" },
+            { label: "单体压差 (diff_v)", v: "diff_v", u: "V" },
+            { label: "最高温度 (max_t)", v: "max_t", u: "℃" },
+            { label: "最低温度 (min_t)", v: "min_t", u: "℃" },
+            { label: "平均温度 (avg_t)", v: "avg_t", u: "℃" },
+            { label: "单体温差 (diff_t)", v: "diff_t", u: "℃" },
+            { label: "告警码 (alarm)", v: "alarm", u: "" },
+            { label: "故障码 (fault)", v: "fault", u: "" },
+            { label: "系统状态 (sys)", v: "sys", u: "" }
+        ],
+        "飞控": [
+            { label: "横滚 (roll)", v: "roll", u: "°" },
+            { label: "俯仰 (pitch)", v: "pitch", u: "°" },
+            { label: "航向 (yaw)", v: "yaw", u: "°" },
+            { label: "高度 (alt)", v: "alt", u: "m" },
+            { label: "爬升率 (climb)", v: "climb", u: "m/s" },
+            { label: "空速 (airspd)", v: "airspd", u: "m/s" },
+            { label: "真空速 (tas)", v: "tas", u: "m/s" },
+            { label: "地速 (gs)", v: "gs", u: "m/s" },
+            { label: "油门 (thr)", v: "thr", u: "%" },
+            { label: "电池电压 (batt_v)", v: "batt_v", u: "V" },
+            { label: "电池电量 (batt_pct)", v: "batt_pct", u: "%" },
+            { label: "GPS 定位状态 (gps_fix)", v: "gps_fix", u: "" },
+            { label: "GPS 卫星数 (gps_sat)", v: "gps_sat", u: "" },
+            { label: "GPS 水平精度 (gps_eph)", v: "gps_eph", u: "" },
+            { label: "GPS 垂直精度 (gps_epv)", v: "gps_epv", u: "" },
+            { label: "EKF 位置 (ekf_pos)", v: "ekf_pos", u: "" },
+            { label: "EKF 毛刺 (ekf_glitch)", v: "ekf_glitch", u: "" },
+            { label: "EKF 加速度误差 (ekf_accel_err)", v: "ekf_accel_err", u: "" },
+            { label: "解锁状态 (armed)", v: "armed", u: "" }
+        ]
+    })
+    property var fidModel: fidDict["BMS"].slice()   // 当前设备的字段选项（随设备联动重建）
+
+    // 当前选中字段的默认单位（单位完全由字段决定，无需用户选择）
+    readonly property string curUnit: (fidCombo.currentIndex >= 0 && fidModel[fidCombo.currentIndex])
+                                      ? fidModel[fidCombo.currentIndex].u : ""
+
+    // 切换设备：重建字段下拉（单位经 curUnit 绑定自动跟随）
+    function onDevActivated(index) {
+        const dev = devModel[index] ? devModel[index].dev : ""
+        fidModel = (root.fidDict[dev] || []).slice()
+        fidCombo.currentIndex = fidModel.length ? 0 : -1
+    }
+
     Component.onCompleted: checkEngine.runAll()   // 进页先跑一轮（引擎全局单例亦在 main.qml 10s 周期跑）
 
     // 打开编辑弹窗（def 空缺字段用原型 ckAdd 的默认值）
@@ -60,11 +187,12 @@ Item {
         if (m === "single") patch.val = parseFloat(valInput.text)          // 隐藏字段保持原值不污染
         else if (m === "range") { patch.min = parseFloat(minInput.text); patch.max = parseFloat(maxInput.text) }
         if (editIsCustom) {
-            const name = nameInput.text.trim(), dev = devInput.text.trim(), fid = fidInput.text.trim()
+            const name = nameInput.text.trim(), dev = devCombo.currentValue || "", fid = fidCombo.currentValue || ""
             if (!name) { root.themeRoot.showToast("请输入项目名称", "err"); nameInput.focus(); return }
-            if (!dev)  { root.themeRoot.showToast("请输入设备标识", "err"); devInput.focus(); return }
-            if (m !== "none" && !fid) { root.themeRoot.showToast("请输入数据字段 fid", "err"); fidInput.focus(); return }
-            patch.name = name; patch.dev = dev; patch.fid = fid; patch.unit = unitInput.text.trim()
+            if (!dev)  { root.themeRoot.showToast("请选择设备", "err"); return }
+            if (m !== "none" && !fid) { root.themeRoot.showToast("请选择数据字段", "err"); return }
+            patch.name = name; patch.dev = dev; patch.fid = fid
+            patch.unit = m !== "none" ? root.curUnit : ""   // 单位由字段唯一决定，无需用户选择
         }
         const isNewRec = root.isNew
         if (isNewRec) checkEngine.addItem(patch)
@@ -141,7 +269,16 @@ Item {
                         color: hov ? Qt.lighter(root.themeRoot.colPrimary, 1.08) : root.themeRoot.colPrimary
                         Text { id: recheckLbl; anchors.centerIn: parent; text: "重新自检"; color: "white"; font.pixelSize: 13; font.weight: Font.DemiBold }
                         HoverHandler { id: recheckMa; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: checkEngine.runAll() }
+                        TapHandler {
+                            onTapped: {
+                                checkEngine.runAll()
+                                // 手动自检结果记入运行日志（与 main.qml 周期自检的 _lastCheckFails 对齐，避免重复记）
+                                root.themeRoot.addLog("info", checkEngine.failCount === 0
+                                                      ? "整机自检：全部通过"
+                                                      : "整机自检：" + checkEngine.failCount + " 项未通过")
+                                root.themeRoot._lastCheckFails = checkEngine.failCount
+                            }
+                        }
                     }
                 }
             }
@@ -272,9 +409,6 @@ Item {
             const d = root.editDef
             enChk.checked = d.en !== false
             nameInput.text = d.name || ""
-            devInput.text = d.dev || ""
-            fidInput.text = d.fid || ""
-            unitInput.text = d.unit || ""
             const m = d.mode || "single"
             editMode = m
             modeCombo.currentIndex = m === "none" ? 0 : (m === "single" ? 1 : 2)
@@ -282,6 +416,20 @@ Item {
             valInput.text = d.val != null ? String(d.val) : ""
             minInput.text = d.min != null ? String(d.min) : ""
             maxInput.text = d.max != null ? String(d.max) : ""
+            // 设备下拉回填：历史自定义项的 dev 不在字典时临时追加（保持显示与保存兼容）
+            root.devModel = root.devModelBase.slice()
+            let di = root.devModel.findIndex(o => o.dev === (d.dev || ""))
+            if (di < 0 && d.dev) { root.devModel.push({label: d.dev, dev: d.dev}); di = root.devModel.length - 1 }
+            devCombo.model = root.devModel
+            devCombo.currentIndex = Math.max(di, 0)
+            // 字段下拉随「实际选中的设备」重建（新增时 dev 空 → 用首项 BMS，勿用空键查字典）；
+            // 历史 fid 不在字典时临时追加
+            const effDev = root.devModel[Math.max(di, 0)].dev
+            root.fidModel = (root.fidDict[effDev] || []).slice()
+            let fi = root.fidModel.findIndex(o => o.v === (d.fid || ""))
+            if (fi < 0 && d.fid) { root.fidModel.push({label: d.fid + "（历史）", v: d.fid, u: ""}); fi = root.fidModel.length - 1 }
+            fidCombo.model = root.fidModel
+            fidCombo.currentIndex = root.fidModel.length ? Math.max(fi, 0) : -1
         }
         ColumnLayout {
             width: 420   // 显式宽度（padding 0）：避免 parent.width 反推导致的布局循环塌陷
@@ -364,13 +512,19 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "设备标识"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "设备"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
-                                TextField {
-                                    id: devInput; width: 200; font.pixelSize: 13; font.family: "monospace"; maximumLength: 10
-                                    placeholderText: "如：DCDC（判定取其小写前缀）"
-                                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: devInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
+                                ComboBox {
+                                    id: devCombo
+                                    width: 200
+                                    topPadding: 6; bottomPadding: 6
+                                    font.pixelSize: 13; font.family: "monospace"
+                                    textRole: "label"; valueRole: "dev"
+                                    model: root.devModel
+                                    onActivated: function(i) { root.onDevActivated(i) }
+                                    indicator: Text { x: devCombo.width - width - 10; y: devCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: devCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
+                                    contentItem: Text { text: devCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                                 }
                             }
                         }
@@ -381,30 +535,18 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "数据字段 fid"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "数据字段"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
-                                TextField {
-                                    id: fidInput; width: 200; font.pixelSize: 13; font.family: "monospace"; maximumLength: 24
-                                    placeholderText: "监控页字段 id，如 out_i / in_v"
-                                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: fidInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                                }
-                            }
-                        }
-                        ColumnLayout {
-                            visible: root.editIsCustom
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
-                            Row {
-                                Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "单位"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
-                                Item { width: 12; height: 1 }
-                                TextField {
-                                    id: unitInput; width: 200; font.pixelSize: 13; font.family: "monospace"; maximumLength: 8
-                                    placeholderText: "V / ℃ / A…，可留空"
-                                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: unitInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
+                                ComboBox {
+                                    id: fidCombo
+                                    width: 200
+                                    topPadding: 6; bottomPadding: 6
+                                    font.pixelSize: 13; font.family: "monospace"
+                                    textRole: "label"; valueRole: "v"
+                                    model: root.fidModel
+                                    indicator: Text { x: fidCombo.width - width - 10; y: fidCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: fidCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
+                                    contentItem: Text { text: fidCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                                 }
                             }
                         }
@@ -471,7 +613,7 @@ Item {
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: valInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.editDef.unit || ""; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                         // 下限（仅 range）
@@ -491,7 +633,7 @@ Item {
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: minInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.editDef.unit || ""; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                         // 上限（仅 range）
@@ -511,7 +653,7 @@ Item {
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: maxInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.editDef.unit || ""; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                     }

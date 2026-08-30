@@ -104,11 +104,16 @@ void CheckEngine::loadCfg() {
 }
 
 QString CheckEngine::devKeyOf(const QString &dev) const {
-    // 内置 MPPT 特例映射主 MPPT（mppt1 为就绪必要项，与旧 bridge 就绪度口径一致）；
-    // 自定义项按原型约定取 dev 文本小写整串作设备键
-    if (dev == QLatin1String("MPPT"))
+    // 设备标识 → bridge 设备键。下拉固定取值（BMS/MPPT1/MPPT2/DCDC 小写即键）；
+    // 中文设备名与旧键在此映射（自定义项历史数据兼容）
+    const QString d = dev.trimmed();
+    if (d == QLatin1String("MPPT"))            // 旧键：主 MPPT（mppt1 为就绪必要项，与旧 bridge 就绪度口径一致）
         return QStringLiteral("mppt1");
-    return dev.toLower();
+    if (d == QLatin1String("备用电源") || d == QLatin1String("备用电池"))
+        return QStringLiteral("backup");
+    if (d == QLatin1String("飞控"))
+        return QStringLiteral("fc");
+    return d.toLower();
 }
 
 QVariantMap CheckEngine::eval(const QVariantMap &def) const {
