@@ -795,15 +795,9 @@ Item {
                             ctx.rect(cx-8*s, cy-7*s, 16*s, 14*s)
                             ctx.moveTo(cx+8*s, cy-4*s); ctx.lineTo(cx+10*s, cy-4*s); ctx.lineTo(cx+10*s, cy+4*s); ctx.lineTo(cx+8*s, cy+4*s)
                             ctx.moveTo(cx-4*s, cy-4*s); ctx.lineTo(cx-4*s, cy+0); ctx.moveTo(cx, cy-3*s); ctx.lineTo(cx, cy+1*s); ctx.moveTo(cx+4*s, cy-4*s); ctx.lineTo(cx+4*s, cy+0)
-                        } else if (type === "mH") { // 推进电机（水平箭头）
-                            ctx.arc(cx, cy, 7*s, 0, Math.PI*2)
-                            ctx.moveTo(cx+2*s, cy-4*s); ctx.lineTo(cx+9*s, cy); ctx.lineTo(cx+2*s, cy+4*s); ctx.moveTo(cx+6*s, cy-2*s); ctx.lineTo(cx+9*s, cy); ctx.lineTo(cx+6*s, cy+2*s)
-                        } else if (type === "mV") { // 上升电机（上下箭头）
-                            ctx.arc(cx, cy, 7*s, 0, Math.PI*2)
-                            ctx.moveTo(cx-4*s, cy+2*s); ctx.lineTo(cx, cy-9*s); ctx.lineTo(cx+4*s, cy+2*s); ctx.moveTo(cx-2*s, cy+7*s); ctx.lineTo(cx, cy+9*s); ctx.lineTo(cx+2*s, cy+7*s)
-                        } else if (type === "mD") { // 下降电机
-                            ctx.arc(cx, cy, 7*s, 0, Math.PI*2)
-                            ctx.moveTo(cx-4*s, cy-2*s); ctx.lineTo(cx, cy+9*s); ctx.lineTo(cx+4*s, cy-2*s); ctx.moveTo(cx-2*s, cy-7*s); ctx.lineTo(cx, cy-9*s); ctx.lineTo(cx+2*s, cy-7*s)
+                        } else if (type === "motor") { // 电机（统一图标：圆圈 + M，不标注方向）
+                            ctx.arc(cx, cy, 7.5*s, 0, Math.PI*2)
+                            ctx.moveTo(cx-3.5*s, cy+3.5*s); ctx.lineTo(cx-3.5*s, cy-3.5*s); ctx.lineTo(cx, cy+0.5*s); ctx.lineTo(cx+3.5*s, cy-3.5*s); ctx.lineTo(cx+3.5*s, cy+3.5*s)
                         } else if (type === "gear") { // 其他载荷
                             ctx.arc(cx, cy, 8*s, 0, Math.PI*2)
                             for (let i=0;i<6;i++) { const a=i*Math.PI/3; ctx.moveTo(cx+8*s*Math.cos(a), cy+8*s*Math.sin(a)); ctx.lineTo(cx+10*s*Math.cos(a), cy+10*s*Math.sin(a)) }
@@ -1003,11 +997,11 @@ Item {
                                 }
                                 case "mot1": case "mot2": case "mot3": case "mot4": {
                                     const m = d.mots[parseInt(id.slice(3),10)-1] || {p:NaN,rpm:NaN}
-                                    return isNaN(m.rpm) ? {v:"-- rpm", s:"无遥测", ic:"mH"}
-                                                        : {v: m.rpm+" rpm", s: root.nn(m.p)+" W", ic:"mH"}
+                                    return isNaN(m.rpm) ? {v:"-- rpm", s:"无遥测", ic:"motor"}
+                                                        : {v: m.rpm+" rpm", s: root.nn(m.p)+" W", ic:"motor"}
                                 }
                                 case "s1": case "s2": case "s5": case "s6":
-                                case "s3": case "s4": return {v:"-- rpm", s:"无遥测", ic:"mV"}
+                                case "s3": case "s4": return {v:"-- rpm", s:"无遥测", ic:"motor"}
                                 case "load": return {v:"-- W", s:"无遥测", ic:"gear"}
                             }
                             return {v:"", s:"", ic:""}
