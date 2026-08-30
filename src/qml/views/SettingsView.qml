@@ -279,6 +279,8 @@ Item {
                                     if (port === "") { root.showNote("未检测到串口设备"); return }
                                     const ok = bridge.openSerial(port, parseInt(baudCombo.currentText))
                                     root.showNote(ok ? "串口已打开：" + port : "串口打开失败：" + bridge.lastSerialError())
+                                    if (ok) root.themeRoot.addLog("info", "串口已打开：" + port + " @" + baudCombo.currentText)
+                                    else root.themeRoot.addLog("err", "串口打开失败：" + bridge.lastSerialError())
                                 }
                             }
                         }
@@ -314,6 +316,7 @@ Item {
                             onToggled: {
                                 bridge.setConfigUdpEnabled(checked)
                                 root.showNote(checked ? "已启用 UDP 网口监听" : "已关闭 UDP 网口监听")
+                                root.themeRoot.addLog("info", checked ? "UDP 网口监听已启用" : "UDP 网口监听已关闭")
                             }
                         }
                         Rectangle {
@@ -544,8 +547,10 @@ Item {
                                 }
                             }
                             onToggled: {
-                                if (checked && !bridge.recordEnabled())
+                                if (checked && !bridge.recordEnabled()) {
                                     bridge.setRecordEnabled(true)
+                                    root.themeRoot.addLog("info", "遥测自动记录已启用")
+                                }
                             }
                         }
                         Text { text: "启用自动记录"; color: root.themeRoot.colText2; font.pixelSize: 13 }
@@ -996,6 +1001,7 @@ Item {
                     onClicked: {
                         bridge.closeSerial()
                         root.showNote("串口已关闭")
+                        root.themeRoot.addLog("info", "串口已关闭")
                         confirmSerialOff.close()
                     }
                 }
@@ -1055,6 +1061,7 @@ Item {
                         bridge.setRecordEnabled(false)
                         recordCb.checked = false
                         root.showNote("已关闭自动记录")
+                        root.themeRoot.addLog("info", "遥测自动记录已关闭")
                         confirmRecordOff.close()
                     }
                 }

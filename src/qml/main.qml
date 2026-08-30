@@ -40,6 +40,61 @@ ApplicationWindow {
             root.contrast = bridge.configContrast()
             root.accent = bridge.configAccent()
         }
+        // C++ 告警（串口错误/规则告警/确认/恢复）→ 运行日志流增量同步
+        function onAlarmsChanged() { root.syncBridgeAlarms() }
+        // 串口链路通断 → 运行日志
+        function onLinkChanged(online) {
+            root.addLog(online ? "ok" : "err", online ? "串口数据链路已连接" : "串口数据链路断开")
+        }
+        // 云台相机连接状态 → 运行日志
+        function onGimbalConnectedChanged() {
+            root.addLog("info", bridge.gimbalConnected() ? "云台相机已连接" : "云台相机已断开")
+        }
+    }
+
+    // ===== 运行日志流（全局唯一，环形 500）：常驻 main.qml，切页不丢日志 =====
+    // 各页面/C++ 统一经 addLog / addAlarm 写入；监控页只做展示与筛选。
+    property var logStream: []
+    property int _syncedAid: 0          // 已同步进日志流的 bridge 告警 aid（增量去重）
+    property int _lastCheckFails: -1    // 上次自检未通过数（变化才记日志）
+    function addLog(type, msg, source) {
+        const d = new Date().toTimeString().slice(0, 8)
+        root.logStream.push({type: type, msg: msg, time: d, source: source || ""})
+        if (root.logStream.length > 500) root.logStream.shift()
+        root.lastMsg = msg
+        root.dataTick++                 // 驱动 filteredLog 重算
+    }
+    // 告警统一入口：写 bridge（获得确认/计数/恢复语义），由 onAlarmsChanged 同步进日志流
+    function addAlarm(lv, msg, source) {
+        bridge.addAlarm(msg, lv, source || "操作")
+    }
+    // bridge 告警 → 日志流：新条目按 aid 升序补入；已有条目刷新确认/恢复状态
+    function syncBridgeAlarms() {
+        const arr = bridge.alarms()     // 最新在前
+        const fresh = arr.filter(a => a.aid > root._syncedAid)
+        if (fresh.length) {
+            fresh.sort((x, y) => x.aid - y.aid)
+            for (const a of fresh) {
+                root.logStream.push({type: "alarm", lv: a.level, msg: a.content, time: a.time,
+                                     source: a.source || "", aid: a.aid, confirmed: a.state !== "未确认"})
+                root._syncedAid = a.aid
+                root.lastMsg = "⚠ " + a.content
+            }
+            if (root.logStream.length > 500) root.logStream.splice(0, root.logStream.length - 500)
+        } else {
+            // 无新条目：确认/恢复操作导致的状态刷新
+            const stateByAid = {}
+            for (const a of arr) stateByAid[a.aid] = a.state
+            for (const e of root.logStream)
+                if (e.type === "alarm" && stateByAid[e.aid] !== undefined)
+                    e.confirmed = stateByAid[e.aid] !== "未确认"
+        }
+        root.dataTick++
+    }
+    // 单条确认日志中的告警（bridge 计数与日志按钮状态经 syncBridgeAlarms 自动同步）
+    function confirmLogAlarm(e) {
+        if (!e || e.aid === undefined) return
+        bridge.confirmAlarmByAid(e.aid)
     }
 
 
@@ -742,13 +797,22 @@ ApplicationWindow {
     }
 
     // ===== 自检引擎节拍（对齐原型 setInterval(runCheck, 10000)）：全局周期重跑 =====
-    // 启动立即先跑一轮（避免就绪度胶囊长时间停留在"待自检"），此后每 10s 刷新
+    // 启动立即先跑一轮（避免就绪度胶囊长时间停留在"待自检"），此后每 10s 刷新；
+    // 未通过数变化时记一条运行日志（首跑必记，结果随自检实时联动）
     Timer {
         interval: 10000
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: checkEngine.runAll()
+        onTriggered: {
+            checkEngine.runAll()
+            if (checkEngine.failCount !== root._lastCheckFails) {
+                root.addLog("info", checkEngine.failCount === 0
+                            ? "整机自检：全部通过"
+                            : "整机自检：" + checkEngine.failCount + " 项未通过")
+                root._lastCheckFails = checkEngine.failCount
+            }
+        }
     }
 
     // ===== Toast 通知（对齐原型 .toast-wrap/.toast：右上角堆叠，三色卡片 + 滑入滑出）=====
@@ -841,8 +905,7 @@ ApplicationWindow {
     // ===== 紧急操作（动作选择 + 滑动确认 + 严重告警，原型演示不下发硬件）=====
     function openEmergency() { emgDlg.open() }
     function execEmergency(kind) {
-        bridge.addAlarm("已执行紧急操作：" + kind + "（演示）", "严重", "操作")
-        root.lastMsg = "⚠ " + "已执行紧急操作：" + kind
+        root.addAlarm("严重", "已执行紧急操作：" + kind + "（演示）", "操作")
         emgDlg.close()
         emgReset()
         root.showToast("已执行紧急操作：" + kind)
@@ -861,9 +924,13 @@ ApplicationWindow {
         title: "紧急操作"
         modal: true
         width: 400
-        anchors.centerIn: parent
+        anchors.centerIn: Overlay.overlay
         closePolicy: Popup.CloseOnEscape
         padding: 0
+        // 遮罩对齐原型 .modal-mask / 自检页弹窗：rgba(15,23,42,.5) 覆盖全窗（含导航/顶栏）
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(15 / 255, 23 / 255, 42 / 255, 0.5)
+        }
         // 隐藏默认直角标题栏，自定义圆角 header 融入整体圆角
         header: null
         background: Item {

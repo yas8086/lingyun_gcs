@@ -1716,6 +1716,7 @@ Item {
                             if (pcCnt) msg.push(pcCnt + " 路 PC 录制")
                             if (skyMiss) msg.push(skyMiss + " 路⚠ 未检测到云卓设备，请检查云台类型配置")
                             root.toast("开始录像：" + msg.join("；"))
+                            root.themeRoot.addLog("info", "开始录像：" + msg.join("；"))
                         } else {
                             root.recOn = false
                             root.recCamIds = []
@@ -1731,6 +1732,7 @@ Item {
                             var ok = bridge.stopCameraRecord()
                             root.recSkyOn = false
                             root.toast(ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败", ok ? "ok" : "err")
+                            root.themeRoot.addLog(ok ? "ok" : "err", ok ? ("录像已保存（时长 " + dur + " 秒）") : "录像保存失败")
                         }
                     }
                 }

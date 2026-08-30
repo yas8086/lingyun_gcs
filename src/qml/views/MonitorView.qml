@@ -122,26 +122,9 @@ Item {
         return root.fmt(bridge.value("dcdc", fid),1) + u
     }
 
-    // ===== 运行日志流（决策 #33 环形 500）=====
-    property var logStream: []
+    // ===== 运行日志流已下沉至 themeRoot（main.qml，常驻不随切页丢失）=====
+    // 本页只做展示与筛选：filteredLog 读 themeRoot.logStream，确认/清空调 themeRoot 统一入口。
     property string logFilter: "all"          // all | alarm
-    function addLog(type, msg) {
-        const d = new Date().toTimeString().slice(0,8)
-        root.logStream.push({type:type, msg:msg, time:d})
-        if (root.logStream.length > 500) root.logStream.shift()
-        if (root.themeRoot) root.themeRoot.lastMsg = msg
-    }
-    // 告警：写入日志流（同时记录到 bridge 便于确认/计数）
-    function addAlarm(lv, msg, source) {
-        const d = new Date().toTimeString().slice(0,8)
-        // bridge.addAlarm 返回该条告警的自增 aid：本地条目同步记录，
-        // 单条"确认"按钮据此调用 bridge.confirmAlarmByAid 精确确认该条
-        const aid = bridge.addAlarm(msg, lv, source)
-        root.logStream.push({type:"alarm", lv:lv, msg:msg, time:d, source:source||"", aid:aid, confirmed:false})
-        if (root.logStream.length > 500) root.logStream.shift()
-        if (root.themeRoot) root.themeRoot.lastMsg = "⚠ " + msg
-        root.alarmsChanged()
-    }
 
     // 时间轴事件（决策：状态栏/操作时间轴）
     property var tlEvents: []
@@ -846,7 +829,7 @@ Item {
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
                             }
                             contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
-                            onClicked: { root.logStream = []; root.clearAlarms() }
+                            onClicked: { root.themeRoot.logStream = []; bridge.confirmAllAlarms() }
                         }
                     }
                     // 日志流
@@ -888,7 +871,10 @@ Item {
                                     id: ma_2
                                     anchors.fill: parent
                                     enabled: !modelData.confirmed
-                                    onClicked: root.confirmLogAlarm(modelData)
+                                    onClicked: {
+                                        root.themeRoot.confirmLogAlarm(modelData)
+                                        root.alarmsChanged()
+                                    }
                                 }
                             }
                         }
@@ -905,20 +891,9 @@ Item {
     }
     function filteredLog() {
         void root.osdTick; void root.themeRoot.dataTick
-        const arr = root.logFilter === "alarm" ? root.logStream.filter(x=>x.type==="alarm") : root.logStream
+        const src = root.themeRoot.logStream
+        const arr = root.logFilter === "alarm" ? src.filter(x=>x.type==="alarm") : src
         return arr.slice().reverse()
-    }
-    // 告警确认：单条确认该条（含 bridge 侧计数同步），不再误调"确认全部"
-    function confirmLogAlarm(e) {
-        if (!e || e.aid === undefined) return
-        e.confirmed = true
-        // 同步 bridge 的未确认计数（alarmSeq 由 bridge 自增分配）
-        bridge.confirmAlarmByAid(e.aid)
-        root.alarmsChanged()
-    }
-    function clearAlarms() {
-        bridge.confirmAllAlarms()
-        root.alarmsChanged()
     }
     function alarmsChanged() {
         // 触发 dataTick 刷新日志列表（filteredLog 依赖 dataTick 重算）
@@ -933,9 +908,5 @@ Item {
         return bridge.loraNodes()
     }
 
-    // 初始化演示日志（首次运行）
-    Component.onCompleted: {
-        root.addLog("info", "帧解析正常，设备在线")
-        root.addLog("ok", "系统就绪")
-    }
+    // 演示假日志已删除：日志内容全部来自真实系统事件（C++ 告警/链路/自检/操作）
 }
