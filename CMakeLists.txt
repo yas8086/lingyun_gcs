@@ -22,7 +22,8 @@ if(BUILD_TESTING)
 endif()
 
 # ===== QML 版地面站（复刻原型视觉，Qt Quick + QtCharts）=====
-add_executable(LingyunGCS
+# WIN32：Windows 下编译为 GUI 子系统（不弹控制台黑框）；该关键字在 Linux 上被忽略
+add_executable(LingyunGCS WIN32
     src/qml/main.cpp
     src/model/telemetry_data.cpp
     src/comms/frame_parser.cpp

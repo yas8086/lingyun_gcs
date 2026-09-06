@@ -25,9 +25,9 @@ rem =====================================================================
 set "ROOT=%~dp0.."
 set "OUT=%ROOT%\build\LingyunGCS"
 
-rem ---------- 按本机环境修改以下三项 ----------
-set "QT_BIN=C:\Qt\6.10.1\mingw_64\bin"
-set "GST_ROOT=C:\gstreamer\1.0\mingw_x86_64"
+rem ---------- 按本机环境修改以下三项（当前为 MSVC 版本路径） ----------
+set "QT_BIN=C:\Qt\6.10.1\msvc2022_64\bin"
+set "GST_ROOT=C:\gst\1.0\msvc_x86_64"
 set "BUILD_DIR=%ROOT%\build-win"
 rem -------------------------------------------
 
@@ -36,7 +36,7 @@ if not exist "%QT_BIN%\windeployqt.exe" ( echo   错误：找不到 windeployqt�
 if not exist "%GST_ROOT%\bin"            ( echo   错误：找不到 GStreamer runtime，请检查 GST_ROOT 路径 & goto :fail )
 if not exist "%GST_ROOT%\lib\gstreamer-1.0" ( echo   错误：GStreamer runtime 缺少插件目录 lib\gstreamer-1.0 & goto :fail )
 
-rem 自动定位 LingyunGCS.exe（MinGW 单配置 Release 在子目录 Release，其他在根）
+rem 自动定位 LingyunGCS.exe（多配置生成器 Release 在子目录 Release，单配置在根）
 set "EXE="
 if exist "%BUILD_DIR%\Release\LingyunGCS.exe"      set "EXE=%BUILD_DIR%\Release\LingyunGCS.exe"
 if not defined EXE if exist "%BUILD_DIR%\LingyunGCS.exe" set "EXE=%BUILD_DIR%\LingyunGCS.exe"
@@ -50,15 +50,26 @@ echo [3/7] 复制可执行文件...
 copy /y "%EXE%" "%OUT%\" >nul
 
 echo [4/7] windeployqt 收集 Qt 运行库（dll / platforms / qml / styles ...）...
-"%QT_BIN%\windeployqt.exe" --release --no-translations "%OUT%\LingyunGCS.exe"
+"%QT_BIN%\windeployqt.exe" --release --no-translations --qmldir "%ROOT%\src\qml" "%OUT%\LingyunGCS.exe"
 if errorlevel 1 ( echo   错误：windeployqt 执行失败 & goto :fail )
+
+rem MSVC 运行库：windeployqt 在未配置 VCINSTALLDIR 时不会拷贝，手动补齐
+rem 注意：Program Files (x86) 含右括号，必须用延迟展开 !var!，否则会截断 for/if 的括号块
+set "VC_REDIST="
+for /d %%v in ("!ProgramFiles(x86)!\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC\*") do set "VC_REDIST=%%v\x64\Microsoft.VC143.CRT"
+if defined VC_REDIST if exist "!VC_REDIST!\msvcp140.dll" copy /y "!VC_REDIST!\*.dll" "%OUT%\" >nul
 
 echo [5/7] 收集 GStreamer 运行库（全部 dll 放 exe 同级，插件加载时从 exe 目录解析依赖）...
 copy /y "%GST_ROOT%\bin\*.dll" "%OUT%\" >nul
-copy /y "%GST_ROOT%\bin\gst-plugin-scanner.exe" "%OUT%\" >nul 2>nul
+rem gst-plugin-scanner 位置随版本变化：1.24 在 bin，1.25+ 在 libexec\gstreamer-1.0
+if exist "%GST_ROOT%\bin\gst-plugin-scanner.exe" copy /y "%GST_ROOT%\bin\gst-plugin-scanner.exe" "%OUT%\" >nul 2>nul
+if exist "%GST_ROOT%\libexec\gstreamer-1.0\gst-plugin-scanner.exe" copy /y "%GST_ROOT%\libexec\gstreamer-1.0\gst-plugin-scanner.exe" "%OUT%\" >nul 2>nul
+rem 发布版剔除调试符号（.pdb，仅开发期有用）
+del /q "%OUT%\*.pdb" >nul 2>nul
 
 echo [6/7] 收集 GStreamer 插件目录（rtspsrc / decodebin / h264 解码 等）...
 xcopy /y /e /i "%GST_ROOT%\lib\gstreamer-1.0" "%OUT%\gstreamer-1.0" >nul
+del /q "%OUT%\gstreamer-1.0\*.pdb" >nul 2>nul
 
 echo [7/7] 打包完成！
 echo.

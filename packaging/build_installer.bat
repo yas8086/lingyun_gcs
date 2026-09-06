@@ -17,7 +17,7 @@ rem =====================================================================
 set "ROOT=%~dp0.."
 
 rem ---------- 按本机环境修改 ----------
-set "NSIS=C:\Program Files (x86)\NSIS\makensis.exe"
+set "NSIS=C:\Users\20110\dev\nsis-3.11\makensis.exe"
 set "SRC=%ROOT%\build\LingyunGCS"
 rem -----------------------------------
 
