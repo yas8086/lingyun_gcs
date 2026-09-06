@@ -140,12 +140,16 @@ ApplicationWindow {
     readonly property color colErrSoft: dark ? "#331516" : "#fef2f2"
     readonly property color colOff: dark ? "#5a6a84" : "#94a3b8"
 
-    // 字号尺度：密度切换（原型 fs-display/fs-title/fs-body/fs-caption/fs-num）
-    readonly property real fsDisplay: dense ? 25 : 38
-    readonly property real fsNum: dense ? 14 : 17
-    readonly property real fsTitle: 15
-    readonly property real fsBody: 13
-    readonly property real fsCaption: 11
+    // ===== 字号体系（对齐原型 + 字体大小联动）=====
+    // fontScale 全局缩放（大=1.0 / 小=0.85）：阅读型文本经 fsXxx token 联动；
+    // 布局骨架（导航/顶栏/按钮）保持固定尺寸避免布局漂移。各页渐进接入。
+    readonly property real fontScale: dense ? 0.85 : 1.0
+    readonly property real fsDisplay: dense ? 25 : 38   // 设备卡大数字（双档视觉差异刻意保留）
+    readonly property real fsNum: Math.round(15 * fontScale)      // 设备卡字段值（monospace）
+    readonly property real fsTitle: Math.round(15 * fontScale)    // 卡片/模块标题
+    readonly property real fsBody: Math.round(13 * fontScale)     // 正文/表单/列表行
+    readonly property real fsSmall: Math.round(12 * fontScale)    // 次要文本/日志消息
+    readonly property real fsCaption: Math.round(11 * fontScale)  // 徽章/时间戳/注释
 
     property int currentNav: 0
     property int dataTick: 0

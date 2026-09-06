@@ -238,7 +238,7 @@ Item {
                         border.color: !checkEngine.checkedOnce ? root.themeRoot.colLine : "transparent"
                         Text {
                             id: resultLabel; anchors.centerIn: parent
-                            font.weight: Font.Bold; font.pixelSize: 15
+                            font.weight: Font.Bold; font.pixelSize: root.themeRoot.fsTitle
                             color: checkEngine.failCount === 0 ? root.themeRoot.colOk : root.themeRoot.colErr
                             text: !checkEngine.checkedOnce ? "未自检"
                                  : checkEngine.failCount === 0 ? "全部通过" : "有项未通过"
@@ -255,7 +255,7 @@ Item {
                         border.width: 1
                         border.color: hov ? root.themeRoot.colPrimary : root.themeRoot.colLine
                         Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Text { id: ckAddLbl; anchors.centerIn: parent; text: "＋ 新增自检项"; color: root.themeRoot.colText2; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { id: ckAddLbl; anchors.centerIn: parent; text: "＋ 新增自检项"; color: root.themeRoot.colText2; font.pixelSize: root.themeRoot.fsBody; font.weight: Font.DemiBold }
                         HoverHandler { id: ckAddMa; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: root.openEditor({id:"",custom:true,en:true,mode:"single",cmp:"gt",val:0,min:0,max:100,name:"",dev:"",fid:"",unit:""}) }
                     }
@@ -267,7 +267,7 @@ Item {
                         implicitWidth: recheckLbl.implicitWidth + 32
                         implicitHeight: recheckLbl.implicitHeight + 16
                         color: hov ? Qt.lighter(root.themeRoot.colPrimary, 1.08) : root.themeRoot.colPrimary
-                        Text { id: recheckLbl; anchors.centerIn: parent; text: "重新自检"; color: "white"; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { id: recheckLbl; anchors.centerIn: parent; text: "重新自检"; color: "white"; font.pixelSize: root.themeRoot.fsBody; font.weight: Font.DemiBold }
                         HoverHandler { id: recheckMa; cursorShape: Qt.PointingHandCursor }
                         TapHandler {
                             onTapped: {
@@ -318,16 +318,16 @@ Item {
                                 Rectangle {
                                     width: 22; height: 22; radius: 11
                                     color: isSkip ? root.themeRoot.colBg2 : (isFail ? root.themeRoot.colErr : root.themeRoot.colOk)
-                                    Text { anchors.centerIn: parent; font.weight: Font.Bold; font.pixelSize: 13; color: isSkip ? root.themeRoot.colText2 : "white"
+                                    Text { anchors.centerIn: parent; font.weight: Font.Bold; font.pixelSize: root.themeRoot.fsBody; color: isSkip ? root.themeRoot.colText2 : "white"
                                            text: isSkip ? "–" : (isFail ? "✗" : "✓") }
                                 }
                                 // 设备名 .ci-dev（11/700 text-2 宽 48）
-                                Text { text: modelData.dev; font.pixelSize: 11; font.weight: Font.Bold; color: root.themeRoot.colText2; Layout.preferredWidth: 48 }
+                                Text { text: modelData.dev; font.pixelSize: root.themeRoot.fsCaption; font.weight: Font.Bold; color: root.themeRoot.colText2; Layout.preferredWidth: 48 }
                                 // 项目名 .ci-name（flex:1 600，撑满剩余把右侧簇推到行尾；fail 红 / skip text-2）+ skip「已停用」角标
                                 Row {
                                     Layout.fillWidth: true
                                     spacing: 6
-                                    Text { text: modelData.name; font.pixelSize: 13; font.weight: Font.DemiBold
+                                    Text { text: modelData.name; font.pixelSize: root.themeRoot.fsBody; font.weight: Font.DemiBold
                                            color: isFail ? root.themeRoot.colErr : (isSkip ? root.themeRoot.colText2 : root.themeRoot.colText) }
                                     Rectangle {
                                         visible: isSkip
@@ -341,10 +341,10 @@ Item {
                                     visible: modelData.mode !== "none" && !isSkip
                                     radius: 6; implicitWidth: thLbl.implicitWidth + 16; implicitHeight: 20
                                     color: root.themeRoot.colBg2
-                                    Text { id: thLbl; anchors.centerIn: parent; text: modelData.th || ""; font.family: "monospace"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                                    Text { id: thLbl; anchors.centerIn: parent; text: modelData.th || ""; font.family: "monospace"; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                 }
                                 // 当前值 .ci-val（等宽 13 text-2）
-                                Text { text: String(modelData.cur); font.family: "monospace"; font.pixelSize: 13; color: root.themeRoot.colText2 }
+                                Text { text: String(modelData.cur); font.family: "monospace"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2 }
                                 // 编辑齿轮 .ci-cfg（26×26 圆角 7；默认透明灰字，hover card 底+line 边框+primary）
                                 Item {
                                     width: 26; height: 26
@@ -380,7 +380,7 @@ Item {
                                     visible: isFail
                                     radius: 6; implicitWidth: blockLbl.implicitWidth + 18; implicitHeight: 20
                                     color: root.themeRoot.colErrSoft
-                                    Text { id: blockLbl; anchors.centerIn: parent; text: "阻塞起飞"; font.pixelSize: 11; font.weight: Font.Bold; color: root.themeRoot.colErr }
+                                    Text { id: blockLbl; anchors.centerIn: parent; text: "阻塞起飞"; font.pixelSize: root.themeRoot.fsCaption; font.weight: Font.Bold; color: root.themeRoot.colErr }
                                 }
                             }
                         }
@@ -438,7 +438,7 @@ Item {
                 Item {
                     Layout.fillWidth: true; Layout.preferredHeight: 45
                     Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: root.themeRoot.colLine }
-                    Text { anchors.left: parent.left; anchors.leftMargin: 18; anchors.verticalCenter: parent.verticalCenter; text: root.dlgTitle; font.bold: true; font.pixelSize: 13; color: root.themeRoot.colText }
+                    Text { anchors.left: parent.left; anchors.leftMargin: 18; anchors.verticalCenter: parent.verticalCenter; text: root.dlgTitle; font.bold: true; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText }
                     Rectangle {
                         id: mclose
                         anchors.right: parent.right; anchors.rightMargin: 18; anchors.verticalCenter: parent.verticalCenter
@@ -473,7 +473,7 @@ Item {
                         CheckBox {
                             id: enChk
                             text: "启用此自检项"
-                            font.pixelSize: 13
+                            font.pixelSize: root.themeRoot.fsBody
                             leftPadding: 6; rightPadding: 6; topPadding: 7; bottomPadding: 7
                             indicator: Rectangle {
                                 implicitWidth: 16; implicitHeight: 16
@@ -482,9 +482,9 @@ Item {
                                 color: enChk.checked ? root.themeRoot.colPrimary : root.themeRoot.colCard
                                 border.width: 1
                                 border.color: enChk.checked ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                                Text { anchors.centerIn: parent; text: "✓"; font.pixelSize: 11; font.bold: true; color: "white"; visible: enChk.checked }
+                                Text { anchors.centerIn: parent; text: "✓"; font.pixelSize: root.themeRoot.fsCaption; font.bold: true; color: "white"; visible: enChk.checked }
                             }
-                            contentItem: Text { text: enChk.text; font.pixelSize: 13; color: root.themeRoot.colText; leftPadding: enChk.indicator.width + 10; verticalAlignment: Text.AlignVCenter }
+                            contentItem: Text { text: enChk.text; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText; leftPadding: enChk.indicator.width + 10; verticalAlignment: Text.AlignVCenter }
                         }
                         // —— .set-row 通用行（padding 7 0 + 虚线分隔近似实线 1px；label 13 text-2 左 / 控件右 170px 等宽 card 底圆角 8）——
                         // 自定义项元信息（仅自定义项显示；input width 200px 对齐原型 inline style）
@@ -495,10 +495,10 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "项目名称"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "项目名称"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 TextField {
-                                    id: nameInput; width: 200; font.pixelSize: 13; font.family: "monospace"; maximumLength: 20
+                                    id: nameInput; width: 200; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"; maximumLength: 20
                                     placeholderText: "如：输入电压"
                                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: nameInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
@@ -512,19 +512,19 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "设备"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "设备"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 ComboBox {
                                     id: devCombo
                                     width: 200
                                     topPadding: 6; bottomPadding: 6
-                                    font.pixelSize: 13; font.family: "monospace"
+                                    font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     textRole: "label"; valueRole: "dev"
                                     model: root.devModel
                                     onActivated: function(i) { root.onDevActivated(i) }
-                                    indicator: Text { x: devCombo.width - width - 10; y: devCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    indicator: Text { x: devCombo.width - width - 10; y: devCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: devCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                                    contentItem: Text { text: devCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                                    contentItem: Text { text: devCombo.displayText; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                                 }
                             }
                         }
@@ -535,18 +535,18 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "数据字段"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "数据字段"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 ComboBox {
                                     id: fidCombo
                                     width: 200
                                     topPadding: 6; bottomPadding: 6
-                                    font.pixelSize: 13; font.family: "monospace"
+                                    font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     textRole: "label"; valueRole: "v"
                                     model: root.fidModel
-                                    indicator: Text { x: fidCombo.width - width - 10; y: fidCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    indicator: Text { x: fidCombo.width - width - 10; y: fidCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: fidCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                                    contentItem: Text { text: fidCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                                    contentItem: Text { text: fidCombo.displayText; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                                 }
                             }
                         }
@@ -557,19 +557,19 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "检查方式"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "检查方式"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 ComboBox {
                                     id: modeCombo
                                     width: 170
                                     topPadding: 6; bottomPadding: 6
-                                    font.pixelSize: 13; font.family: "monospace"
+                                    font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     textRole: "label"; valueRole: "value"
                                     model: [ {label:"无（仅在线）", value:"none"}, {label:"单阈值", value:"single"}, {label:"范围（下限~上限）", value:"range"} ]
                                     onActivated: root.editMode = currentValue
-                                    indicator: Text { x: modeCombo.width - width - 10; y: modeCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    indicator: Text { x: modeCombo.width - width - 10; y: modeCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: modeCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                                    contentItem: Text { text: modeCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter }
+                                    contentItem: Text { text: modeCombo.displayText; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter }
                                 }
                             }
                         }
@@ -581,18 +581,18 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "比较符"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "比较符"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 ComboBox {
                                     id: cmpCombo
                                     width: 170
                                     topPadding: 6; bottomPadding: 6
-                                    font.pixelSize: 13; font.family: "monospace"
+                                    font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     textRole: "label"; valueRole: "value"
                                     model: [ {label:"大于 >", value:"gt"}, {label:"小于 <", value:"lt"}, {label:"大于等于 ≥", value:"gte"}, {label:"小于等于 ≤", value:"lte"} ]
-                                    indicator: Text { x: cmpCombo.width - width - 10; y: cmpCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                    indicator: Text { x: cmpCombo.width - width - 10; y: cmpCombo.height / 2 - height / 2; text: "▾"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: cmpCombo.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
-                                    contentItem: Text { text: cmpCombo.displayText; font.pixelSize: 13; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter }
+                                    contentItem: Text { text: cmpCombo.displayText; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"; color: root.themeRoot.colText; leftPadding: 10; rightPadding: 20; verticalAlignment: Text.AlignVCenter }
                                 }
                             }
                         }
@@ -604,16 +604,16 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "阈值数值"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "阈值数值"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 TextField {
-                                    id: valInput; width: 170; font.pixelSize: 13; font.family: "monospace"
+                                    id: valInput; width: 170; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     validator: DoubleValidator { notation: DoubleValidator.StandardNotation }
                                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: valInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                         // 下限（仅 range）
@@ -624,16 +624,16 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "下限"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "下限"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 TextField {
-                                    id: minInput; width: 170; font.pixelSize: 13; font.family: "monospace"
+                                    id: minInput; width: 170; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     validator: DoubleValidator { notation: DoubleValidator.StandardNotation }
                                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: minInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                         // 上限（仅 range）
@@ -644,16 +644,16 @@ Item {
                             Rectangle { Layout.fillWidth: true; height: 1; color: root.themeRoot.colLine; opacity: 0.6 }
                             Row {
                                 Layout.fillWidth: true; topPadding: 7; bottomPadding: 7
-                                Text { text: "上限"; font.pixelSize: 13; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "上限"; font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                                 Item { width: 12; height: 1 }
                                 TextField {
-                                    id: maxInput; width: 170; font.pixelSize: 13; font.family: "monospace"
+                                    id: maxInput; width: 170; font.pixelSize: root.themeRoot.fsBody; font.family: "monospace"
                                     validator: DoubleValidator { notation: DoubleValidator.StandardNotation }
                                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                     background: Rectangle { radius: 8; color: root.themeRoot.colCard; border.width: 1; border.color: maxInput.activeFocus ? root.themeRoot.colPrimary : root.themeRoot.colLine }
                                 }
                                 Item { width: 6; height: 1 }
-                                Text { text: root.curUnit; font.pixelSize: 12; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.curUnit; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
                     }
@@ -672,7 +672,7 @@ Item {
                         color: "transparent"
                         border.width: 1
                         border.color: hov ? root.themeRoot.colPrimary : root.themeRoot.colLine
-                        Text { id: ckCancelLbl; anchors.centerIn: parent; text: "取消"; color: hov ? root.themeRoot.colPrimary : root.themeRoot.colText2; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { id: ckCancelLbl; anchors.centerIn: parent; text: "取消"; color: hov ? root.themeRoot.colPrimary : root.themeRoot.colText2; font.pixelSize: root.themeRoot.fsBody; font.weight: Font.DemiBold }
                         HoverHandler { id: ckCancelMa; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: editDlg.close() }
                     }
@@ -683,7 +683,7 @@ Item {
                         implicitWidth: ckSaveLbl.implicitWidth + 32
                         implicitHeight: ckSaveLbl.implicitHeight + 16
                         color: hov ? Qt.lighter(root.themeRoot.colPrimary, 1.08) : root.themeRoot.colPrimary
-                        Text { id: ckSaveLbl; anchors.centerIn: parent; text: "保存"; color: "white"; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { id: ckSaveLbl; anchors.centerIn: parent; text: "保存"; color: "white"; font.pixelSize: root.themeRoot.fsBody; font.weight: Font.DemiBold }
                         HoverHandler { id: ckSaveMa; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: root.saveEdit() }
                     }

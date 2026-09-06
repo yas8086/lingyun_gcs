@@ -218,28 +218,28 @@ Item {
                             spacing: 28
                             Text {
                                 text: "链路 <b>" + (bridge.isDataLinkOnline() ? "正常" : "断线") + "</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2
                                 textFormat: Text.RichText
                             }
                             Text {
                                 text: "模式 <b>" + (root.fcBanMode() || "—") + "</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
                                 text: "解锁 <b>" + (root.fcBanArmed() ? "是" : "否") + "</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
                                 text: "高度 <b>" + root.fcBanVal("alt",0) + " m</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
                                 text: "速度 <b>" + root.fmt(root.fcGroundSpeed(),1) + " m/s</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
                                 text: "空气囊气压 <b>" + root.presStr(root.airbagPressure()) + "</b>"
-                                font.pixelSize: 14; color: root.themeRoot.colText2; textFormat: Text.RichText
+                                font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                         }
                     }
@@ -319,7 +319,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         RowLayout {
-                            Text { text: "主囊 MPPT"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "主囊 MPPT"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -327,7 +327,7 @@ Item {
                                 border.color: root.devOff("mppt1") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("mppt1"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("mppt1"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("mppt1") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -336,11 +336,11 @@ Item {
                             spacing: 20
                             Column {
                                 Text { text: root.toPower(bridge.value("mppt1","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "光伏功率"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                             Column {
                                 Text { text: root.valStr("mppt1","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "电池电压"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                         }
                         Flow {
@@ -359,10 +359,10 @@ Item {
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text { text: modelData.k; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                         Text {
                                             text: root.mpptStr("mppt1", modelData.fid, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
                                 }
@@ -383,7 +383,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         RowLayout {
-                            Text { text: "副囊 MPPT"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "副囊 MPPT"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -391,7 +391,7 @@ Item {
                                 border.color: root.devOff("mppt2") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("mppt2"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("mppt2"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("mppt2") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -400,11 +400,11 @@ Item {
                             spacing: 20
                             Column {
                                 Text { text: root.toPower(bridge.value("mppt2","pv_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "光伏功率"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "光伏功率"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                             Column {
                                 Text { text: root.valStr("mppt2","batt_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "电池电压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "电池电压"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                         }
                         Flow {
@@ -423,10 +423,10 @@ Item {
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text { text: modelData.k; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                         Text {
                                             text: root.mpptStr("mppt2", modelData.fid, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
                                 }
@@ -449,7 +449,7 @@ Item {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         // 卡头
                         RowLayout {
-                            Text { text: "102S 主电源"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "102S 主电源"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -457,7 +457,7 @@ Item {
                                 border.color: root.devOff("bms") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("bms"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("bms"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("bms") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -500,7 +500,7 @@ Item {
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
                                 Text { text: root.fmtInt(root.socVal()) + "%"; font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "荷电状态 SOC"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "荷电状态 SOC"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                             // hero kvs：总压/总电流
                             Row {
@@ -508,12 +508,12 @@ Item {
                                 spacing: 10
                                 Column {
                                     width: 88; height: 52; spacing: 2
-                                    Text { text: "总压"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                                    Text { text: "总压"; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                     Text { text: root.valStr("bms","pack_v",1," V"); font.pixelSize: 22; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
                                 }
                                 Column {
                                     width: 88; height: 52; spacing: 2
-                                    Text { text: "总电流"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                                    Text { text: "总电流"; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                     Text { text: root.valStr("bms","pack_i",1," A"); font.pixelSize: 22; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText }
                                 }
                             }
@@ -534,10 +534,10 @@ Item {
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text { text: modelData.k; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                         Text {
                                             text: root.valStr("bms", modelData.fid, modelData.fid==="diff_v"?2:1, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
                                 }
@@ -559,7 +559,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 16; spacing: 8
                         RowLayout {
-                            Text { text: "12S 备用电源"; font.bold: true; font.pixelSize: 15; color: root.themeRoot.colText }
+                            Text { text: "12S 备用电源"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -567,7 +567,7 @@ Item {
                                 border.color: root.devOff("backup") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("backup"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("backup"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("backup") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -577,11 +577,11 @@ Item {
                             spacing: 20
                             Column {
                                 Text { text: root.valStr("backup","pack_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "电池总压"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "电池总压"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                             Column {
                                 Text { text: root.fmtInt(root.bkSoc()) + "%"; font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "荷电状态 SOC"; font.pixelSize: 12; color: root.themeRoot.colText2 }
+                                Text { text: "荷电状态 SOC"; font.pixelSize: root.themeRoot.fsSmall; color: root.themeRoot.colText2 }
                             }
                         }
                         // 更多字段
@@ -600,10 +600,10 @@ Item {
                                     width: 108; height: 42; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text { text: modelData.k; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                         Text {
                                             text: root.backupStr(modelData.fid, modelData.u)
-                                            font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
                                 }
@@ -633,7 +633,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 8
                         RowLayout {
-                            Text { text: "DCDC 电源模块"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
+                            Text { text: "DCDC 电源模块"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -641,7 +641,7 @@ Item {
                                 border.color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("dcdc"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("dcdc"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("dcdc") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -650,11 +650,11 @@ Item {
                             spacing: 16
                             Column {
                                 Text { text: root.valStr("dcdc","out_v",1," V"); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "输出电压"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                                Text { text: "输出电压"; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                             }
                             Column {
                                 Text { text: root.toPower(bridge.value("dcdc","out_p")) + root.powerUnit(); font.pixelSize: root.themeRoot.fsDisplay; font.bold: true; color: root.themeRoot.colText }
-                                Text { text: "输出功率"; font.pixelSize: 11; color: root.themeRoot.colText2 }
+                                Text { text: "输出功率"; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                             }
                         }
                         Flow {
@@ -673,10 +673,10 @@ Item {
                                     width: 100; height: 38; radius: 8; color: root.themeRoot.colCard2
                                     Column {
                                         anchors.centerIn: parent
-                                        Text { text: modelData.k; font.pixelSize: 10; color: root.themeRoot.colText2 }
+                                        Text { text: modelData.k; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2 }
                                         Text {
                                             text: root.dcdcStr(modelData.fid, modelData.u)
-                                            font.pixelSize: 14; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                            font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                         }
                                     }
                                 }
@@ -698,7 +698,7 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 8
                         RowLayout {
-                            Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
+                            Text { text: "温度 / 压力采集"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 999; implicitWidth: 40; implicitHeight: 20
@@ -706,7 +706,7 @@ Item {
                                 border.color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.devBadge("lora"); font.pixelSize: 11; font.bold: true
+                                    text: root.devBadge("lora"); font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                     color: root.devOff("lora") ? root.themeRoot.colOff : root.themeRoot.colOk
                                 }
                             }
@@ -733,10 +733,10 @@ Item {
                                         Row {
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             spacing: 5
-                                            Text { text: "#" + modelData.id; font.pixelSize: 10; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
+                                            Text { text: "#" + modelData.id; font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2; font.weight: Font.DemiBold }
                                             Text {
                                                 text: modelData.pressure !== 0 ? "压力" : "温度"
-                                                font.pixelSize: 10; font.weight: Font.DemiBold
+                                                font.pixelSize: root.themeRoot.fsCaption; font.weight: Font.DemiBold
                                                 color: modelData.pressure !== 0 ? root.themeRoot.colOk : root.themeRoot.colPrimary
                                             }
                                         }
@@ -749,20 +749,20 @@ Item {
                                                 text: modelData.pressure !== 0
                                                       ? root.presStr(modelData.pressure)
                                                       : (modelData.hasTemp ? root.toTemp(modelData.temp) + " " + root.tempUnit() : "--")
-                                                font.pixelSize: 15; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
+                                                font.pixelSize: root.themeRoot.fsNum; font.bold: true; font.family: "monospace"; color: root.themeRoot.colText
                                             }
                                             // 压力传感器自带温度检测：同行小字显示（间隔由 Row spacing 控制）
                                             Text {
                                                 visible: modelData.pressure !== 0 && modelData.hasTemp
                                                 text: "温度 " + root.toTemp(modelData.temp) + root.tempUnit()
-                                                font.pixelSize: 11; color: root.themeRoot.colText2
+                                                font.pixelSize: root.themeRoot.fsCaption; color: root.themeRoot.colText2
                                                 anchors.baseline: mainVal.baseline
                                             }
                                         }
                                         Text {
                                             visible: modelData.alarm !== 0
                                             text: modelData.alarm > 0 ? "超上限" : "超下限"
-                                            font.pixelSize: 10; font.bold: true; color: root.themeRoot.colErr
+                                            font.pixelSize: root.themeRoot.fsCaption; font.bold: true; color: root.themeRoot.colErr
                                         }
                                     }
                                 }
@@ -790,7 +790,7 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 6
                     RowLayout {
-                        Text { text: "运行日志"; font.bold: true; font.pixelSize: 14; color: root.themeRoot.colText }
+                        Text { text: "运行日志"; font.bold: true; font.pixelSize: root.themeRoot.fsTitle; color: root.themeRoot.colText }
                         Item { Layout.fillWidth: true }
                         // 筛选
                         Repeater {
@@ -803,7 +803,7 @@ Item {
                                 color: root.logFilter === modelData[0] ? root.themeRoot.colPrimary : root.themeRoot.colCard2
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData[1]; font.pixelSize: 12; font.weight: Font.DemiBold
+                                    text: modelData[1]; font.pixelSize: root.themeRoot.fsSmall; font.weight: Font.DemiBold
                                     color: root.logFilter === modelData[0] ? "white" : root.themeRoot.colText2
                                 }
                                 MouseArea {
@@ -828,7 +828,7 @@ Item {
                                 radius: 7; color: root.themeRoot.colCard2; border.color: (hover_3.hovered ? root.themeRoot.colPrimary : root.themeRoot.colLine)
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
                             }
-                            contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: 12 }
+                            contentItem: Text { text: parent.text; color: root.themeRoot.colText2; font.pixelSize: root.themeRoot.fsSmall }
                             onClicked: { root.themeRoot.logStream = []; bridge.confirmAllAlarms() }
                         }
                     }
@@ -841,15 +841,15 @@ Item {
                         delegate: RowLayout {
                             width: ListView.view ? ListView.view.width : parent.width
                             spacing: 8
-                            Text { text: modelData.time; color: root.themeRoot.colText2; font.pixelSize: 11 }
+                            Text { text: modelData.time; color: root.themeRoot.colText2; font.pixelSize: root.themeRoot.fsCaption }
                             // 类型标签
                             Text {
                                 text: modelData.type === "alarm" ? "[" + modelData.lv + "]" : "[" + modelData.type.toUpperCase() + "]"
-                                font.pixelSize: 11; font.bold: true
+                                font.pixelSize: root.themeRoot.fsCaption; font.bold: true
                                 color: modelData.type === "alarm" ? root.themeRoot.colErr : root.logColor(modelData.type)
                             }
-                            Text { text: modelData.source !== "" ? "[" + modelData.source + "]" : ""; color: root.themeRoot.colText2; font.pixelSize: 11 }
-                            Text { text: modelData.msg; elide: Text.ElideRight; Layout.fillWidth: true; color: root.themeRoot.colText; font.pixelSize: 12 }
+                            Text { text: modelData.source !== "" ? "[" + modelData.source + "]" : ""; color: root.themeRoot.colText2; font.pixelSize: root.themeRoot.fsCaption }
+                            Text { text: modelData.msg; elide: Text.ElideRight; Layout.fillWidth: true; color: root.themeRoot.colText; font.pixelSize: root.themeRoot.fsSmall }
                             // 告警确认按钮（已确认后置灰不可点）
                             Rectangle {
                                 // 按压缩放反馈（对齐原型 :active{scale(.94)}）
@@ -862,7 +862,7 @@ Item {
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.confirmed ? "已确认" : "确认"
-                                    font.pixelSize: 11
+                                    font.pixelSize: root.themeRoot.fsCaption
                                     color: modelData.confirmed ? root.themeRoot.colOff : root.themeRoot.colErr
                                 }
                                 MouseArea {
