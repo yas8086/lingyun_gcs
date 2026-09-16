@@ -11,6 +11,14 @@ namespace lgs {
 RtspStream::RtspStream(QObject *parent)
     : QObject(parent)
 {
+    // 管道操作 worker 线程：GStreamer set_state 在调用线程同步完成 RTSP 握手
+    // （目标离线时最长阻塞 tcp-timeout ≈20s），必须移出 GUI 线程（类注释详述）
+    worker_ = new QThread();
+    workerCtx_ = new QObject(nullptr);   // 空壳锚点：queued lambda 在其所属线程执行
+    workerCtx_->moveToThread(worker_);
+    connect(worker_, &QThread::finished, workerCtx_, &QObject::deleteLater);
+    worker_->start();
+
     // 超时看门狗：1s 巡检；在线后 3s 无帧视为断流；发起拉流后 8s 无首帧视为连接失败
     watchdog_ = new QTimer(this);
     watchdog_->setInterval(1000);
@@ -18,8 +26,10 @@ RtspStream::RtspStream(QObject *parent)
         const qint64 now = gst_util_get_timestamp() / 1000;
         if (online_.load() && lastSampleUs_.load() > 0 && (now - lastSampleUs_.load()) > 3000000)
             scheduleReconnect();
-        else if (started_.load() && !online_.load() && startUs_.load() > 0 && (now - startUs_.load()) > 8000000)
+        else if (started_.load() && !online_.load() && !busy_ && startUs_.load() > 0
+                 && (now - startUs_.load()) > 8000000)
             scheduleReconnect();   // 连接被拒/并发路数占满等场景（bus 会先报错，此为兜底）
+        // busy_ 期间不判超时：worker 正在建管道（握手可达 20s），8s 判定只对"已放弃建管"有效
     });
     watchdog_->start();
 
@@ -34,6 +44,16 @@ RtspStream::RtspStream(QObject *parent)
 
 RtspStream::~RtspStream()
 {
+    // 先停重连/看门狗（GUI 定时器），再关 worker：quit 后挂起的 queued 命令被丢弃，
+    // wait 会等正在执行的 doStart/doStop 完成（最长一次握手 ~20s，仅发生在退出时刻）
+    reconnect_->stop();
+    watchdog_->stop();
+    if (worker_) {
+        worker_->quit();
+        worker_->wait(25000);   // 覆盖单次最长握手，避免析构竞态
+    }
+    // worker 已停止：若队列中未执行的命令遗留了管道（或 wait 超时），此处兜底清理。
+    // 此时无其他线程触碰 pipeline_，同步 teardown 安全
     teardown();
 }
 
@@ -41,10 +61,18 @@ QString RtspStream::url() const { return url_; }
 
 void RtspStream::setUrl(const QString &u)
 {
-    if (url_ == u) return;
-    url_ = u;
+    {
+        QMutexLocker lock(&urlMutex_);
+        if (url_ == u) return;
+        url_ = u;
+    }
     qWarning() << "[RtspStream] setUrl:" << u;
     emit urlChanged();
+    // 已在拉流的管道不会应用新地址：rtspsrc 的 location 只在建管道时读取，
+    // 运行中改 URL 字符串对现行管道无效（此前表现为"改 IP 后画面不变，切页重进才生效"）。
+    // 地址变更时投递 worker 以新 URL 重建管道（doStart 内 teardown 幂等，等效 stop+start）
+    if (started_.load())
+        start();
 }
 
 bool RtspStream::online() const { return online_.load(); }
@@ -68,15 +96,39 @@ QImage RtspStream::lastFrame() const
 
 void RtspStream::start()
 {
-    if (busy_) return;
-    if (url_.isEmpty()) {
+    if (busy_) return;   // 已有建管任务在队列/执行中
+    QString snapshot;
+    {
+        QMutexLocker lock(&urlMutex_);
+        snapshot = url_;
+    }
+    if (snapshot.isEmpty()) {
         setOnline(false);
         return;
     }
-    teardown();
+    // GUI 线程只置标志（UI 即时显示"连接中"），管道构建/握手全部在 worker 串行执行
     busy_ = true;
     emit busyChanged();
-    qWarning() << "[RtspStream] start, url =" << url_;
+    setStarted(true);
+    startUs_.store(gst_util_get_timestamp() / 1000);
+    lastSampleUs_.store(0);
+    QMetaObject::invokeMethod(workerCtx_, [this]() { doStart(); }, Qt::QueuedConnection);
+}
+
+// worker 线程执行：拆旧管道 → 建新管道 → 同步握手（阻塞发生在 worker，GUI 无感）
+void RtspStream::doStart()
+{
+    teardown();
+    QString u;
+    {
+        QMutexLocker lock(&urlMutex_);
+        u = url_;
+    }
+    if (u.isEmpty()) {
+        QMetaObject::invokeMethod(this, [this]() { finishStart(false); }, Qt::QueuedConnection);
+        return;
+    }
+    qWarning() << "[RtspStream] start, url =" << u;
 
     // 程序化构建管道：rtspsrc → decodebin → videoconvert → RGBA → appsink
     // 改用 g_object_set 直接设置 location：gst_parse_launch 对 URL 特殊字符
@@ -96,19 +148,19 @@ void RtspStream::start()
         if (conv) gst_object_unref(conv);
         if (flt) gst_object_unref(flt);
         if (sink) gst_object_unref(sink);
-        busy_ = false;
-        emit busyChanged();
-        setOnline(false);
-        setStarted(false);
-        scheduleReconnect();
+        setLastError(QStringLiteral("GStreamer 元素创建失败（缺少插件）"));
+        QMetaObject::invokeMethod(this, [this]() { finishStart(false); }, Qt::QueuedConnection);
         return;
     }
 
     // protocols: 4 == GST_RTSP_LOWER_TRANS_TCP（仅 RTSP over TCP interleaved）
+    // tcp-timeout/timeout 缩短到 5s：对离线 IP 的连接失败判定更快（默认 20s 太拖）
     g_object_set(src,
-                 "location", url_.toUtf8().constData(),
+                 "location", u.toUtf8().constData(),
                  "protocols", static_cast<guint>(4),
                  "latency", static_cast<guint>(200),
+                 "tcp-timeout", static_cast<gint>(5000000),
+                 "timeout", static_cast<gint>(5000000),
                  nullptr);
 
     GstCaps *caps = gst_caps_new_simple("video/x-raw",
@@ -130,11 +182,8 @@ void RtspStream::start()
         gst_element_set_state(pipeline_, GST_STATE_NULL);
         gst_object_unref(pipeline_);
         pipeline_ = nullptr;
-        busy_ = false;
-        emit busyChanged();
-        setOnline(false);
-        setStarted(false);
-        scheduleReconnect();
+        setLastError(QStringLiteral("GStreamer 管道静态链接失败"));
+        QMetaObject::invokeMethod(this, [this]() { finishStart(false); }, Qt::QueuedConnection);
         return;
     }
 
@@ -153,32 +202,53 @@ void RtspStream::start()
         gst_object_unref(bus);
     }
 
+    // 同步握手（TCP 连接 + DESCRIBE/SETUP/PLAY）：目标离线时在此阻塞至 tcp-timeout，
+    // 阻塞发生在 worker 线程，GUI 不受影响
     const GstStateChangeReturn ret = gst_element_set_state(pipeline_, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        qWarning() << "[RtspStream] 启动失败:" << url_;
+        qWarning() << "[RtspStream] 启动失败:" << u;
         teardown();
-        busy_ = false;
-        emit busyChanged();
-        setOnline(false);
-        setStarted(false);
-        scheduleReconnect();
+        QMetaObject::invokeMethod(this, [this]() { finishStart(false); }, Qt::QueuedConnection);
         return;
     }
 
-    setStarted(true);
-    startUs_.store(gst_util_get_timestamp() / 1000);
+    QMetaObject::invokeMethod(this, [this]() { finishStart(true); }, Qt::QueuedConnection);
+}
+
+// GUI 线程：按 doStart 结果更新 UI 标志（busy 复位/在线态/退避重连）
+// 注意：ok=true 只表示 set_state 受理（rtspsrc 对不可达地址也返回 ASYNC），
+// **不置 online**——online 由 onSample 首帧驱动（LIVE = 有真实视频帧），
+// 否则离线 IP 会经历"假 LIVE → 20s 后 error → OFFLINE"的循环（真机已复现）
+void RtspStream::finishStart(bool ok)
+{
     busy_ = false;
     emit busyChanged();
-    reconnectAttempt_ = 0;
-    lastSampleUs_.store(0);
+    setStarted(ok);
+    if (ok) {
+        lastSampleUs_.store(0);
+        startUs_.store(gst_util_get_timestamp() / 1000);
+        reconnectAttempt_ = 0;
+    } else {
+        setOnline(false);
+        scheduleReconnect();
+    }
 }
 
 void RtspStream::stop()
 {
     reconnect_->stop();
-    teardown();
+    // GUI 线程即时置离线（UI 秒变），管道拆除投递 worker 串行执行
+    busy_ = false;
+    emit busyChanged();
     setOnline(false);
     setStarted(false);
+    QMetaObject::invokeMethod(workerCtx_, [this]() { doStop(); }, Qt::QueuedConnection);
+}
+
+// worker 线程执行：同步拆除管道（set_state NULL 等待 streaming 线程退出，可能短暂阻塞）
+void RtspStream::doStop()
+{
+    teardown();
 }
 
 void RtspStream::reconnect()
