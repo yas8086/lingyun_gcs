@@ -87,6 +87,31 @@ Item {
         }
         return NaN
     }
+    // 空气囊气压（4 囊汇总）：全部压力节点按节点 id 升序排列，最多取 4 个（4 个气囊各一个压力传感器），
+    // 数值按设置页压力单位换算，单位后缀只出现一次（"66 / 162 / 39 / 20 Pa"）；无压力节点显示 "--"
+    function airbagPressureText() {
+        void root.osdTick; void root.themeRoot.dataTick
+        const nodes = root.loraNodes()
+        var bags = []
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].pressure !== 0 && !isNaN(nodes[i].pressure))
+                bags.push(nodes[i])
+        }
+        if (!bags.length) return "--"
+        bags.sort(function(a, b) { return a.id - b.id })
+        var unit = "Pa"
+        var vals = []
+        for (var j = 0; j < bags.length && j < 4; j++) {
+            const pa = bags[j].pressure
+            switch (bridge.configPressureUnit()) {
+                case 1: vals.push(String(Math.round(pa))); break
+                case 2: unit = "bar"; vals.push((pa / 100000).toFixed(3)); break
+                case 3: unit = "psi"; vals.push((pa / 6894.7573).toFixed(1)); break
+                default: unit = "kPa"; vals.push((pa / 1000).toFixed(1))
+            }
+        }
+        return vals.join(" / ") + " " + unit
+    }
     // 飞控横幅数据（带 dataTick 依赖）
     function fcBanVal(key, dp) {
         void root.osdTick; void root.themeRoot.dataTick
@@ -238,7 +263,7 @@ Item {
                                 font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                             Text {
-                                text: "空气囊气压 <b>" + root.presStr(root.airbagPressure()) + "</b>"
+                                text: "空气囊气压 <b>" + root.airbagPressureText() + "</b>"
                                 font.pixelSize: root.themeRoot.fsBody; color: root.themeRoot.colText2; textFormat: Text.RichText
                             }
                         }
