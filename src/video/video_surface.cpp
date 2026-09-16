@@ -30,6 +30,17 @@ void VideoSurface::setStream(RtspStream *s)
     update();
 }
 
+bool VideoSurface::flip180() const { return flip180_; }
+
+void VideoSurface::setFlip180(bool f)
+{
+    if (flip180_ == f)
+        return;
+    flip180_ = f;
+    emit flip180Changed();
+    update();
+}
+
 void VideoSurface::paint(QPainter *painter)
 {
     if (!stream_ || !painter)
@@ -47,8 +58,18 @@ void VideoSurface::paint(QPainter *painter)
     const qreal scale = qMin(r.width() / img.width(), r.height() / img.height());
     const qreal w = img.width() * scale;
     const qreal h = img.height() * scale;
-    const QRectF target(r.x() + (r.width() - w) / 2, r.y() + (r.height() - h) / 2, w, h);
+    QRectF target(r.x() + (r.width() - w) / 2, r.y() + (r.height() - h) / 2, w, h);
+    // 画面旋转 180°（倒装相机，如思翼 FPV A）：绕视口中心旋转后矩形不变，
+    // OSD 等 QML 叠加层在 surface 之上不受影响
+    if (flip180_) {
+        painter->save();
+        painter->translate(r.center());
+        painter->rotate(180);
+        painter->translate(-r.center());
+    }
     painter->drawImage(target, img);
+    if (flip180_)
+        painter->restore();
 }
 
 } // namespace lgs

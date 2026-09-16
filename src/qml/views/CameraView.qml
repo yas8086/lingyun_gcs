@@ -322,6 +322,19 @@ Item {
     function camIdxOf(id) {
         return root.camIdxIn(root.camCfg, id)
     }
+    // 画面 180° 翻转（倒装相机如思翼 FPV A）：按相机 id 读取/切换，配置即时持久化
+    function camFlipOf(id) {
+        const i = root.camIdxOf(id)
+        return i >= 0 && root.camCfg[i].flip180 === true
+    }
+    function toggleCamFlip(id) {
+        const i = root.camIdxOf(id)
+        if (i < 0) return
+        var arr = root.camCfg.slice()
+        arr[i] = Object.assign({}, arr[i], { flip180: !(arr[i].flip180 === true) })
+        root.camCfg = arr
+        bridge.saveCameraConfigs(root.camCfg)   // 与拉流设置同一持久化通道
+    }
     // 判断某相机是否为思翼云台相机（gimbal=siyi）。
     // 注意：不再依赖 gimbalCamIp——思翼 SDK 是单例只服务会话主 IP（gimbalCamIp），
     // 若多台相机配成 siyi，非会话主的那台必然控制无效（多为云卓误配思翼），
@@ -875,6 +888,7 @@ Item {
                                     id: vidSurf
                                     anchors.fill: parent
                                     stream: viewItem.live ? bridge.videoStream(modelData.id) : null
+                                    flip180: root.camFlipOf(modelData.id)
                                 }
                                 // 圆角遮罩源：maskSource 必须是 layer.enabled 的纹理源，
                                 // visible:false 不参与场景渲染（Qt 官方 MultiEffect 掩码结构）
@@ -975,6 +989,41 @@ Item {
                                     }
                                 }
                             }
+                            // 画面 180° 翻转按钮（右上角，黑底白字与 cam-tag 同款；倒装相机如思翼 FPV A 用）
+                            // 点击切换该路视频绘制方向，按相机持久化（saveCameraConfigs）；OSD 叠加不随转
+                            Rectangle {
+                                id: flipBtn
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 10
+                                height: 24
+                                implicitWidth: flipRow.implicitWidth + 18
+                                radius: 6
+                                readonly property bool hov: flipMa.containsMouse
+                                color: root.camFlipOf(modelData.id) ? "#2563eb"
+                                     : (hov ? Qt.rgba(0,0,0,0.6) : Qt.rgba(0,0,0,0.45))
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Row {
+                                    id: flipRow
+                                    anchors.centerIn: parent
+                                    spacing: 5
+                                    Text {
+                                        text: "⇅"
+                                        font.pixelSize: 12; font.weight: Font.Bold; color: "#ffffff"
+                                    }
+                                    Text {
+                                        text: "180°"
+                                        font.pixelSize: 11; font.weight: Font.Bold; font.family: "monospace"; color: "#ffffff"
+                                    }
+                                }
+                                MouseArea {
+                                    id: flipMa
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    anchors.fill: parent
+                                    onClicked: root.toggleCamFlip(modelData.id)
+                                }
+                            }
 
                             // ===== 云台控制盘（.ptz-panel：焦点格左下角悬浮，可折叠）=====
                             // 对齐原型：头部"云台 · 相机名"+折叠钮；3×3 方向键（8向+红色停止）+ 变倍列；
@@ -989,7 +1038,7 @@ Item {
                                 color: Qt.rgba(8/255, 14/255, 26/255, 0.74)
                                 border.color: Qt.rgba(1, 1, 1, 0.14)
                                 border.width: 1
-                                implicitWidth: 172
+                                implicitWidth: Math.max(124, ptzBodyRow.implicitWidth)   // 随内容自适应（云卓 3×3+变倍列 ≈172；思翼纵列+回中角度 ≈116）
                                 implicitHeight: root.ptzFolded ? 26 : ptzBodyCol.implicitHeight + 26
                                 // 思翼 A2 mini 自定义回中俯仰角（度，-90~+25；0=固定默认回中）
                                 property real siyiCenterPitch: 0
@@ -1104,14 +1153,16 @@ Item {
                                     // 注意：Row 是 positioner，子项不能用 anchors（会导致布局错乱）。
                                     // 变倍列 Column 移除 anchors.verticalCenter，用 implicitHeight 自然参与 Row 布局。
                                     Row {
+                                        id: ptzBodyRow
                                         visible: !root.ptzFolded
                                         leftPadding: 8; rightPadding: 8
                                         topPadding: 8; bottomPadding: 8
                                         spacing: 8
 
                                         // 3×3 方向键（.ptz-dir：28×28 格，gap 3）
+                                        // 思翼仅俯仰轴时隐藏左右/斜角键，剩 上/回中/下 纵向一列（columns 联动为 1）
                                         Grid {
-                                            columns: 3
+                                            columns: root.isGimbalCam(modelData.id) ? 1 : 3
                                             spacing: 3
                                             // 按钮组件：方向键按住连续触发（260ms）松手停止；回中为点击触发
                                             component PtzBtn: Rectangle {
@@ -1151,15 +1202,17 @@ Item {
                                                     }
                                                 }
                                             }
-                                            PtzBtn { glyph: "◤"; mvYaw: -40; mvPitch: 40 }    // 左上
+                                            // 思翼 A2 mini 仅俯仰轴：只显示 上/回中/下（Grid 自动重排为纵列）；
+                                            // 左右与斜角按钮仅云卓 C14PRO（双轴）显示
+                                            PtzBtn { glyph: "◤"; mvYaw: -40; mvPitch: 40; visible: !root.isGimbalCam(modelData.id) }    // 左上
                                             PtzBtn { glyph: "▲"; mvYaw: 0;   mvPitch: 40 }    // 上（俯仰+）
-                                            PtzBtn { glyph: "◥"; mvYaw: 40;  mvPitch: 40 }    // 右上
-                                            PtzBtn { glyph: "◀"; mvYaw: -40; mvPitch: 0 }     // 左
+                                            PtzBtn { glyph: "◥"; mvYaw: 40;  mvPitch: 40; visible: !root.isGimbalCam(modelData.id) }    // 右上
+                                            PtzBtn { glyph: "◀"; mvYaw: -40; mvPitch: 0; visible: !root.isGimbalCam(modelData.id) }     // 左
                                             PtzBtn { glyph: "◎"; isCenter: true }             // 回中（点击触发）
-                                            PtzBtn { glyph: "▶"; mvYaw: 40;  mvPitch: 0 }     // 右
-                                            PtzBtn { glyph: "◣"; mvYaw: -40; mvPitch: -40 }   // 左下
-                                            PtzBtn { glyph: "▼"; mvYaw: 0;   mvPitch: -40 }   // 下（俯仰-）
-                                            PtzBtn { glyph: "◢"; mvYaw: 40;  mvPitch: -40 }   // 右下
+                                            PtzBtn { glyph: "▶"; mvYaw: 40;  mvPitch: 0; visible: !root.isGimbalCam(modelData.id) }     // 右
+                                            PtzBtn { glyph: "◣"; mvYaw: -40; mvPitch: -40; visible: !root.isGimbalCam(modelData.id) }   // 左下
+                                            PtzBtn { glyph: "▼"; mvYaw: 0;   mvPitch: -40 }    // 下（俯仰-）
+                                            PtzBtn { glyph: "◢"; mvYaw: 40;  mvPitch: -40; visible: !root.isGimbalCam(modelData.id) }   // 右下
                                         }
 
                                         // 变倍列（.ptz-zoom）：仅云卓 C14PRO 显示（变焦＋/－/倍率）；思翼 A2 mini 无变焦功能不显示
@@ -1258,16 +1311,19 @@ Item {
                                             }
                                         }
                                         // 回中角度列（仅思翼 A2 mini：0x0E 设俯仰角，自定义回中俯仰角）。
-                                        // 三排：标签"回中角度"→ 0°/+10° → +25°/-45°。点击即设 siyiCenterPitch 并立即执行
+                                        // 三排：标签"回中角度"→ 0°/+10° → +25°/-45°。点击即设 siyiCenterPitch 并立即执行。
+                                        // 按钮统一 28×28 与方向键一致；Column 是 Row 子项禁 anchors，靠 implicitHeight 自然布局
                                         Column {
                                             visible: root.isGimbalCam(modelData.id)
                                             spacing: 3
-                                            anchors.verticalCenter: parent.verticalCenter
                                             // 第一排：标签（不可点击）
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: "回中角度"
-                                                color: "#8aa0bf"; font.pixelSize: 9
+                                            Item {
+                                                width: 63; height: 14
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "回中角度"
+                                                    color: "#8aa0bf"; font.pixelSize: 9
+                                                }
                                             }
                                             // 第二排：0° +10°
                                             Row {
@@ -1276,7 +1332,7 @@ Item {
                                                     model: [0, 10]
                                                     Rectangle {
                                                         property bool sel: ptzPanel.siyiCenterPitch === modelData
-                                                        width: 30; height: 22; radius: 4
+                                                        width: 30; height: 28; radius: 6
                                                         color: presMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
                                                         border.width: 1
                                                         border.color: sel ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.16)
@@ -1284,7 +1340,7 @@ Item {
                                                             anchors.centerIn: parent
                                                             text: modelData === 0 ? "0°" : "+" + modelData + "°"
                                                             color: sel ? "#ffffff" : "#dbe6ff"
-                                                            font.pixelSize: 9; font.weight: sel ? Font.Bold : Font.Normal
+                                                            font.pixelSize: 10; font.weight: sel ? Font.Bold : Font.Normal
                                                         }
                                                         ToolTip.visible: presMa.containsMouse
                                                         ToolTip.text: modelData === 0 ? "默认回中（俯仰 0°）" : ("回中俯仰角 +" + modelData + "°")
@@ -1321,7 +1377,7 @@ Item {
                                                     model: [25, -45]
                                                     Rectangle {
                                                         property bool sel: ptzPanel.siyiCenterPitch === modelData
-                                                        width: 30; height: 22; radius: 4
+                                                        width: 30; height: 28; radius: 6
                                                         color: presMa2.pressed ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.07)
                                                         border.width: 1
                                                         border.color: sel ? root.themeRoot.colPrimary : Qt.rgba(1,1,1,0.16)
@@ -1329,7 +1385,7 @@ Item {
                                                             anchors.centerIn: parent
                                                             text: (modelData > 0 ? "+" : "") + modelData + "°"
                                                             color: sel ? "#ffffff" : "#dbe6ff"
-                                                            font.pixelSize: 9; font.weight: sel ? Font.Bold : Font.Normal
+                                                            font.pixelSize: 10; font.weight: sel ? Font.Bold : Font.Normal
                                                         }
                                                         ToolTip.visible: presMa2.containsMouse
                                                         ToolTip.text: "回中俯仰角 " + (modelData > 0 ? "+" : "") + modelData + "°"
@@ -1523,53 +1579,8 @@ Item {
                                 }
                             }
 
-                            // 悬浮控制（.cam-ov 右上角，hover 才显示：放大 + 截图）
-                            Row {
-                                anchors.top: parent.top
-                                anchors.right: parent.right
-                                anchors.margins: 10
-                                spacing: 5
-                                opacity: viewHover.containsMouse ? 1.0 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: 150 } }
-                                Rectangle {
-                                    width: 26; height: 26; radius: 6
-                                    color: ovShotMa.pressed ? root.themeRoot.colPrimary : Qt.rgba(0,0,0,0.5)
-                                    Text { anchors.centerIn: parent; text: "📷"; color: "#ffffff"; font.pixelSize: 12 }
-                                    MouseArea {
-                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        id: ovShotMa
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            // 双路保存：云卓 C14PRO → 相机本地拍照（存 TF 卡，原始分辨率）+ 本机截屏
-                                            // 仅警告不拦截：设备未确认也照常触发相机拍照（不因探测误判阻断真设备）
-                                            var isSky = root.isSkyCam(modelData.id)
-                                            var skyOk = root.skyCamReady(modelData.id)
-                                            if (isSky) {
-                                                bridge.skyGimbalShot(modelData.ip)
-                                                if (!skyOk)
-                                                    root.toast("已发送拍照指令（⚠ 未检测到云卓设备，请检查云台类型配置）", "warn")
-                                            }
-                                            if (!(vidSurf.stream && vidSurf.stream.online)) {
-                                                if (isSky) root.toast("已触发 " + modelData.name + " 相机拍照（存 TF 卡）；无画面流，未存 PC 截图", "info")
-                                                else root.toast("该相机无画面，截图失败", "err")
-                                                return
-                                            }
-                                            var dir = bridge.cameraDir()
-                                            var name = "snapshot_" + modelData.name + "_" + Date.now() + ".png"
-                                            // grabToImage().saveToFile 接收本地路径；file:// 前缀在含
-                                            // 中文/空格的路径下会保存失败（QImage 会把它当相对文件名）
-                                            viewItem.grabToImage(function(result) {
-                                                if (result.saveToFile(dir + "/" + name))
-                                                    root.toast(isSky
-                                                               ? ("已触发相机拍照（存 TF 卡）+ 本机截图 " + name)
-                                                               : ("已保存截图 " + name))
-                                                else
-                                                    root.toast(isSky ? "相机拍照已触发（存 TF 卡），但本机截图保存失败" : "截图保存失败")
-                                            })
-                                        }
-                                    }
-                                }
-                            }
+                            // 悬浮截图按钮已移除：与右上角翻转按钮位置重叠，且底部控制条
+                            // "📷 截图"已覆盖全部选中相机的截图/云卓 TF 拍照功能
                         }
                     }
                 }
