@@ -268,7 +268,11 @@ void AlarmEngine::evalRules(const lgs::TelemetryData &data) {
 
 void AlarmEngine::scanOffline() {
     const qint64 now = clock_.elapsed();
-    const QStringList ids = {"bms", "backup", "mppt1", "mppt2", "dcdc", "lora"};
+    // lora 单独放宽到 10s：LoRa 是低频无线采集（集中器轮询周期长），
+    // 3s 阈值下机载单轮查询失败/组帧抖动即误报"设备离线"（真机复现）；
+    // 其余有线设备 3s 仍合理
+    const int loraTimeout = qMax(offlineTimeoutMs_, 10000);
+    const QStringList ids = {"bms", "backup", "mppt1", "mppt2", "dcdc"};
     for (const auto &id : ids) {
         if (lastSeen_.contains(id) && now - lastSeen_[id] >= offlineTimeoutMs_) {
             const QString offId = "offline:" + id;
@@ -283,6 +287,21 @@ void AlarmEngine::scanOffline() {
                 playSound();
                 emit alarmTriggered(e);
             }
+        }
+    }
+    // lora 独立判定（10s 阈值，见上注释）
+    if (lastSeen_.contains("lora") && now - lastSeen_["lora"] >= loraTimeout) {
+        const QString offId = "offline:lora";
+        if (!alarmActive_.value(offId, false)) {
+            alarmActive_[offId] = true;
+            AlarmEvent e;
+            e.id = offId;
+            e.level = AlarmEvent::Warn;
+            e.kind = AlarmEvent::Offline;
+            e.source = "链路";
+            e.message = deviceLabel("lora") + " 设备离线";
+            playSound();
+            emit alarmTriggered(e);
         }
     }
 }
