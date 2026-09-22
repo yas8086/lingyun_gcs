@@ -87,30 +87,35 @@ Item {
         }
         return NaN
     }
-    // 空气囊气压（4 囊汇总）：全部压力节点按节点 id 升序排列，最多取 4 个（4 个气囊各一个压力传感器），
-    // 数值按设置页压力单位换算，单位后缀只出现一次（"66 / 162 / 39 / 20 Pa"）；无压力节点显示 "--"
+    // 空气囊气压（4 囊汇总）：按物理位置顺序 左副→左主→右主→右副 显示，
+    // 压力节点 id 与囊的固定映射（用户配置确认）：#14=左副 #13=左主 #15=右主 #6=右副。
+    // 用 id 映射而非排序位置——某个传感器离线时对应囊显示 "--"，其余不错位。
+    // 数值按设置页压力单位换算，单位后缀只出现一次；无任何压力节点显示 "--"
     function airbagPressureText() {
         void root.osdTick; void root.themeRoot.dataTick
+        const bagMap = [ { id: 14, name: "左副" }, { id: 13, name: "左主" },
+                         { id: 15, name: "右主" }, { id: 6, name: "右副" } ]
         const nodes = root.loraNodes()
-        var bags = []
-        for (var i = 0; i < nodes.length; i++) {
-            if (nodes[i].pressure !== 0 && !isNaN(nodes[i].pressure))
-                bags.push(nodes[i])
-        }
-        if (!bags.length) return "--"
-        bags.sort(function(a, b) { return a.id - b.id })
         var unit = "Pa"
-        var vals = []
-        for (var j = 0; j < bags.length && j < 4; j++) {
-            const pa = bags[j].pressure
+        var any = false, parts = []
+        for (var b = 0; b < bagMap.length; b++) {
+            var pa = NaN
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].id === bagMap[b].id
+                        && nodes[i].pressure !== 0 && !isNaN(nodes[i].pressure)) {
+                    pa = nodes[i].pressure
+                    break
+                }
+            }
+            if (!isNaN(pa)) any = true
             switch (bridge.configPressureUnit()) {
-                case 1: vals.push(String(Math.round(pa))); break
-                case 2: unit = "bar"; vals.push((pa / 100000).toFixed(3)); break
-                case 3: unit = "psi"; vals.push((pa / 6894.7573).toFixed(1)); break
-                default: unit = "kPa"; vals.push((pa / 1000).toFixed(1))
+                case 1: parts.push(bagMap[b].name + " " + (isNaN(pa) ? "--" : String(Math.round(pa)))); break
+                case 2: unit = "bar"; parts.push(bagMap[b].name + " " + (isNaN(pa) ? "--" : (pa / 100000).toFixed(3))); break
+                case 3: unit = "psi"; parts.push(bagMap[b].name + " " + (isNaN(pa) ? "--" : (pa / 6894.7573).toFixed(1))); break
+                default: unit = "kPa"; parts.push(bagMap[b].name + " " + (isNaN(pa) ? "--" : (pa / 1000).toFixed(1)))
             }
         }
-        return vals.join(" / ") + " " + unit
+        return any ? parts.join(" · ") + " " + unit : "--"
     }
     // 飞控横幅数据（带 dataTick 依赖）
     function fcBanVal(key, dp) {
