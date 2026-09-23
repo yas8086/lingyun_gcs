@@ -88,13 +88,13 @@ Item {
         return NaN
     }
     // 空气囊气压（4 囊汇总）：按物理位置顺序 左副→左主→右主→右副 显示，
-    // 压力节点 id 与囊的固定映射（用户配置确认）：#14=左副 #13=左主 #15=右主 #6=右副。
+    // 压力节点 id 与囊的固定映射（2026-09-23 用户最终确认）：#13=左副 #6=左主 #15=右主 #14=右副。
     // 用 id 映射而非排序位置——某个传感器离线时对应囊显示 "--"，其余不错位。
     // 数值按设置页压力单位换算，单位后缀只出现一次；无任何压力节点显示 "--"
     function airbagPressureText() {
         void root.osdTick; void root.themeRoot.dataTick
-        const bagMap = [ { id: 14, name: "左副" }, { id: 13, name: "左主" },
-                         { id: 15, name: "右主" }, { id: 6, name: "右副" } ]
+        const bagMap = [ { id: 13, name: "左副" }, { id: 6, name: "左主" },
+                         { id: 15, name: "右主" }, { id: 14, name: "右副" } ]
         const nodes = root.loraNodes()
         var unit = "Pa"
         var any = false, parts = []
